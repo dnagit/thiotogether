@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Overwritten at runtime from CMS theme settings. */
+  --color-primary: #2563eb;
+  --color-primary-rgb: 37 99 235;
+  --color-secondary: #0d9488;
+  --color-secondary-rgb: 13 148 136;
+  --font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-family);
+  @apply text-gray-800 antialiased;
+}
+
+/* Rendered rich-text content */
+.prose-cms h1 { @apply text-3xl font-bold mb-4; }
+.prose-cms h2 { @apply text-2xl font-bold mb-3 mt-6; }
+.prose-cms h3 { @apply text-xl font-semibold mb-2 mt-4; }
+.prose-cms p { @apply mb-4 leading-relaxed; }
+.prose-cms a { color: var(--color-primary); text-decoration: underline; }
+.prose-cms ul { @apply list-disc pl-6 mb-4; }
+.prose-cms ol { @apply list-decimal pl-6 mb-4; }
+.prose-cms img { @apply rounded-lg my-4; }
+
+.btn-primary {
+  background: var(--color-primary);
+  @apply inline-block text-white font-semibold px-6 py-3 rounded-lg transition hover:opacity-90;
+}
+.container-site {
+  @apply mx-auto max-w-6xl px-4;
+}

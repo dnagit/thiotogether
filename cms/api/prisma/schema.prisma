@@ -1,0 +1,543 @@
+// CMS Platform — normalized MySQL schema.
+// Conventions: every table has id / created_at / updated_at / deleted_at (soft delete).
+// JSON columns hold open-shaped data (block props, form field options, OCR raw results).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Auth & RBAC ───────────────────────────
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(190)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  name         String    @db.VarChar(120)
+  avatarUrl    String?   @map("avatar_url") @db.VarChar(500)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  roleId Int  @map("role_id")
+  role   Role @relation(fields: [roleId], references: [id])
+
+  refreshTokens       RefreshToken[]
+  passwordResets      PasswordReset[]
+  media               Media[]
+  auditLogs           AuditLog[]
+  verifiedDonations   Donation[]     @relation("DonationVerifier")
+  donationLogs        DonationLog[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([roleId])
+  @@map("users")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(60)
+  displayName String  @map("display_name") @db.VarChar(120)
+  description String? @db.VarChar(255)
+  isSystem    Boolean @default(false) @map("is_system")
+
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int    @id @default(autoincrement())
+  name        String @unique @db.VarChar(100)
+  description String? @db.VarChar(255)
+
+  roles RolePermission[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  ip        String?  @db.VarChar(64)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PasswordReset {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("password_resets")
+}
+
+// ─────────────────────────── Content ───────────────────────────
+
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Page {
+  id       Int    @id @default(autoincrement())
+  title    String @db.VarChar(255)
+  slug     String @db.VarChar(255)
+  // Materialized full URL path, unique among live pages; recomputed for the
+  // whole subtree whenever slug or parent changes.
+  path     String @db.VarChar(1000)
+  parentId Int?   @map("parent_id")
+  parent   Page?  @relation("PageTree", fields: [parentId], references: [id])
+  children Page[] @relation("PageTree")
+
+  featuredImage String? @map("featured_image") @db.VarChar(500)
+  bannerImage   String? @map("banner_image") @db.VarChar(500)
+
+  status      PublishStatus @default(DRAFT)
+  publishedAt DateTime?     @map("published_at")
+  sortOrder   Int           @default(0) @map("sort_order")
+  isHome      Boolean       @default(false) @map("is_home")
+
+  // SEO
+  metaTitle       String? @map("meta_title") @db.VarChar(255)
+  metaDescription String? @map("meta_description") @db.VarChar(500)
+  canonicalUrl    String? @map("canonical_url") @db.VarChar(500)
+  ogTitle         String? @map("og_title") @db.VarChar(255)
+  ogDescription   String? @map("og_description") @db.VarChar(500)
+  ogImage         String? @map("og_image") @db.VarChar(500)
+  twitterCard     String? @map("twitter_card") @db.VarChar(40)
+  jsonLd          Json?   @map("json_ld")
+  noIndex         Boolean @default(false) @map("no_index")
+
+  blocks    PageBlock[]
+  menuItems MenuItem[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([parentId])
+  @@index([status])
+  @@index([path(length: 255)])
+  @@map("pages")
+}
+
+model PageBlock {
+  id     Int  @id @default(autoincrement())
+  pageId Int  @map("page_id")
+  page   Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  type      String @db.VarChar(80)
+  props     Json
+  styles    Json
+  settings  Json
+  sortOrder Int    @default(0) @map("sort_order")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([pageId, sortOrder])
+  @@map("page_blocks")
+}
+
+model Menu {
+  id       Int     @id @default(autoincrement())
+  name     String  @db.VarChar(120)
+  location String  @unique @db.VarChar(80)
+  isActive Boolean @default(true) @map("is_active")
+
+  items MenuItem[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("menus")
+}
+
+enum MenuItemType {
+  PAGE
+  EXTERNAL
+  CATEGORY
+  ANCHOR
+  CUSTOM
+}
+
+model MenuItem {
+  id       Int   @id @default(autoincrement())
+  menuId   Int   @map("menu_id")
+  menu     Menu  @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  parentId Int?  @map("parent_id")
+  parent   MenuItem?  @relation("MenuItemTree", fields: [parentId], references: [id])
+  children MenuItem[] @relation("MenuItemTree")
+
+  label  String       @db.VarChar(120)
+  icon   String?      @db.VarChar(80)
+  type   MenuItemType @default(PAGE)
+  pageId Int?         @map("page_id")
+  page   Page?        @relation(fields: [pageId], references: [id])
+  url    String?      @db.VarChar(500)
+  target String       @default("_self") @db.VarChar(10)
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([menuId])
+  @@index([parentId])
+  @@map("menu_items")
+}
+
+// ─────────────────────────── Forms ───────────────────────────
+
+model Form {
+  id             Int     @id @default(autoincrement())
+  name           String  @db.VarChar(150)
+  slug           String  @unique @db.VarChar(150)
+  description    String? @db.VarChar(500)
+  submitLabel    String  @default("Submit") @map("submit_label") @db.VarChar(60)
+  successMessage String  @default("Thank you!") @map("success_message") @db.VarChar(500)
+  notifyEmail    String? @map("notify_email") @db.VarChar(190)
+  isActive       Boolean @default(true) @map("is_active")
+
+  fields      FormField[]
+  submissions FormSubmission[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("forms")
+}
+
+enum FormFieldType {
+  TEXT
+  NUMBER
+  EMAIL
+  PHONE
+  DATE
+  TIME
+  SELECT
+  RADIO
+  CHECKBOX
+  TEXTAREA
+  UPLOAD
+}
+
+model FormField {
+  id     Int  @id @default(autoincrement())
+  formId Int  @map("form_id")
+  form   Form @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  type        FormFieldType
+  name        String        @db.VarChar(80)
+  label       String        @db.VarChar(150)
+  placeholder String?       @db.VarChar(150)
+  helpText    String?       @map("help_text") @db.VarChar(255)
+  required    Boolean       @default(false)
+  options     Json // [{label, value}] for SELECT/RADIO/CHECKBOX
+  validation  Json // {min,max,minLength,maxLength,pattern,accept,maxSizeMb}
+  sortOrder   Int           @default(0) @map("sort_order")
+  width       Int           @default(12)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([formId, sortOrder])
+  @@map("form_fields")
+}
+
+model FormSubmission {
+  id     Int  @id @default(autoincrement())
+  formId Int  @map("form_id")
+  form   Form @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  data      Json
+  ip        String? @db.VarChar(64)
+  userAgent String? @map("user_agent") @db.VarChar(255)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([formId])
+  @@map("form_submissions")
+}
+
+// ─────────────────────────── Donations ───────────────────────────
+
+model DonationProject {
+  id               Int     @id @default(autoincrement())
+  name             String  @db.VarChar(200)
+  slug             String  @unique @db.VarChar(200)
+  description      String  @db.Text
+  shortDescription String? @map("short_description") @db.VarChar(500)
+  coverImage       String? @map("cover_image") @db.VarChar(500)
+  bannerImage      String? @map("banner_image") @db.VarChar(500)
+
+  targetAmount  Decimal @map("target_amount") @db.Decimal(14, 2)
+  currentAmount Decimal @default(0) @map("current_amount") @db.Decimal(14, 2)
+  currency      String  @default("THB") @db.VarChar(8)
+  themeColor    String? @map("theme_color") @db.VarChar(20)
+
+  startDate DateTime? @map("start_date")
+  endDate   DateTime? @map("end_date")
+  isActive  Boolean   @default(true) @map("is_active")
+  sortOrder Int       @default(0) @map("sort_order")
+
+  // SEO
+  metaTitle       String? @map("meta_title") @db.VarChar(255)
+  metaDescription String? @map("meta_description") @db.VarChar(500)
+  ogImage         String? @map("og_image") @db.VarChar(500)
+
+  donations    Donation[]
+  bankAccounts DonationProjectBankAccount[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([isActive, sortOrder])
+  @@map("donation_projects")
+}
+
+model BankAccount {
+  id            Int     @id @default(autoincrement())
+  bankName      String  @map("bank_name") @db.VarChar(120)
+  accountName   String  @map("account_name") @db.VarChar(150)
+  accountNumber String  @map("account_number") @db.VarChar(40)
+  branch        String? @db.VarChar(120)
+  qrCodeUrl     String? @map("qr_code_url") @db.VarChar(500)
+  isActive      Boolean @default(true) @map("is_active")
+
+  projects DonationProjectBankAccount[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("bank_accounts")
+}
+
+model DonationProjectBankAccount {
+  projectId     Int @map("project_id")
+  bankAccountId Int @map("bank_account_id")
+
+  project     DonationProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bankAccount BankAccount     @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, bankAccountId])
+  @@map("donation_project_bank_accounts")
+}
+
+enum DonationStatus {
+  PENDING
+  AUTO_VERIFIED
+  VERIFIED
+  NEEDS_REVIEW
+  REJECTED
+}
+
+model Donation {
+  id           Int    @id @default(autoincrement())
+  donationCode String @unique @map("donation_code") @db.VarChar(20)
+
+  projectId Int             @map("project_id")
+  project   DonationProject @relation(fields: [projectId], references: [id])
+
+  accountName  String   @map("account_name") @db.VarChar(150)
+  amount       Decimal  @db.Decimal(14, 2)
+  transferDate DateTime @map("transfer_date") @db.Date
+  transferTime String   @map("transfer_time") @db.VarChar(8)
+  slipUrl      String   @map("slip_url") @db.VarChar(500)
+  remark       String?  @db.VarChar(500)
+
+  status       DonationStatus @default(PENDING)
+  verifiedById Int?           @map("verified_by_id")
+  verifiedBy   User?          @relation("DonationVerifier", fields: [verifiedById], references: [id])
+  verifiedAt   DateTime?      @map("verified_at")
+  rejectReason String?        @map("reject_reason") @db.VarChar(500)
+
+  verification DonationVerification?
+  logs         DonationLog[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([projectId, status])
+  @@index([status])
+  @@map("donations")
+}
+
+model DonationVerification {
+  id         Int      @id @default(autoincrement())
+  donationId Int      @unique @map("donation_id")
+  donation   Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+
+  provider   String  @db.VarChar(40)
+  isSlip     Boolean @default(false) @map("is_slip")
+  confidence Float   @default(0)
+
+  extractedBankName      String?   @map("extracted_bank_name") @db.VarChar(120)
+  extractedAccountNumber String?   @map("extracted_account_number") @db.VarChar(60)
+  extractedAmount        Decimal?  @map("extracted_amount") @db.Decimal(14, 2)
+  extractedDate          String?   @map("extracted_date") @db.VarChar(20)
+  extractedTime          String?   @map("extracted_time") @db.VarChar(20)
+  referenceNumber        String?   @map("reference_number") @db.VarChar(80)
+  qrPayload              String?   @map("qr_payload") @db.Text
+
+  rawResult     Json    @map("raw_result")
+  amountMatched Boolean @default(false) @map("amount_matched")
+  dateMatched   Boolean @default(false) @map("date_matched")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("donation_verifications")
+}
+
+model DonationLog {
+  id         Int      @id @default(autoincrement())
+  donationId Int      @map("donation_id")
+  donation   Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+
+  action     String  @db.VarChar(60)
+  fromStatus String? @map("from_status") @db.VarChar(30)
+  toStatus   String? @map("to_status") @db.VarChar(30)
+  actorId    Int?    @map("actor_id")
+  actor      User?   @relation(fields: [actorId], references: [id])
+  note       String? @db.VarChar(500)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([donationId])
+  @@map("donation_logs")
+}
+
+// ─────────────────────────── Media / Settings / Audit ───────────────────────────
+
+model Media {
+  id           Int     @id @default(autoincrement())
+  fileName     String  @map("file_name") @db.VarChar(255)
+  originalName String  @map("original_name") @db.VarChar(255)
+  mimeType     String  @map("mime_type") @db.VarChar(120)
+  type         String  @db.VarChar(20) // IMAGE | VIDEO | PDF | DOCUMENT
+  size         Int
+  url          String  @db.VarChar(500)
+  thumbnailUrl String? @map("thumbnail_url") @db.VarChar(500)
+  folder       String  @default("/") @db.VarChar(255)
+  width        Int?
+  height       Int?
+  alt          String? @db.VarChar(255)
+
+  uploadedById Int?  @map("uploaded_by_id")
+  uploadedBy   User? @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([folder])
+  @@index([type])
+  @@map("media")
+}
+
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique @db.VarChar(120)
+  value Json
+  group String @default("general") @db.VarChar(60)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([group])
+  @@map("settings")
+}
+
+model AuditLog {
+  id     Int   @id @default(autoincrement())
+  userId Int?  @map("user_id")
+  user   User? @relation(fields: [userId], references: [id])
+
+  action     String  @db.VarChar(60) // create | update | delete | login | verify | ...
+  resource   String  @db.VarChar(60) // pages | donations | ...
+  resourceId String? @map("resource_id") @db.VarChar(40)
+  detail     Json?
+  ip         String? @db.VarChar(64)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([resource, resourceId])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+// Simple aggregate counter for dashboard "Total Visitors".
+model VisitorStat {
+  id    Int      @id @default(autoincrement())
+  date  DateTime @unique @db.Date
+  count Int      @default(0)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("visitor_stats")
+}

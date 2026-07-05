@@ -1,0 +1,230 @@
+import { z } from 'zod';
+import { Router } from 'express';
+import { prisma } from '../../core/database/prisma.js';
+import { BaseRepository } from '../../core/base/BaseRepository.js';
+import { BaseService } from '../../core/base/BaseService.js';
+import { BaseController, ok, created } from '../../core/base/BaseController.js';
+import { crudRouter } from '../../core/base/crudRouter.js';
+import { authorize } from '../../core/middleware/authorize.js';
+import { validate } from '../../core/middleware/validate.js';
+import { asyncHandler } from '../../core/utils/asyncHandler.js';
+import { ConflictError } from '../../core/errors/AppError.js';
+import { PERMISSIONS, progressPercent, slugify } from '@cms/shared';
+import type { FeatureModule } from '../../core/modules.js';
+
+// ── Validation ──────────────────────────────────────────────
+export const projectSchema = z.object({
+  name: z.string().min(1).max(200),
+  slug: z.string().min(1).max(200).regex(/^[a-z0-9ก-๙-]+$/).optional(),
+  description: z.string().min(1),
+  shortDescription: z.string().max(500).nullish(),
+  coverImage: z.string().max(500).nullish(),
+  bannerImage: z.string().max(500).nullish(),
+  targetAmount: z.coerce.number().positive(),
+  currency: z.string().max(8).default('THB'),
+  themeColor: z.string().max(20).nullish(),
+  startDate: z.coerce.date().nullish(),
+  endDate: z.coerce.date().nullish(),
+  isActive: z.boolean().default(true),
+  sortOrder: z.number().int().default(0),
+  metaTitle: z.string().max(255).nullish(),
+  metaDescription: z.string().max(500).nullish(),
+  ogImage: z.string().max(500).nullish(),
+});
+
+const reorderSchema = z.object({
+  orderedIds: z.array(z.number().int().positive()).min(1),
+});
+
+// ── Repository / Service ────────────────────────────────────
+class ProjectRepository extends BaseRepository<any> {
+  protected modelName = 'donationProject';
+  protected searchFields = ['name', 'slug', 'shortDescription'];
+  protected filterableFields = ['isActive', 'currency'];
+  protected sortableFields = ['id', 'name', 'targetAmount', 'currentAmount', 'sortOrder', 'createdAt', 'endDate'];
+  protected defaultOrderBy: Record<string, 'asc' | 'desc'> = { sortOrder: 'asc' };
+  protected defaultInclude = {
+    bankAccounts: { include: { bankAccount: true } },
+  };
+}
+
+export class ProjectService extends BaseService<any> {
+  protected repository = new ProjectRepository();
+  protected resourceName = 'Donation project';
+
+  protected async beforeCreate(data: any): Promise<any> {
+    data.slug = data.slug || slugify(data.name);
+    await this.assertSlugFree(data.slug);
+    return this.extractBankAccounts(data);
+  }
+
+  protected async beforeUpdate(id: number, data: any): Promise<any> {
+    if (data.slug) await this.assertSlugFree(data.slug, id);
+    return this.extractBankAccounts(data, id);
+  }
+
+  /** Compute live stats for a project. Progress counts VERIFIED donations only. */
+  async getStats(projectId: number) {
+    const [project, grouped, donors] = await Promise.all([
+      this.getById(projectId),
+      prisma.donation.groupBy({
+        by: ['status'],
+        where: { projectId, deletedAt: null },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      prisma.donation.findMany({
+        where: { projectId, status: 'VERIFIED', deletedAt: null },
+        select: { accountName: true },
+        distinct: ['accountName'],
+      }),
+    ]);
+    const byStatus = Object.fromEntries(grouped.map((g) => [g.status, g]));
+    const target = Number(project.targetAmount);
+    const current = Number(byStatus.VERIFIED?._sum.amount ?? 0);
+    return {
+      targetAmount: target,
+      currentAmount: current,
+      progressPercent: progressPercent(current, target),
+      remainingAmount: Math.max(0, target - current),
+      donorCount: donors.length,
+      pendingCount:
+        (byStatus.PENDING?._count._all ?? 0) +
+        (byStatus.AUTO_VERIFIED?._count._all ?? 0) +
+        (byStatus.NEEDS_REVIEW?._count._all ?? 0),
+      verifiedCount: byStatus.VERIFIED?._count._all ?? 0,
+      rejectedCount: byStatus.REJECTED?._count._all ?? 0,
+    };
+  }
+
+  async duplicate(id: number) {
+    const src = await this.getById(id);
+    const slug = `${src.slug}-copy-${Date.now().toString(36)}`;
+    return prisma.donationProject.create({
+      data: {
+        name: `${src.name} (copy)`,
+        slug,
+        description: src.description,
+        shortDescription: src.shortDescription,
+        coverImage: src.coverImage,
+        bannerImage: src.bannerImage,
+        targetAmount: src.targetAmount,
+        currency: src.currency,
+        themeColor: src.themeColor,
+        isActive: false,
+        sortOrder: src.sortOrder + 1,
+        bankAccounts: {
+          create: src.bankAccounts.map((pb: any) => ({ bankAccountId: pb.bankAccountId })),
+        },
+      },
+    });
+  }
+
+  async reorder(orderedIds: number[]): Promise<void> {
+    await prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.donationProject.update({ where: { id }, data: { sortOrder: index } }),
+      ),
+    );
+  }
+
+  async setArchived(id: number, archived: boolean) {
+    return this.update(id, { isActive: !archived });
+  }
+
+  /** Recompute the denormalized currentAmount from VERIFIED donations. */
+  static async recomputeAmount(projectId: number, tx: any = prisma): Promise<void> {
+    const sum = await tx.donation.aggregate({
+      where: { projectId, status: 'VERIFIED', deletedAt: null },
+      _sum: { amount: true },
+    });
+    await tx.donationProject.update({
+      where: { id: projectId },
+      data: { currentAmount: sum._sum.amount ?? 0 },
+    });
+  }
+
+  private async assertSlugFree(slug: string, excludeId?: number): Promise<void> {
+    const existing = await prisma.donationProject.findFirst({
+      where: { slug, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    });
+    if (existing) throw new ConflictError(`Slug "${slug}" is already in use`);
+  }
+
+  /** Accept bankAccountIds[] in the payload and sync the join table. */
+  private async extractBankAccounts(data: any, projectId?: number): Promise<any> {
+    const { bankAccountIds, ...rest } = data;
+    if (bankAccountIds === undefined) return rest;
+    if (projectId) {
+      await prisma.donationProjectBankAccount.deleteMany({ where: { projectId } });
+      await prisma.donationProjectBankAccount.createMany({
+        data: (bankAccountIds as number[]).map((bankAccountId) => ({ projectId, bankAccountId })),
+      });
+      return rest;
+    }
+    rest.bankAccounts = {
+      create: (bankAccountIds as number[]).map((bankAccountId) => ({ bankAccountId })),
+    };
+    return rest;
+  }
+}
+
+export const projectService = new ProjectService();
+
+// ── Controller & routes ─────────────────────────────────────
+class ProjectController extends BaseController<any> {
+  protected service: ProjectService = projectService;
+}
+
+const router: Router = crudRouter({
+  controller: new ProjectController(),
+  resource: 'donation-projects',
+  permissions: {
+    view: PERMISSIONS.DONATION_PROJECTS_VIEW,
+    create: PERMISSIONS.DONATION_PROJECTS_MANAGE,
+    update: PERMISSIONS.DONATION_PROJECTS_MANAGE,
+    delete: PERMISSIONS.DONATION_PROJECTS_MANAGE,
+  },
+  createSchema: projectSchema.extend({ bankAccountIds: z.array(z.number()).optional() }),
+  updateSchema: projectSchema.partial().extend({ bankAccountIds: z.array(z.number()).optional() }),
+});
+
+router.get(
+  '/:id(\\d+)/stats',
+  authorize(PERMISSIONS.DONATION_PROJECTS_VIEW),
+  asyncHandler(async (req, res) => ok(res, await projectService.getStats(Number(req.params.id)))),
+);
+
+router.post(
+  '/:id(\\d+)/duplicate',
+  authorize(PERMISSIONS.DONATION_PROJECTS_MANAGE),
+  asyncHandler(async (req, res) => created(res, await projectService.duplicate(Number(req.params.id)))),
+);
+
+router.post(
+  '/reorder',
+  authorize(PERMISSIONS.DONATION_PROJECTS_MANAGE),
+  validate({ body: reorderSchema }),
+  asyncHandler(async (req, res) => {
+    await projectService.reorder(req.body.orderedIds);
+    ok(res, null, 'Reordered');
+  }),
+);
+
+router.post(
+  '/:id(\\d+)/archive',
+  authorize(PERMISSIONS.DONATION_PROJECTS_MANAGE),
+  asyncHandler(async (req, res) => ok(res, await projectService.setArchived(Number(req.params.id), true), 'Archived')),
+);
+
+router.post(
+  '/:id(\\d+)/activate',
+  authorize(PERMISSIONS.DONATION_PROJECTS_MANAGE),
+  asyncHandler(async (req, res) => ok(res, await projectService.setArchived(Number(req.params.id), false), 'Activated')),
+);
+
+export const donationProjectsModule: FeatureModule = {
+  name: 'donation-projects',
+  basePath: '/donation-projects',
+  router,
+};
