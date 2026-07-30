@@ -19,7 +19,8 @@
     "format": "prettier --write \"**/*.{ts,vue,json,md}\"",
     "prisma:generate": "npm run prisma:generate -w api",
     "prisma:migrate": "npm run prisma:migrate -w api",
-    "prisma:seed": "npm run prisma:seed -w api"
+    "prisma:seed": "npm run prisma:seed -w api",
+    "test": "npm run test -w api"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.13.0",

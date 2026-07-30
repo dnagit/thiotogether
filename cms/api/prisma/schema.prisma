@@ -1,4 +1,4 @@
-// CMS Platform — normalized MySQL schema.
+// CMS Platform — normalized PostgreSQL schema.
 // Conventions: every table has id / created_at / updated_at / deleted_at (soft delete).
 // JSON columns hold open-shaped data (block props, form field options, OCR raw results).
 
@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -31,6 +31,8 @@ model User {
   auditLogs           AuditLog[]
   verifiedDonations   Donation[]     @relation("DonationVerifier")
   donationLogs        DonationLog[]
+  tokenLedgerEntries  TokenLedgerEntry[]
+  revealEvents        RevealEvent[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -162,7 +164,7 @@ model Page {
 
   @@index([parentId])
   @@index([status])
-  @@index([path(length: 255)])
+  @@index([path])
   @@map("pages")
 }
 
@@ -329,10 +331,21 @@ model DonationProject {
   currency      String  @default("THB") @db.VarChar(8)
   themeColor    String? @map("theme_color") @db.VarChar(20)
 
+  /// Money required for 1 game token. Decimal, never float — token maths must be exact.
+  /// Null disables token granting for this project.
+  tokenValue Decimal? @map("token_value") @db.Decimal(14, 2)
+  /// Optional lifetime for tokens granted by this project; null = never expires.
+  tokenTtlDays Int? @map("token_ttl_days")
+
   startDate DateTime? @map("start_date")
   endDate   DateTime? @map("end_date")
   isActive  Boolean   @default(true) @map("is_active")
   sortOrder Int       @default(0) @map("sort_order")
+
+  /// Whether the public site may show how much this project has raised.
+  /// When false the API omits the figures entirely rather than relying on the
+  /// front-end to hide them, so they cannot be read out of the network response.
+  showAmounts Boolean @default(true) @map("show_amounts")
 
   // SEO
   metaTitle       String? @map("meta_title") @db.VarChar(255)
@@ -341,6 +354,9 @@ model DonationProject {
 
   donations    Donation[]
   bankAccounts DonationProjectBankAccount[]
+  games        GameDonationProject[]
+  tokenGrants  TokenGrant[]
+  ledger       TokenLedgerEntry[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -385,6 +401,7 @@ enum DonationStatus {
   VERIFIED
   NEEDS_REVIEW
   REJECTED
+  CANCELLED
 }
 
 model Donation {
@@ -394,7 +411,12 @@ model Donation {
   projectId Int             @map("project_id")
   project   DonationProject @relation(fields: [projectId], references: [id])
 
+  // Required on the public form, but nullable here: donations submitted before
+  // these fields existed have no value and must not be invented.
+  nickname     String?  @db.VarChar(150)
   accountName  String   @map("account_name") @db.VarChar(150)
+  // Free-text name / address / phone for sending the donor their thank-you item.
+  contactInfo  String?  @map("contact_info") @db.VarChar(500)
   amount       Decimal  @db.Decimal(14, 2)
   transferDate DateTime @map("transfer_date") @db.Date
   transferTime String   @map("transfer_time") @db.VarChar(8)
@@ -407,8 +429,16 @@ model Donation {
   verifiedAt   DateTime?      @map("verified_at")
   rejectReason String?        @map("reject_reason") @db.VarChar(500)
 
+  /// Resolved from accountName at submit time so token grants attach to one identity
+  /// even when donors retype their name with different spacing or casing.
+  accountIdentityId Int?             @map("account_identity_id")
+  accountIdentity   AccountIdentity? @relation(fields: [accountIdentityId], references: [id])
+
   verification DonationVerification?
   logs         DonationLog[]
+  /// At most one grant per donation — the DB-level guard against double-granting
+  /// when an admin approves the same submission twice.
+  tokenGrant   TokenGrant?
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -465,6 +495,263 @@ model DonationLog {
 
   @@index([donationId])
   @@map("donation_logs")
+}
+
+// ─────────────────────────── Tokens ───────────────────────────
+
+/// A player identity keyed only by their donation account name — deliberately not a
+/// login. `normalizedName` is the comparison key (trimmed, whitespace-collapsed,
+/// case-folded); `displayName` keeps the most recent raw spelling for display.
+model AccountIdentity {
+  id             Int    @id @default(autoincrement())
+  normalizedName String @unique @map("normalized_name") @db.VarChar(190)
+  displayName    String @map("display_name") @db.VarChar(190)
+
+  /// Reserved for the optional claim-code / PIN hardening described in the brief.
+  /// Null today: identity is account-name-only until an admin enables verification.
+  claimSecretHash String?   @map("claim_secret_hash") @db.VarChar(255)
+  verifiedAt      DateTime? @map("verified_at")
+
+  donations    Donation[]
+  tokenGrants  TokenGrant[]
+  ledger       TokenLedgerEntry[]
+  reservations Reservation[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("account_identities")
+}
+
+/// Tokens minted from one approved donation. `tokensRemaining` is the mutable
+/// balance spent down under row lock; the ledger is the immutable audit trail and
+/// the two must always reconcile.
+model TokenGrant {
+  id                Int             @id @default(autoincrement())
+  accountIdentityId Int             @map("account_identity_id")
+  accountIdentity   AccountIdentity @relation(fields: [accountIdentityId], references: [id])
+  projectId         Int             @map("project_id")
+  project           DonationProject @relation(fields: [projectId], references: [id])
+
+  /// One grant per donation, enforced by the database: approving twice cannot mint twice.
+  donationId Int      @unique @map("donation_id")
+  donation   Donation @relation(fields: [donationId], references: [id])
+
+  tokensGranted   Int      @map("tokens_granted")
+  tokensRemaining Int      @map("tokens_remaining")
+  /// Snapshot of the project's tokenValue when minted, so later repricing cannot
+  /// retroactively change what a donor already earned.
+  tokenValueAtGrant Decimal  @map("token_value_at_grant") @db.Decimal(14, 2)
+  donationAmount    Decimal  @map("donation_amount") @db.Decimal(14, 2)
+  /// Remainder that did NOT become a token. Kept for auditability only — it is
+  /// never carried into another submission's calculation.
+  remainderAmount   Decimal  @map("remainder_amount") @db.Decimal(14, 2)
+  expiresAt         DateTime? @map("expires_at")
+
+  ledger TokenLedgerEntry[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  /// Spend ordering: soonest-expiring first, then FIFO.
+  @@index([accountIdentityId, projectId, expiresAt, createdAt])
+  @@map("token_grants")
+}
+
+enum TokenLedgerReason {
+  GRANT
+  SPEND
+  REFUND
+  REVOKE
+  ADJUST
+}
+
+/// Append-only history. Every token movement writes one row; balances are never
+/// mutated without a matching entry.
+model TokenLedgerEntry {
+  id                Int             @id @default(autoincrement())
+  accountIdentityId Int             @map("account_identity_id")
+  accountIdentity   AccountIdentity @relation(fields: [accountIdentityId], references: [id])
+  projectId         Int             @map("project_id")
+  project           DonationProject @relation(fields: [projectId], references: [id])
+
+  grantId Int?        @map("grant_id")
+  grant   TokenGrant? @relation(fields: [grantId], references: [id])
+
+  reservationId Int?         @map("reservation_id")
+  reservation   Reservation? @relation(fields: [reservationId], references: [id])
+
+  /// Signed: positive mints, negative spends.
+  delta       Int               @map("delta")
+  reason      TokenLedgerReason
+  description String?           @db.VarChar(255)
+  actorId     Int?              @map("actor_id")
+  actor       User?             @relation(fields: [actorId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([accountIdentityId, createdAt])
+  @@index([grantId])
+  @@map("token_ledger_entries")
+}
+
+// ─────────────────────────── Board game ───────────────────────────
+
+enum GameStatus {
+  DRAFT
+  OPEN
+  FULL
+  REVEALED
+  ARCHIVED
+}
+
+model Game {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(200)
+  slug        String  @unique @db.VarChar(200)
+  description String? @db.Text
+  coverImage  String? @map("cover_image") @db.VarChar(500)
+
+  tileCount      Int     @map("tile_count")
+  /// Default face-down artwork; a tile may override it with its own image.
+  tileFrontImage String? @map("tile_front_image") @db.VarChar(500)
+  tokensPerTile  Int     @default(1) @map("tokens_per_tile")
+
+  status  GameStatus @default(DRAFT)
+  opensAt DateTime?  @map("opens_at")
+  closesAt DateTime? @map("closes_at")
+
+  /// Show reserver names on unrevealed tiles, or just "มีผู้จองแล้ว".
+  showReserverNames Boolean @default(true) @map("show_reserver_names")
+  /// Null = unlimited tiles per account.
+  maxTilesPerAccount Int?   @map("max_tiles_per_account")
+  themeColor         String? @map("theme_color") @db.VarChar(20)
+
+  /// Set when rewards are shuffled onto tiles. The hash commits to the assignment
+  /// so it can be proven unchanged after the fact without revealing it early.
+  shuffledAt     DateTime? @map("shuffled_at")
+  commitmentHash String?   @map("commitment_hash") @db.VarChar(64)
+  revealedAt     DateTime? @map("revealed_at")
+
+  projects     GameDonationProject[]
+  tiles        BoardTile[]
+  rewards      Reward[]
+  reservations Reservation[]
+  revealEvents RevealEvent[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([status])
+  @@map("games")
+}
+
+/// Which projects' tokens may be spent on which game.
+model GameDonationProject {
+  gameId    Int @map("game_id")
+  projectId Int @map("project_id")
+
+  game    Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  project DonationProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, projectId])
+  @@map("game_donation_projects")
+}
+
+/// A prize line. Count must equal the game's tile count before it can open.
+model Reward {
+  id        Int     @id @default(autoincrement())
+  gameId    Int     @map("game_id")
+  game      Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  label     String  @db.VarChar(500)
+  imageUrl  String? @map("image_url") @db.VarChar(500)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  tile BoardTile?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([gameId, sortOrder])
+  @@map("rewards")
+}
+
+model BoardTile {
+  id          Int    @id @default(autoincrement())
+  gameId      Int    @map("game_id")
+  game        Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  boardNumber Int    @map("board_number")
+
+  frontImage String? @map("front_image") @db.VarChar(500)
+
+  /// Assigned by the server-side shuffle. Never serialized to any client before reveal.
+  /// Globally unique: a reward can occupy exactly one tile, making the
+  /// reward→tile assignment a bijection at the database level.
+  rewardId Int?    @unique @map("reward_id")
+  reward   Reward? @relation(fields: [rewardId], references: [id])
+
+  reservation Reservation?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  /// The tile identity players address, and the guard against duplicate tiles.
+  @@unique([gameId, boardNumber])
+  @@map("board_tiles")
+}
+
+model Reservation {
+  id     Int  @id @default(autoincrement())
+  gameId Int  @map("game_id")
+  game   Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  /// One reservation per tile, forever. This unique constraint — not application
+  /// logic — is what makes concurrent claims on the same tile safe.
+  tileId Int       @unique @map("tile_id")
+  tile   BoardTile @relation(fields: [tileId], references: [id], onDelete: Cascade)
+
+  accountIdentityId Int             @map("account_identity_id")
+  accountIdentity   AccountIdentity @relation(fields: [accountIdentityId], references: [id])
+  /// Frozen copy of the name as typed at reservation time, so historic results are
+  /// not rewritten when an identity's display name changes later.
+  accountNameSnapshot String @map("account_name_snapshot") @db.VarChar(190)
+
+  tokensSpent Int    @map("tokens_spent")
+  /// Client-supplied key; a retried or double-clicked request returns the original
+  /// reservation instead of taking another tile.
+  idempotencyKey String @map("idempotency_key") @db.VarChar(64)
+
+  ledger TokenLedgerEntry[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([gameId, idempotencyKey])
+  @@index([gameId, accountIdentityId])
+  @@map("reservations")
+}
+
+/// Immutable record of who revealed a game and when.
+model RevealEvent {
+  id     Int  @id @default(autoincrement())
+  gameId Int  @map("game_id")
+  game   Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  revealedById Int?  @map("revealed_by_id")
+  revealedBy   User? @relation(fields: [revealedById], references: [id])
+  tileCount    Int   @map("tile_count")
+  commitmentHash String? @map("commitment_hash") @db.VarChar(64)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([gameId])
+  @@map("reveal_events")
 }
 
 // ─────────────────────────── Media / Settings / Audit ───────────────────────────

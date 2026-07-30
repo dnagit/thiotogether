@@ -41,18 +41,30 @@ void get<DonationProject[]>('/donation-projects')
           <h2 class="font-bold text-xl mb-1">{{ project.name }}</h2>
           <p class="text-sm text-gray-600 mb-4 line-clamp-2">{{ project.shortDescription }}</p>
 
-          <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-2">
-            <div
-              class="h-full rounded-full transition-all"
-              :style="{ width: `${project.stats?.progressPercent ?? 0}%`, background: project.themeColor ?? 'var(--color-primary)' }"
-            />
-          </div>
-          <div class="flex justify-between text-sm">
-            <span class="font-semibold">{{ formatCurrency(project.stats?.currentAmount ?? 0, project.currency) }}</span>
-            <span class="text-gray-500">of {{ formatCurrency(Number(project.targetAmount), project.currency) }}</span>
-          </div>
-          <div class="text-xs text-gray-400 mt-2">
-            {{ project.stats?.donorCount ?? 0 }} donor(s) · {{ project.stats?.progressPercent ?? 0 }}% funded
+          <!-- Amounts are opt-in per project; when off the API sends no figures at all. -->
+          <template v-if="project.showAmounts">
+            <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+              <div
+                class="h-full rounded-full transition-all"
+                :style="{ width: `${project.stats?.progressPercent ?? 0}%`, background: project.themeColor ?? 'var(--color-primary)' }"
+              />
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="font-semibold">{{ formatCurrency(project.stats?.currentAmount ?? 0, project.currency) }}</span>
+              <span class="text-gray-500">of {{ formatCurrency(Number(project.targetAmount), project.currency) }}</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">
+              {{ project.stats?.donorCount ?? 0 }} donor(s) · {{ project.stats?.progressPercent ?? 0 }}% funded
+            </div>
+          </template>
+
+          <!-- Keeps the card from collapsing to a bare title when figures are hidden. -->
+          <div
+            v-else
+            class="text-sm font-semibold"
+            :style="{ color: project.themeColor ?? 'var(--color-primary)' }"
+          >
+            ร่วมบริจาค →
           </div>
         </div>
       </RouterLink>

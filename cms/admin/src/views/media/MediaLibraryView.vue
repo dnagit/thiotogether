@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { confirmDelete } from '@/utils/confirm';
 import { http } from '@/api/http';
 import { useCrud } from '@/composables/useCrud';
 import { PERMISSIONS, type ApiResponse, type MediaItem } from '@cms/shared';
@@ -64,7 +65,7 @@ async function newFolder(): Promise<void> {
 
 async function remove(item: MediaItem): Promise<void> {
   try {
-    await ElMessageBox.confirm(`Delete "${item.originalName}"?`, 'Confirm', { type: 'warning' });
+    if (!(await confirmDelete(item.originalName, { note: `ต้องการลบไฟล์ "${item.originalName}" ใช่หรือไม่?` }))) return;
   } catch {
     return;
   }

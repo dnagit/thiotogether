@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { tagMapper } from '@/utils/elementTypes';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
+import { confirmDelete } from '@/utils/confirm';
 import { http } from '@/api/http';
 import { PERMISSIONS, type ApiResponse, type PageTreeNode } from '@cms/shared';
 
@@ -22,7 +24,7 @@ void load();
 
 async function remove(row: PageTreeNode): Promise<void> {
   try {
-    await ElMessageBox.confirm(`Delete page "${row.title}"?`, 'Confirm', { type: 'warning' });
+    if (!(await confirmDelete(row.title, { note: `ต้องการลบหน้า "${row.title}" ใช่หรือไม่?` }))) return;
   } catch {
     return;
   }
@@ -37,7 +39,7 @@ async function duplicate(row: PageTreeNode): Promise<void> {
   await load();
 }
 
-const statusTag = (s: string) => ({ PUBLISHED: 'success', DRAFT: 'info', ARCHIVED: 'warning' })[s] ?? 'info';
+const statusTag = tagMapper({ PUBLISHED: 'success', DRAFT: 'info', ARCHIVED: 'warning' });
 </script>
 
 <template>
@@ -62,8 +64,9 @@ const statusTag = (s: string) => ({ PUBLISHED: 'success', DRAFT: 'info', ARCHIVE
           <template #default="{ row }">
             <ElButton v-permission="PERMISSIONS.PAGES_UPDATE" size="small" @click="router.push({ name: 'page-edit', params: { id: row.id } })">Edit</ElButton>
             <ElButton v-permission="PERMISSIONS.PAGES_UPDATE" size="small" type="primary" plain @click="router.push({ name: 'page-builder', params: { id: row.id } })">Builder</ElButton>
-            <ElButton v-permission="PERMISSIONS.PAGES_CREATE" size="small" plain @click="duplicate(row)">Copy</ElButton>
-            <ElButton v-permission="PERMISSIONS.PAGES_DELETE" size="small" type="danger" text @click="remove(row)">Delete</ElButton>
+            <!-- Element Plus types slot rows as DefaultRow; the table is fed PageTreeNode. -->
+            <ElButton v-permission="PERMISSIONS.PAGES_CREATE" size="small" plain @click="duplicate(row as PageTreeNode)">Copy</ElButton>
+            <ElButton v-permission="PERMISSIONS.PAGES_DELETE" size="small" type="danger" text @click="remove(row as PageTreeNode)">Delete</ElButton>
           </template>
         </ElTableColumn>
       </ElTable>

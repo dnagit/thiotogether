@@ -28,6 +28,36 @@ export const router = createRouter({
       component: () => import('@/views/donation/DonationStatusView.vue'),
     },
     {
+      path: '/games',
+      name: 'games',
+      component: () => import('@/views/game/GamesListView.vue'),
+    },
+    {
+      path: '/game/:slug',
+      name: 'game-play',
+      component: () => import('@/views/game/GamePlayView.vue'),
+    },
+    {
+      path: '/game/:slug/results',
+      name: 'game-results',
+      component: () => import('@/views/game/GameResultsView.vue'),
+    },
+    {
+      path: '/tokens',
+      name: 'token-check',
+      component: () => import('@/views/game/TokenCheckView.vue'),
+    },
+    {
+      path: '/terms',
+      name: 'terms',
+      component: () => import('@/views/legal/TermsView.vue'),
+    },
+    {
+      path: '/privacy',
+      name: 'privacy',
+      component: () => import('@/views/legal/PrivacyView.vue'),
+    },
+    {
       path: '/500',
       name: 'server-error',
       component: () => import('@/views/errors/ServerErrorView.vue'),

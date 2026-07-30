@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../core/database/prisma.js';
 import { BaseRepository } from '../../core/base/BaseRepository.js';
 import { BaseService } from '../../core/base/BaseService.js';
@@ -8,7 +9,18 @@ import { safeFileName } from '../../core/middleware/upload.js';
 import { config } from '../../core/config/index.js';
 import { logger } from '../../core/logger.js';
 import { ProjectService } from '../donation-projects/donationProjects.module.js';
+import { grantTokensForDonation, revokeTokensForDonation } from '../../core/tokens/tokenService.js';
 import { DonationStatus, randomCode, progressPercent } from '@cms/shared';
+
+/** Statuses that entitle a donor to game tokens. */
+const APPROVED_STATUSES: string[] = [DonationStatus.VERIFIED, DonationStatus.AUTO_VERIFIED];
+/** Statuses that take that entitlement away again. */
+const REVOKING_STATUSES: string[] = [
+  DonationStatus.REJECTED,
+  DonationStatus.CANCELLED,
+  DonationStatus.NEEDS_REVIEW,
+  DonationStatus.PENDING,
+];
 
 const donationInclude = {
   project: { select: { id: true, name: true, slug: true, currency: true } },
@@ -17,7 +29,7 @@ const donationInclude = {
 
 class DonationRepository extends BaseRepository<any> {
   protected modelName = 'donation';
-  protected searchFields = ['donationCode', 'accountName'];
+  protected searchFields = ['donationCode', 'accountName', 'nickname'];
   protected filterableFields = ['projectId', 'status'];
   protected sortableFields = ['id', 'amount', 'transferDate', 'createdAt', 'status'];
   protected defaultInclude = donationInclude;
@@ -35,7 +47,9 @@ export class DonationService extends BaseService<any> {
   async submit(
     input: {
       projectId: number;
+      nickname: string;
       accountName: string;
+      contactInfo: string;
       amount: number;
       transferDate: string;
       transferTime: string;
@@ -59,7 +73,9 @@ export class DonationService extends BaseService<any> {
       data: {
         donationCode: await this.uniqueCode(),
         projectId: input.projectId,
+        nickname: input.nickname,
         accountName: input.accountName,
+        contactInfo: input.contactInfo,
         amount: input.amount,
         transferDate: new Date(input.transferDate),
         transferTime: input.transferTime,
@@ -193,6 +209,19 @@ export class DonationService extends BaseService<any> {
         data: { donationId: id, action: 'status-change', fromStatus: current.status, toStatus: to, actorId, note },
       });
       await ProjectService.recomputeAmount(current.projectId, tx);
+
+      // Game tokens follow approval state. Both calls are idempotent, so repeated
+      // transitions to the same status never mint or revoke twice.
+      //
+      // The cast bridges a Prisma typing gap only: a transaction client obtained
+      // from an *extended* client is structurally a superset of TransactionClient
+      // but not assignable to it. Runtime behaviour is identical.
+      const txc = tx as unknown as Prisma.TransactionClient;
+      if (APPROVED_STATUSES.includes(to)) {
+        await grantTokensForDonation(id, actorId, txc);
+      } else if (REVOKING_STATUSES.includes(to) && APPROVED_STATUSES.includes(current.status)) {
+        await revokeTokensForDonation(id, actorId, txc);
+      }
     });
   }
 
@@ -275,7 +304,9 @@ export class DonationService extends BaseService<any> {
     return items.map((d: any) => ({
       code: d.donationCode,
       project: d.project?.name,
+      nickname: d.nickname ?? '',
       accountName: d.accountName,
+      contactInfo: d.contactInfo ?? '',
       amount: Number(d.amount),
       currency: d.project?.currency ?? 'THB',
       transferDate: d.transferDate?.toISOString().slice(0, 10),

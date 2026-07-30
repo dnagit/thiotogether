@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { tagMapper } from '@/utils/elementTypes';
 import { ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -19,8 +20,10 @@ void http
   .get<ApiResponse<any[]>>('/donation-projects', { params: { limit: 100 } })
   .then(({ data }) => (projects.value = data.data));
 
-const statusTag = (s: string) =>
-  ({ VERIFIED: 'success', AUTO_VERIFIED: 'success', PENDING: 'warning', NEEDS_REVIEW: 'danger', REJECTED: 'info' })[s] ?? 'info';
+const statusTag = tagMapper({
+  VERIFIED: 'success', AUTO_VERIFIED: 'success', PENDING: 'warning',
+  NEEDS_REVIEW: 'danger', REJECTED: 'info', CANCELLED: 'info',
+});
 
 // ── Detail drawer ───────────────────────────────────────────
 const drawer = ref(false);
@@ -53,10 +56,12 @@ async function verify(): Promise<void> {
 async function reject(): Promise<void> {
   let reason: string;
   try {
-    const res = await ElMessageBox.prompt('Reason for rejection:', 'Reject donation', {
-      inputValidator: (v: string) => (v?.trim() ? true : 'Reason is required'),
-      confirmButtonText: 'Reject',
-      confirmButtonClass: 'el-button--danger',
+    const res = await ElMessageBox.prompt('ระบุเหตุผลที่ปฏิเสธรายการนี้', 'ปฏิเสธการบริจาค', {
+      inputValidator: (v: string) => (v?.trim() ? true : 'กรุณาระบุเหตุผล'),
+      confirmButtonText: 'ปฏิเสธ',
+      cancelButtonText: 'ยกเลิก',
+      // `confirmButtonType`, not `confirmButtonClass` — see utils/confirm.ts.
+      confirmButtonType: 'danger',
     });
     reason = res.value;
   } catch {
@@ -162,7 +167,11 @@ function exportFile(format: 'csv' | 'xlsx'): void {
             <ElDescriptions :column="1" border size="small">
               <ElDescriptionsItem label="Code">{{ detail.donationCode }}</ElDescriptionsItem>
               <ElDescriptionsItem label="Project">{{ detail.project?.name }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="Nickname">{{ detail.nickname ?? '—' }}</ElDescriptionsItem>
               <ElDescriptionsItem label="Donor">{{ detail.accountName }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="Name / Address / Phone">
+                <span style="white-space: pre-wrap">{{ detail.contactInfo ?? '—' }}</span>
+              </ElDescriptionsItem>
               <ElDescriptionsItem label="Amount">{{ formatCurrency(Number(detail.amount), detail.project?.currency) }}</ElDescriptionsItem>
               <ElDescriptionsItem label="Transfer">{{ formatDate(detail.transferDate) }} {{ detail.transferTime }}</ElDescriptionsItem>
               <ElDescriptionsItem label="Remark">{{ detail.remark ?? '—' }}</ElDescriptionsItem>
@@ -196,7 +205,7 @@ function exportFile(format: 'csv' | 'xlsx'): void {
 
         <h4 class="mt">History</h4>
         <ElTimeline>
-          <ElTimelineItem v-for="log in logs" :key="log.id" :timestamp="formatDateTime(log.createdAt)" size="small">
+          <ElTimelineItem v-for="log in logs" :key="log.id" :timestamp="formatDateTime(log.createdAt)">
             <b>{{ log.actor?.name ?? 'System' }}</b>
             {{ log.action }}<template v-if="log.toStatus"> → {{ log.toStatus }}</template>
             <div v-if="log.note" class="text-muted">{{ log.note }}</div>

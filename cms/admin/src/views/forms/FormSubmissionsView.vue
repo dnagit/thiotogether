@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
+import { confirmDelete } from '@/utils/confirm';
 import { http } from '@/api/http';
 import { formatDateTime, PERMISSIONS, type ApiResponse, type PaginationMeta } from '@cms/shared';
 
@@ -39,7 +40,7 @@ watch(page, load);
 
 async function remove(row: any): Promise<void> {
   try {
-    await ElMessageBox.confirm('Delete this submission?', 'Confirm', { type: 'warning' });
+    if (!(await confirmDelete('รายการนี้', { note: 'ต้องการลบรายการที่ส่งเข้ามานี้ ใช่หรือไม่?' }))) return;
   } catch {
     return;
   }

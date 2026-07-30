@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
+import { confirmDelete } from '@/utils/confirm';
 import { http } from '@/api/http';
 import { PERMISSIONS, type ApiResponse } from '@cms/shared';
 
@@ -60,7 +61,7 @@ async function save(): Promise<void> {
 
 async function remove(role: any): Promise<void> {
   try {
-    await ElMessageBox.confirm(`Delete role "${role.displayName}"?`, 'Confirm', { type: 'warning' });
+    if (!(await confirmDelete(role.displayName, { note: `ต้องการลบบทบาท "${role.displayName}" ใช่หรือไม่?` }))) return;
   } catch {
     return;
   }

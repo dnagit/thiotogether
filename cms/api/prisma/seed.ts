@@ -3,9 +3,10 @@
  *   npm run prisma:seed -w api
  * Default super admin: admin@example.com / ChangeMe123!
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { ALL_PERMISSIONS, ROLE_PERMISSION_PRESETS } from '../../shared/src/constants/permissions';
+import { grantTokensForDonation } from '../src/core/tokens/tokenService.js';
 
 const prisma = new PrismaClient();
 
@@ -367,8 +368,97 @@ async function main(): Promise<void> {
     });
   }
 
+  await seedBoardGame();
+
   console.log('✅ Seed complete.');
   console.log('   Login: admin@example.com / ChangeMe123!');
+}
+
+/**
+ * A playable demo game: one project priced at 50฿/token, three donors already
+ * approved (so they hold spendable tokens), and a 12-tile board ready to open.
+ */
+async function seedBoardGame(): Promise<void> {
+  const project = await prisma.donationProject.findFirst({ where: { slug: 'school-library' } });
+  if (!project) return;
+
+  await prisma.donationProject.update({
+    where: { id: project.id },
+    data: { tokenValue: new Prisma.Decimal(50) },
+  });
+
+  const existing = await prisma.game.findUnique({ where: { slug: 'lucky-board-demo' } });
+  if (existing) {
+    console.log('   Game "lucky-board-demo" already seeded, skipping.');
+    return;
+  }
+
+  const TILE_COUNT = 12;
+  const game = await prisma.game.create({
+    data: {
+      name: 'เปิดแผ่นป้ายลุ้นรางวัล (ตัวอย่าง)',
+      slug: 'lucky-board-demo',
+      description: 'บริจาคเพื่อรับ token แล้วเลือกเปิดแผ่นป้ายลุ้นรางวัล',
+      tileCount: TILE_COUNT,
+      tokensPerTile: 1,
+      showReserverNames: true,
+      maxTilesPerAccount: 5,
+      themeColor: '#7c3aed',
+      status: 'DRAFT',
+    },
+  });
+
+  await prisma.gameDonationProject.create({
+    data: { gameId: game.id, projectId: project.id },
+  });
+  await prisma.boardTile.createMany({
+    data: Array.from({ length: TILE_COUNT }, (_, i) => ({ gameId: game.id, boardNumber: i + 1 })),
+  });
+  await prisma.reward.createMany({
+    data: [
+      'บัตรกำนัล 1,000 บาท',
+      'บัตรกำนัล 500 บาท',
+      'เสื้อยืดที่ระลึก',
+      'กระเป๋าผ้าที่ระลึก',
+      'แก้วน้ำที่ระลึก',
+      'สมุดโน้ตที่ระลึก',
+      'พวงกุญแจที่ระลึก',
+      'สติกเกอร์เซ็ต',
+      'ขอบคุณที่ร่วมสนุก',
+      'ขอบคุณที่ร่วมสนุก',
+      'ขอบคุณที่ร่วมสนุก',
+      'ขอบคุณที่ร่วมสนุก',
+    ].map((label, i) => ({ gameId: game.id, label, sortOrder: i })),
+  });
+
+  // Approved donors, so the demo has accounts that can actually play.
+  const donors: Array<[string, number]> = [
+    ['ทีโอ้', 250],
+    ['player_001', 120],
+    ['Somchai Jaidee', 130],
+  ];
+  for (const [accountName, amount] of donors) {
+    const code = `DN-SEED${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const donation = await prisma.donation.create({
+      data: {
+        donationCode: code,
+        projectId: project.id,
+        accountName,
+        nickname: accountName,
+        contactInfo: 'ข้อมูลตัวอย่างสำหรับทดสอบ',
+        amount: new Prisma.Decimal(amount),
+        transferDate: new Date(),
+        transferTime: '10:00',
+        slipUrl: 'https://placehold.co/600x800?text=slip',
+        status: 'VERIFIED',
+        verifiedAt: new Date(),
+      },
+    });
+    await grantTokensForDonation(donation.id, null, prisma as never);
+  }
+
+  console.log(`   Game "lucky-board-demo" seeded: ${TILE_COUNT} tiles, 3 funded accounts.`);
+  console.log('   Demo accounts: ทีโอ้ (5 tokens), player_001 (2), Somchai Jaidee (2)');
 }
 
 main()

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
+import { confirmDelete } from '@/utils/confirm';
 import { http } from '@/api/http';
 import { PERMISSIONS, slugify, type ApiResponse } from '@cms/shared';
 
@@ -58,7 +59,7 @@ async function save(): Promise<void> {
 
 async function remove(row: any): Promise<void> {
   try {
-    await ElMessageBox.confirm(`Delete form "${row.name}"?`, 'Confirm', { type: 'warning' });
+    if (!(await confirmDelete(row.name, { note: `ต้องการลบฟอร์ม "${row.name}" ใช่หรือไม่?` }))) return;
   } catch {
     return;
   }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { tagMapper } from '@/utils/elementTypes';
 import { ref } from 'vue';
 import { http } from '@/api/http';
 import { formatCurrency, formatDateTime, progressPercent, type ApiResponse, type DashboardStats } from '@cms/shared';
@@ -17,8 +18,10 @@ async function load(): Promise<void> {
 }
 void load();
 
-const statusTag = (s: string) =>
-  ({ VERIFIED: 'success', AUTO_VERIFIED: 'success', PENDING: 'warning', NEEDS_REVIEW: 'danger', REJECTED: 'info' })[s] ?? 'info';
+const statusTag = tagMapper({
+  VERIFIED: 'success', AUTO_VERIFIED: 'success', PENDING: 'warning',
+  NEEDS_REVIEW: 'danger', REJECTED: 'info', CANCELLED: 'info',
+});
 </script>
 
 <template>
@@ -102,7 +105,6 @@ const statusTag = (s: string) =>
                 v-for="a in stats.recentActivities"
                 :key="a.id"
                 :timestamp="formatDateTime(a.createdAt)"
-                size="small"
               >
                 <b>{{ a.userName }}</b> — {{ a.action }} {{ a.resource }}<span v-if="a.resourceId"> #{{ a.resourceId }}</span>
               </ElTimelineItem>

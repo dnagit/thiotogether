@@ -15,7 +15,12 @@ module.exports = {
   ],
   rules: {
     '@typescript-eslint/no-explicit-any': 'off',
-    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    // `ignoreRestSiblings` allows the omit-by-destructuring idiom this codebase uses
+    // to strip fields from a response: `const { secret, ...rest } = row`.
+    '@typescript-eslint/no-unused-vars': [
+      'warn',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+    ],
     'vue/multi-word-component-names': 'off',
   },
   ignorePatterns: ['dist', 'node_modules', '*.d.ts'],

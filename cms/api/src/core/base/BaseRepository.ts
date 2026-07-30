@@ -74,7 +74,10 @@ export abstract class BaseRepository<T, TCreate = Partial<T>, TUpdate = Partial<
   protected buildWhere(query: ParsedListQuery): Record<string, unknown> {
     const where: Record<string, unknown> = {};
     if (query.search && this.searchFields.length > 0) {
-      where.OR = this.searchFields.map((field) => ({ [field]: { contains: query.search } }));
+      // PostgreSQL compares strings case-sensitively; `insensitive` keeps ?search= forgiving.
+      where.OR = this.searchFields.map((field) => ({
+        [field]: { contains: query.search, mode: 'insensitive' },
+      }));
     }
     for (const [key, value] of Object.entries(query.filters)) {
       if (!this.filterableFields.includes(key)) continue;

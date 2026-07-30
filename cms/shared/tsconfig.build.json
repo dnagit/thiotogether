@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Emits the JavaScript that Node actually runs in production. The API's compiled
+    // output keeps the bare `@cms/shared` specifier, so Node resolves it through this
+    // package's "exports" — which must point at .js, not the .ts source.
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["src"]
+}

@@ -9,6 +9,8 @@ coverage/
 .DS_Store
 uploads/
 api/prisma/migrations/dev/
+# Tesseract language models, downloaded on first OCR run (~6 MB of binaries)
+*.traineddata
 .idea/
 .vscode/*
 !.vscode/extensions.json

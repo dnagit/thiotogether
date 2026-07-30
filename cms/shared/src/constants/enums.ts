@@ -19,6 +19,7 @@ export const DonationStatus = {
   VERIFIED: 'VERIFIED',
   NEEDS_REVIEW: 'NEEDS_REVIEW',
   REJECTED: 'REJECTED',
+  CANCELLED: 'CANCELLED',
 } as const;
 export type DonationStatus = (typeof DonationStatus)[keyof typeof DonationStatus];
 

@@ -1,5 +1,6 @@
 import { reactive, ref, watch } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
+import { confirmDelete } from '@/utils/confirm';
 import { http } from '@/api/http';
 import type { ApiResponse, PaginationMeta } from '@cms/shared';
 
@@ -27,7 +28,9 @@ export function useCrud<T extends { id: number }>(options: CrudOptions) {
     search: '',
     sortBy: undefined as string | undefined,
     sortOrder: undefined as 'asc' | 'desc' | undefined,
-    filters: {} as Record<string, unknown>,
+    // `any` rather than `unknown`: these values are bound straight to form controls
+    // with v-model, which cannot narrow an unknown.
+    filters: {} as Record<string, any>,
   });
 
   async function fetchList(): Promise<void> {
@@ -75,16 +78,14 @@ export function useCrud<T extends { id: number }>(options: CrudOptions) {
     }
   }
 
-  async function deleteItem(id: number, label = 'this item'): Promise<boolean> {
-    try {
-      await ElMessageBox.confirm(`Delete ${label}? This can be undone by an administrator.`, 'Confirm', {
-        type: 'warning',
-        confirmButtonText: 'Delete',
-        confirmButtonClass: 'el-button--danger',
-      });
-    } catch {
-      return false;
-    }
+  async function deleteItem(id: number, label = 'รายการนี้'): Promise<boolean> {
+    // Single sentence on purpose: MessageBox renders plain text, so a "\n" here
+    // would collapse into a space rather than break the line.
+    const confirmed = await confirmDelete(label, {
+      note: `ต้องการลบ "${label}" ใช่หรือไม่? ผู้ดูแลระบบสามารถกู้คืนได้ภายหลัง`,
+    });
+    if (!confirmed) return false;
+
     await http.delete(`${options.endpoint}/${id}`);
     ElMessage.success('Deleted');
     // Step back a page when the last row of the page was removed.
@@ -93,8 +94,10 @@ export function useCrud<T extends { id: number }>(options: CrudOptions) {
     return true;
   }
 
-  function onSortChange({ prop, order }: { prop?: string; order?: string | null }): void {
-    query.sortBy = order ? prop : undefined;
+  // Signature matches Element Plus's `sort-change` payload, which also passes the
+  // column object; we only need prop/order.
+  function onSortChange({ prop, order }: { prop?: string | null; order?: string | null }): void {
+    query.sortBy = order ? (prop ?? undefined) : undefined;
     query.sortOrder = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : undefined;
   }
 

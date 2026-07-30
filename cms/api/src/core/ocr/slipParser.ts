@@ -23,7 +23,7 @@ const SLIP_KEYWORDS =
   /(โอนเงิน|ชำระเงิน|สำเร็จ|transfer|payment|successful|amount|จำนวนเงิน|baht|บาท|reference|เลขที่รายการ|รหัสอ้างอิง)/i;
 
 export function parseSlipText(text: string): SlipData {
-  const normalized = text.replace(/ /g, ' ');
+  const normalized = text.replace(/\u00A0/g, ' ');
   const isSlip = SLIP_KEYWORDS.test(normalized) && /\d/.test(normalized);
 
   return {

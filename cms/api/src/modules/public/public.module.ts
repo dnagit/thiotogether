@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { prisma } from '../../core/database/prisma.js';
 import { validate } from '../../core/middleware/validate.js';
 import { submissionLimiter } from '../../core/middleware/rateLimit.js';
@@ -11,7 +11,7 @@ import { pageService } from '../pages/pages.service.js';
 import { loadMenuTree } from '../menus/menus.module.js';
 import { handlePublicSubmission } from '../forms/forms.module.js';
 import { donationService } from '../donations/donations.service.js';
-import { projectService } from '../donation-projects/donationProjects.module.js';
+import { projectService, stripAmountsForPublic } from '../donation-projects/donationProjects.module.js';
 import { getSettingsMap } from '../settings/settings.module.js';
 import { config } from '../../core/config/index.js';
 import type { FeatureModule } from '../../core/modules.js';
@@ -22,6 +22,18 @@ import type { FeatureModule } from '../../core/modules.js';
  */
 const router = Router();
 
+/**
+ * Cache public content in production, never in development.
+ *
+ * These responses are edited through the admin, so a live TTL in development makes
+ * a saved change look like it did nothing — the browser keeps replaying the cached
+ * menu/settings/page for up to `seconds` even across a normal refresh. In production
+ * the same TTL is exactly what we want, so it is kept there.
+ */
+function publicCache(res: Response, seconds: number): void {
+  res.setHeader('Cache-Control', config.isProd ? `public, max-age=${seconds}` : 'no-store');
+}
+
 // ── Pages & routing ─────────────────────────────────────────
 
 router.get(
@@ -30,7 +42,7 @@ router.get(
     const path = typeof req.query.path === 'string' ? req.query.path : '/';
     const page = await pageService.getPublishedByPath(path);
     // Short CDN/browser cache; content changes invalidate within a minute.
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    publicCache(res, 60);
     ok(res, page);
   }),
 );
@@ -38,7 +50,7 @@ router.get(
 router.get(
   '/pages/paths',
   asyncHandler(async (_req, res) => {
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    publicCache(res, 300);
     ok(res, await pageService.getPublishedPaths());
   }),
 );
@@ -52,7 +64,7 @@ router.get(
       where: { location: req.params.location, isActive: true },
     });
     if (!menu) throw new NotFoundError('Menu');
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    publicCache(res, 60);
     ok(res, { ...menu, items: await loadMenuTree(menu.id, true) });
   }),
 );
@@ -70,7 +82,7 @@ router.get(
       getSettingsMap('social'),
       getSettingsMap('contact'),
     ]);
-    res.setHeader('Cache-Control', 'public, max-age=120');
+    publicCache(res, 120);
     ok(res, { ...general, ...contact, theme, seoDefaults: seo, socialLinks: social });
   }),
 );
@@ -127,15 +139,17 @@ router.get(
       },
     });
     const withStats = await Promise.all(
-      projects.map(async (p) => ({
-        ...p,
-        bankAccounts: p.bankAccounts
-          .map((pb) => pb.bankAccount)
-          .filter((b) => b.isActive && !b.deletedAt),
-        stats: await projectService.getStats(p.id),
-      })),
+      projects.map(async (p) =>
+        stripAmountsForPublic({
+          ...p,
+          bankAccounts: p.bankAccounts
+            .map((pb) => pb.bankAccount)
+            .filter((b) => b.isActive && !b.deletedAt),
+          stats: await projectService.getStats(p.id),
+        }),
+      ),
     );
-    res.setHeader('Cache-Control', 'public, max-age=30');
+    publicCache(res, 30);
     ok(res, withStats);
   }),
 );
@@ -148,19 +162,24 @@ router.get(
       include: { bankAccounts: { include: { bankAccount: true } } },
     });
     if (!project) throw new NotFoundError('Donation project');
-    ok(res, {
-      ...project,
-      bankAccounts: project.bankAccounts
-        .map((pb) => pb.bankAccount)
-        .filter((b) => b.isActive && !b.deletedAt),
-      stats: await projectService.getStats(project.id),
-    });
+    ok(
+      res,
+      stripAmountsForPublic({
+        ...project,
+        bankAccounts: project.bankAccounts
+          .map((pb) => pb.bankAccount)
+          .filter((b) => b.isActive && !b.deletedAt),
+        stats: await projectService.getStats(project.id),
+      }),
+    );
   }),
 );
 
 const donationSchema = z.object({
   projectId: z.coerce.number().int().positive(),
+  nickname: z.string().min(1).max(150),
   accountName: z.string().min(1).max(150),
+  contactInfo: z.string().min(1).max(500),
   amount: z.coerce.number().positive().max(100_000_000),
   transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   transferTime: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/),
@@ -239,7 +258,7 @@ router.get(
         .join('\n') +
       `\n</urlset>`;
     res.setHeader('Content-Type', 'application/xml');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    publicCache(res, 3600);
     res.send(xml);
   }),
 );

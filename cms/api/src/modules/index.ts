@@ -13,6 +13,9 @@ import { settingsModule } from './settings/settings.module.js';
 import { dashboardModule } from './dashboard/dashboard.module.js';
 import { auditLogsModule } from './audit-logs/auditLogs.module.js';
 import { publicModule } from './public/public.module.js';
+import { gamesModule } from './games/games.module.js';
+import { tokensModule } from './tokens/tokens.module.js';
+import { publicGamesModule } from './public-games/publicGames.module.js';
 
 /**
  * Module registry. Adding a feature = create a folder in src/modules/<name>/
@@ -33,5 +36,8 @@ export const modules: FeatureModule[] = [
   settingsModule,
   dashboardModule,
   auditLogsModule,
+  gamesModule,
+  tokensModule,
   publicModule,
+  publicGamesModule,
 ];

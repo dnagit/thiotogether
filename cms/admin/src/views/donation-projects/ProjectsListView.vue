@@ -19,7 +19,8 @@ const dialog = ref(false);
 const blank = {
   id: null as number | null, name: '', slug: '', description: '', shortDescription: '',
   coverImage: null, bannerImage: null, targetAmount: 100000, currency: 'THB',
-  themeColor: '#2563eb', startDate: null, endDate: null, isActive: true, sortOrder: 0,
+  tokenValue: null as number | null, tokenTtlDays: null as number | null,
+  themeColor: '#2563eb', startDate: null, endDate: null, isActive: true, showAmounts: true, sortOrder: 0,
   metaTitle: '', metaDescription: '', bankAccountIds: [] as number[],
 };
 const form = reactive({ ...blank });
@@ -27,6 +28,7 @@ const form = reactive({ ...blank });
 function openDialog(row?: any): void {
   Object.assign(form, blank, row ?? {}, {
     targetAmount: row ? Number(row.targetAmount) : blank.targetAmount,
+    tokenValue: row?.tokenValue != null ? Number(row.tokenValue) : null,
     bankAccountIds: row ? (row.bankAccounts ?? []).map((pb: any) => pb.bankAccount?.id ?? pb.bankAccountId) : [],
   });
   dialog.value = true;
@@ -149,6 +151,24 @@ async function move(index: number, dir: -1 | 1): Promise<void> {
           <ElCol :span="12"><ElFormItem label="Start Date"><ElDatePicker v-model="form.startDate" type="date" style="width: 100%" /></ElFormItem></ElCol>
           <ElCol :span="12"><ElFormItem label="End Date"><ElDatePicker v-model="form.endDate" type="date" style="width: 100%" /></ElFormItem></ElCol>
         </ElRow>
+
+        <!-- Game tokens: without a token value this project grants nothing. -->
+        <ElRow :gutter="12">
+          <ElCol :span="12">
+            <ElFormItem label="มูลค่าเงินต่อ 1 Token (สำหรับเกมเปิดแผ่นป้าย)">
+              <ElInputNumber v-model="form.tokenValue" :min="1" :step="10" :precision="2" placeholder="เว้นว่าง = ไม่ออก token" style="width: 100%" />
+              <div class="text-muted hint">
+                เช่น ใส่ 50 = บริจาค 120 บาท ได้ 2 token (เศษ 20 บาทไม่ถูกยกไปรวมกับรายการอื่น)
+              </div>
+            </ElFormItem>
+          </ElCol>
+          <ElCol :span="12">
+            <ElFormItem label="Token หมดอายุใน (วัน)">
+              <ElInputNumber v-model="form.tokenTtlDays" :min="1" placeholder="เว้นว่าง = ไม่หมดอายุ" style="width: 100%" />
+              <div class="text-muted hint">ระบบจะหัก token ที่ใกล้หมดอายุก่อนเสมอ</div>
+            </ElFormItem>
+          </ElCol>
+        </ElRow>
         <ElRow :gutter="12">
           <ElCol :span="12"><ElFormItem label="Cover Image"><MediaPicker v-model="form.coverImage" /></ElFormItem></ElCol>
           <ElCol :span="12"><ElFormItem label="Banner"><MediaPicker v-model="form.bannerImage" /></ElFormItem></ElCol>
@@ -168,6 +188,13 @@ async function move(index: number, dir: -1 | 1): Promise<void> {
           <ElCol :span="12"><ElFormItem label="SEO Meta Description"><ElInput v-model="form.metaDescription" /></ElFormItem></ElCol>
         </ElRow>
         <ElFormItem><ElCheckbox v-model="form.isActive">Active (visible on website)</ElCheckbox></ElFormItem>
+        <ElFormItem>
+          <ElCheckbox v-model="form.showAmounts">แสดงยอดบริจาคบนหน้าเว็บไซต์</ElCheckbox>
+          <div class="text-muted hint">
+            ถ้าไม่ติ๊ก หน้าเว็บจะไม่แสดงยอดที่ระดมได้ เป้าหมาย และแถบความคืบหน้าของโครงการนี้
+            — API จะไม่ส่งตัวเลขออกไปเลย ไม่ใช่แค่ซ่อนไว้
+          </div>
+        </ElFormItem>
       </ElForm>
       <template #footer>
         <ElButton @click="dialog = false">Cancel</ElButton>
@@ -179,4 +206,5 @@ async function move(index: number, dir: -1 | 1): Promise<void> {
 
 <style scoped>
 .mt { margin-top: 12px; }
+.hint { font-size: 12px; line-height: 1.4; margin-top: 4px; }
 </style>

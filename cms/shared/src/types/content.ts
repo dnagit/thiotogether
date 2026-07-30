@@ -1,5 +1,5 @@
-import type { BaseEntity, SeoMeta } from './api';
-import type { PublishStatus, MenuItemType, BlockType } from '../constants/enums';
+import type { BaseEntity, SeoMeta } from './api.js';
+import type { PublishStatus, MenuItemType, BlockType } from '../constants/enums.js';
 
 /** A single builder block placed on a page. */
 export interface PageBlock extends BaseEntity {

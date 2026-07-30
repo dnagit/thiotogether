@@ -7,7 +7,7 @@ A headless CMS + dynamic website platform built as an npm-workspaces monorepo:
 ```
 cms/
 ├── shared/     @cms/shared  — types, interfaces, constants, utils (framework-agnostic)
-├── api/        @cms/api     — Express + Prisma + MySQL REST API
+├── api/        @cms/api     — Express + Prisma + PostgreSQL REST API
 ├── admin/      @cms/admin   — Vue 3 + Element Plus admin panel
 └── website/    @cms/website — Vue 3 + Tailwind public website (fully dynamic)
 ```
@@ -34,7 +34,7 @@ HTTP ─▶ routes ─▶ middleware (auth / rbac / validate / rateLimit)
               ─▶ controller  (parse request, call service, shape ApiResponse)
               ─▶ service     (business rules, transactions, events)
               ─▶ repository  (Prisma queries, soft delete, pagination)
-              ─▶ MySQL
+              ─▶ PostgreSQL
 ```
 
 Cross-cutting infrastructure lives in `api/src/core/`:

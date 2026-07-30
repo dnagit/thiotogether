@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api/client';
 import { get } from '@/api/client';
 import { applySeo } from '@/composables/useSeo';
+import AppModal from '@/components/AppModal.vue';
 import { formatCurrency, type BankAccount, type DonationProject } from '@cms/shared';
 
 const route = useRoute();
@@ -18,12 +19,63 @@ const project = ref<DonationProject | null>(null);
 const loading = ref(true);
 
 const form = reactive({
+  nickname: '',
   accountName: '',
+  contactInfo: '',
   amount: null as number | null,
   transferDate: new Date().toISOString().slice(0, 10),
   transferTime: new Date().toTimeString().slice(0, 5),
   remark: '',
 });
+/** Bank whose QR is open full-screen — scanning from a phone needs it large. */
+const zoomedQr = ref<BankAccount | null>(null);
+const savingQr = ref<number | null>(null);
+
+/**
+ * Strip characters that are unsafe or awkward in a downloaded file name.
+ * `\p{M}` matters for Thai: vowel signs and tone marks are combining marks, not
+ * letters, so omitting it would turn "กสิกรไทย" into "กส-กรไทย".
+ */
+function safeFilePart(value: string): string {
+  return value.replace(/[^\p{L}\p{N}\p{M}\-_]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+}
+
+/**
+ * Save the QR image to the device.
+ *
+ * The image lives on the API origin, so `<a download>` alone would be ignored as a
+ * cross-origin request and simply navigate. Fetching it into a blob makes the
+ * download attribute apply. If that fetch is blocked — an S3/CDN bucket without CORS,
+ * for instance — fall back to opening the image so the visitor can save it manually,
+ * which is also the native gesture on mobile.
+ */
+async function saveQr(bank: BankAccount): Promise<void> {
+  if (!bank.qrCodeUrl || savingQr.value === bank.id) return;
+  savingQr.value = bank.id;
+
+  const name = `qr-${safeFilePart(bank.bankName)}-${safeFilePart(bank.accountNumber)}`;
+  try {
+    const response = await fetch(bank.qrCodeUrl, { mode: 'cors' });
+    if (!response.ok) throw new Error(String(response.status));
+    const blob = await response.blob();
+
+    const extension = (blob.type.split('/')[1] ?? 'png').replace('jpeg', 'jpg');
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = `${name}.${extension}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Revoke on the next tick so Safari has started the download first.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  } catch {
+    window.open(bank.qrCodeUrl, '_blank', 'noopener');
+  } finally {
+    savingQr.value = null;
+  }
+}
+
 const slipFile = ref<File | null>(null);
 const slipPreview = ref<string | null>(null);
 const dragOver = ref(false);
@@ -74,11 +126,13 @@ function onDrop(e: DragEvent): void {
 
 function validate(): boolean {
   for (const key of Object.keys(errors)) delete errors[key];
+  if (!form.nickname.trim()) errors.nickname = 'กรุณากรอกชื่อเล่นหรือนามแฝง';
   if (!form.accountName.trim()) errors.accountName = 'Your name is required';
   if (!form.amount || form.amount <= 0) errors.amount = 'Enter the donation amount';
   if (!form.transferDate) errors.transferDate = 'Transfer date is required';
   if (!form.transferTime) errors.transferTime = 'Transfer time is required';
   if (!slipFile.value) errors.slip = 'Transfer slip image is required';
+  if (!form.contactInfo.trim()) errors.contactInfo = 'กรุณากรอกชื่อ ที่อยู่ และเบอร์โทร';
   return Object.keys(errors).length === 0;
 }
 
@@ -88,7 +142,9 @@ async function submit(): Promise<void> {
   try {
     const fd = new FormData();
     fd.append('projectId', String(project.value.id));
+    fd.append('nickname', form.nickname);
     fd.append('accountName', form.accountName);
+    fd.append('contactInfo', form.contactInfo);
     fd.append('amount', String(form.amount));
     fd.append('transferDate', form.transferDate);
     fd.append('transferTime', form.transferTime);
@@ -140,7 +196,7 @@ const inputClass =
     <template v-else>
       <!-- Banner / project info -->
       <div
-        class="relative py-20 text-white text-center"
+        class="relative py-40 text-white text-center"
         :style="project.bannerImage
           ? { backgroundImage: `url(${project.bannerImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
           : { background: themeColor }"
@@ -155,8 +211,9 @@ const inputClass =
       <div class="container-site py-12 grid gap-10 lg:grid-cols-5">
         <!-- Left: description + progress + banks -->
         <div class="lg:col-span-3 space-y-8">
-          <!-- Progress -->
-          <div class="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+          <!-- Progress. Hidden entirely when the project opts out of showing amounts;
+               the API withholds the figures, so there is nothing to render anyway. -->
+          <div v-if="project.showAmounts" class="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
             <div class="flex justify-between items-end mb-2">
               <div>
                 <div class="text-3xl font-extrabold" :style="{ color: themeColor }">
@@ -178,6 +235,14 @@ const inputClass =
             </div>
           </div>
 
+          <!-- End date still matters to donors even when amounts are private. -->
+          <div
+            v-else-if="project.endDate"
+            class="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm text-sm text-gray-600"
+          >
+            เปิดรับบริจาคถึง {{ new Date(project.endDate).toLocaleDateString('th-TH') }}
+          </div>
+
           <!-- Description -->
           <div class="prose-cms" v-html="project.description" />
 
@@ -185,8 +250,39 @@ const inputClass =
           <div>
             <h2 class="text-xl font-bold mb-4">Transfer to</h2>
             <div class="grid gap-4 sm:grid-cols-2">
-              <div v-for="bank in banks" :key="bank.id" class="border border-gray-200 rounded-xl p-5 flex gap-4 items-center">
-                <img v-if="bank.qrCodeUrl" :src="bank.qrCodeUrl" alt="QR" class="w-24 h-24 object-contain rounded-lg border" />
+              <!-- With a QR the card stacks so the code gets the card's full width;
+                   side-by-side capped it at ~96px, too small to scan reliably. -->
+              <div
+                v-for="bank in banks"
+                :key="bank.id"
+                class="border border-gray-200 rounded-xl p-5"
+                :class="bank.qrCodeUrl ? 'flex flex-col items-center text-center gap-3' : 'flex gap-4 items-center'"
+              >
+                <button
+                  v-if="bank.qrCodeUrl"
+                  type="button"
+                  class="qr-button"
+                  :aria-label="`ขยาย QR code ของ ${bank.bankName}`"
+                  @click="zoomedQr = bank"
+                >
+                  <img
+                    :src="bank.qrCodeUrl"
+                    :alt="`QR code สำหรับโอนเข้าบัญชี ${bank.bankName}`"
+                    class="qr-img"
+                  />
+                  <span class="qr-hint">🔍 แตะเพื่อขยาย</span>
+                </button>
+
+                <button
+                  v-if="bank.qrCodeUrl"
+                  type="button"
+                  class="btn-save-qr"
+                  :disabled="savingQr === bank.id"
+                  @click="saveQr(bank)"
+                >
+                  {{ savingQr === bank.id ? 'กำลังบันทึก…' : '⬇ บันทึก QR code' }}
+                </button>
+
                 <div>
                   <div class="font-bold">{{ bank.bankName }}</div>
                   <div class="text-sm">{{ bank.accountName }}</div>
@@ -207,6 +303,12 @@ const inputClass =
             <div v-if="campaignEnded" class="text-center py-8 text-gray-500">This campaign has ended. Thank you for your support! 💛</div>
 
             <form v-else class="space-y-4" novalidate @submit.prevent="submit">
+              <div>
+                <label class="block text-sm font-medium mb-1.5">ชื่อเล่น หรือ นามแฝง <span class="text-red-500">*</span></label>
+                <input v-model="form.nickname" :class="inputClass" :style="{ '--tw-ring-color': themeColor }" />
+                <p v-if="errors.nickname" class="text-xs text-red-600 mt-1">{{ errors.nickname }}</p>
+              </div>
+
               <div>
                 <label class="block text-sm font-medium mb-1.5">Your Name (account name) <span class="text-red-500">*</span></label>
                 <input v-model="form.accountName" :class="inputClass" :style="{ '--tw-ring-color': themeColor }" />
@@ -258,6 +360,19 @@ const inputClass =
               </div>
 
               <div>
+                <label class="block text-sm font-medium mb-1.5">ชื่อ-ที่อยู่-เบอร์โทร <span class="text-red-500">*</span></label>
+                <textarea
+                  v-model="form.contactInfo"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="ชื่อ-นามสกุล / ที่อยู่จัดส่ง / เบอร์โทรติดต่อ"
+                  :class="inputClass"
+                  :style="{ '--tw-ring-color': themeColor }"
+                />
+                <p v-if="errors.contactInfo" class="text-xs text-red-600 mt-1">{{ errors.contactInfo }}</p>
+              </div>
+
+              <div>
                 <label class="block text-sm font-medium mb-1.5">Remark (optional)</label>
                 <textarea v-model="form.remark" rows="2" :class="inputClass" />
               </div>
@@ -274,6 +389,87 @@ const inputClass =
           </div>
         </div>
       </div>
+
+      <!-- Full-screen QR: donors often scan from a second device, so give it room. -->
+      <AppModal
+        :open="!!zoomedQr"
+        :title="zoomedQr ? `QR code — ${zoomedQr.bankName}` : ''"
+        @close="zoomedQr = null"
+      >
+        <template v-if="zoomedQr">
+          <img
+            :src="zoomedQr.qrCodeUrl!"
+            :alt="`QR code สำหรับโอนเข้าบัญชี ${zoomedQr.bankName}`"
+            class="w-full rounded-xl border bg-white"
+          />
+          <div class="mt-3 text-center">
+            <div class="font-semibold">{{ zoomedQr.accountName }}</div>
+            <div class="font-mono text-lg tracking-wide">{{ zoomedQr.accountNumber }}</div>
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button type="button" class="flex-1 btn-close" @click="zoomedQr = null">ปิด</button>
+            <button
+              type="button"
+              class="flex-1 btn-save-qr"
+              :disabled="savingQr === zoomedQr.id"
+              @click="saveQr(zoomedQr)"
+            >
+              {{ savingQr === zoomedQr.id ? 'กำลังบันทึก…' : '⬇ บันทึก QR code' }}
+            </button>
+          </div>
+        </template>
+      </AppModal>
     </template>
   </template>
 </template>
+
+<style scoped>
+.qr-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border-radius: 12px;
+}
+.qr-button:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
+
+.qr-img {
+  width: 100%;
+  /* No forced square: QR uploads are often portrait screenshots, and boxing one
+     into a square would letterbox it down to a fraction of the available width.
+     Natural ratio + a height cap keeps it as large as the card allows. */
+  max-width: 260px;
+  height: auto;
+  max-height: 340px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 6px;
+}
+.qr-button:hover .qr-img { border-color: #9ca3af; }
+
+.qr-hint { font-size: 11px; color: #6b7280; }
+
+.btn-close {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 0;
+  font-weight: 600;
+}
+.btn-close:hover { background: #f9fafb; }
+
+.btn-save-qr {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fff;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn-save-qr:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
+.btn-save-qr:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-save-qr:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+</style>

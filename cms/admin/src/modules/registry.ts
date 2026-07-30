@@ -128,6 +128,48 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'games',
+    menu: { label: 'เกมเปิดแผ่นป้าย', icon: 'Grid', order: 7, permission: PERMISSIONS.GAMES_VIEW },
+    routes: [
+      {
+        path: 'games',
+        name: 'games',
+        component: () => import('@/views/games/GamesListView.vue'),
+        meta: { title: 'Games', permission: PERMISSIONS.GAMES_VIEW },
+      },
+      {
+        path: 'games/:id/edit',
+        name: 'game-edit',
+        component: () => import('@/views/games/GameEditView.vue'),
+        meta: { title: 'Edit Game', permission: PERMISSIONS.GAMES_MANAGE },
+      },
+      {
+        path: 'games/:id/results',
+        name: 'game-results',
+        component: () => import('@/views/games/GameResultsView.vue'),
+        meta: { title: 'Game Results', permission: PERMISSIONS.GAMES_VIEW },
+      },
+    ],
+  },
+  {
+    name: 'tokens',
+    menu: { label: 'Token', icon: 'Coin', order: 8, permission: PERMISSIONS.TOKENS_VIEW },
+    routes: [
+      {
+        path: 'tokens/accounts',
+        name: 'token-accounts',
+        component: () => import('@/views/tokens/TokenAccountsView.vue'),
+        meta: { title: 'Token Accounts', permission: PERMISSIONS.TOKENS_VIEW },
+      },
+      {
+        path: 'tokens/ledger',
+        name: 'token-ledger',
+        component: () => import('@/views/tokens/TokenLedgerView.vue'),
+        meta: { title: 'Token Ledger', permission: PERMISSIONS.TOKENS_VIEW },
+      },
+    ],
+  },
+  {
     name: 'bank-accounts',
     menu: { label: 'Bank Accounts', icon: 'CreditCard', order: 6, permission: PERMISSIONS.BANK_ACCOUNTS_VIEW },
     routes: [
@@ -141,7 +183,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'media',
-    menu: { label: 'Media Library', icon: 'PictureFilled', order: 7, permission: PERMISSIONS.MEDIA_VIEW },
+    menu: { label: 'Media Library', icon: 'PictureFilled', order: 9, permission: PERMISSIONS.MEDIA_VIEW },
     routes: [
       {
         path: 'media',
@@ -153,7 +195,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'users',
-    menu: { label: 'Users', icon: 'User', order: 8, permission: PERMISSIONS.USERS_VIEW },
+    menu: { label: 'Users', icon: 'User', order: 10, permission: PERMISSIONS.USERS_VIEW },
     routes: [
       {
         path: 'users',
@@ -171,7 +213,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'settings',
-    menu: { label: 'Settings', icon: 'Setting', order: 9, permission: PERMISSIONS.SETTINGS_VIEW },
+    menu: { label: 'Settings', icon: 'Setting', order: 11, permission: PERMISSIONS.SETTINGS_VIEW },
     routes: [
       {
         path: 'settings',
@@ -183,7 +225,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'audit-logs',
-    menu: { label: 'Audit Logs', icon: 'List', order: 10, permission: PERMISSIONS.AUDIT_LOGS_VIEW },
+    menu: { label: 'Audit Logs', icon: 'List', order: 12, permission: PERMISSIONS.AUDIT_LOGS_VIEW },
     routes: [
       {
         path: 'audit-logs',

@@ -1,12 +1,16 @@
 import { z } from 'zod';
 
+// PostgreSQL compares strings case-sensitively, so emails are normalized to
+// lowercase before they ever reach the case-sensitive `users.email` unique index.
+const email = z.string().email().toLowerCase();
+
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email,
   password: z.string().min(8).max(100),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email,
 });
 
 export const resetPasswordSchema = z.object({

@@ -1,5 +1,5 @@
-import type { BaseEntity, SeoMeta } from './api';
-import type { DonationStatus } from '../constants/enums';
+import type { BaseEntity, SeoMeta } from './api.js';
+import type { DonationStatus } from '../constants/enums.js';
 
 export interface BankAccount extends BaseEntity {
   bankName: string;
@@ -17,14 +17,17 @@ export interface DonationProject extends BaseEntity, SeoMeta {
   shortDescription?: string | null;
   coverImage?: string | null;
   bannerImage?: string | null;
-  targetAmount: number;
+  /** Absent from public responses when `showAmounts` is false. */
+  targetAmount?: number;
   /** Denormalized sum of VERIFIED donations; recomputed on every status change. */
-  currentAmount: number;
+  currentAmount?: number;
   currency: string;
   themeColor?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   isActive: boolean;
+  /** When false the public API omits targetAmount, currentAmount and stats entirely. */
+  showAmounts: boolean;
   sortOrder: number;
   bankAccounts?: BankAccount[];
   stats?: DonationProjectStats;
@@ -45,7 +48,10 @@ export interface Donation extends BaseEntity {
   donationCode: string;
   projectId: number;
   project?: Pick<DonationProject, 'id' | 'name' | 'slug' | 'currency'>;
+  /** Null on donations submitted before the field was added to the form. */
+  nickname?: string | null;
   accountName: string;
+  contactInfo?: string | null;
   amount: number;
   transferDate: string;
   transferTime: string;
@@ -86,7 +92,9 @@ export interface DonationLog extends BaseEntity {
 
 export interface CreateDonationRequest {
   projectId: number;
+  nickname: string;
   accountName: string;
+  contactInfo: string;
   amount: number;
   transferDate: string;
   transferTime: string;

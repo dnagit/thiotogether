@@ -1,5 +1,5 @@
-import type { BaseEntity } from './api';
-import type { Permission } from '../constants/permissions';
+import type { BaseEntity } from './api.js';
+import type { Permission } from '../constants/permissions.js';
 
 export interface Role extends BaseEntity {
   name: string;

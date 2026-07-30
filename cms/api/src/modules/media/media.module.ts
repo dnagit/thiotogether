@@ -51,8 +51,8 @@ router.get(
     if (query.filters.type) where.type = query.filters.type;
     if (query.search) {
       where.OR = [
-        { originalName: { contains: query.search } },
-        { alt: { contains: query.search } },
+        { originalName: { contains: query.search, mode: 'insensitive' } },
+        { alt: { contains: query.search, mode: 'insensitive' } },
       ];
     }
     const [items, total] = await Promise.all([

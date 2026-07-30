@@ -9,27 +9,32 @@ import { authorize } from '../../core/middleware/authorize.js';
 import { validate } from '../../core/middleware/validate.js';
 import { asyncHandler } from '../../core/utils/asyncHandler.js';
 import { ConflictError } from '../../core/errors/AppError.js';
+import { blank, blankToUndefined } from '../../core/utils/zod.js';
 import { PERMISSIONS, progressPercent, slugify } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
 
 // ── Validation ──────────────────────────────────────────────
 export const projectSchema = z.object({
   name: z.string().min(1).max(200),
-  slug: z.string().min(1).max(200).regex(/^[a-z0-9ก-๙-]+$/).optional(),
+  slug: blankToUndefined(z.string().min(1).max(200).regex(/^[a-z0-9ก-๙-]+$/).optional()),
   description: z.string().min(1),
-  shortDescription: z.string().max(500).nullish(),
-  coverImage: z.string().max(500).nullish(),
-  bannerImage: z.string().max(500).nullish(),
+  shortDescription: blank(z.string().max(500).nullish()),
+  coverImage: blank(z.string().max(500).nullish()),
+  bannerImage: blank(z.string().max(500).nullish()),
   targetAmount: z.coerce.number().positive(),
   currency: z.string().max(8).default('THB'),
-  themeColor: z.string().max(20).nullish(),
-  startDate: z.coerce.date().nullish(),
-  endDate: z.coerce.date().nullish(),
+  /// Money per game token. Null disables token granting for this project entirely.
+  tokenValue: blank(z.coerce.number().positive().nullish()),
+  tokenTtlDays: blank(z.coerce.number().int().positive().nullish()),
+  themeColor: blank(z.string().max(20).nullish()),
+  startDate: blank(z.coerce.date().nullish()),
+  endDate: blank(z.coerce.date().nullish()),
   isActive: z.boolean().default(true),
+  showAmounts: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
-  metaTitle: z.string().max(255).nullish(),
-  metaDescription: z.string().max(500).nullish(),
-  ogImage: z.string().max(500).nullish(),
+  metaTitle: blank(z.string().max(255).nullish()),
+  metaDescription: blank(z.string().max(500).nullish()),
+  ogImage: blank(z.string().max(500).nullish()),
 });
 
 const reorderSchema = z.object({
@@ -170,6 +175,24 @@ export class ProjectService extends BaseService<any> {
 }
 
 export const projectService = new ProjectService();
+
+/**
+ * Strip every raised/target figure from a project before it goes to the public site
+ * when the admin has turned amounts off.
+ *
+ * Done here rather than in the website so the numbers are genuinely absent from the
+ * response — hiding them in the template would still leave them readable in the
+ * browser's network tab.
+ *
+ * `targetAmount` goes too: publishing the goal alongside a hidden raised figure
+ * still invites the "how far along are they?" question the setting exists to avoid.
+ */
+export function stripAmountsForPublic<T extends Record<string, any>>(project: T): T {
+  if (project.showAmounts) return project;
+
+  const { targetAmount: _t, currentAmount: _c, stats: _s, ...rest } = project;
+  return { ...rest, showAmounts: false } as unknown as T;
+}
 
 // ── Controller & routes ─────────────────────────────────────
 class ProjectController extends BaseController<any> {

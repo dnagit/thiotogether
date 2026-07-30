@@ -46,6 +46,13 @@ export const PERMISSIONS = {
   SETTINGS_VIEW: 'settings.view',
   SETTINGS_MANAGE: 'settings.manage',
 
+  GAMES_VIEW: 'games.view',
+  GAMES_MANAGE: 'games.manage',
+  /// Separate from GAMES_MANAGE: revealing is irreversible and decides real prizes.
+  GAMES_REVEAL: 'games.reveal',
+  TOKENS_VIEW: 'tokens.view',
+  TOKENS_ADJUST: 'tokens.adjust',
+
   AUDIT_LOGS_VIEW: 'audit-logs.view',
 } as const;
 
@@ -69,5 +76,6 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.DONATIONS_VIEW,
     PERMISSIONS.MEDIA_VIEW,
     PERMISSIONS.MEDIA_UPLOAD,
+    PERMISSIONS.GAMES_VIEW,
   ],
 };

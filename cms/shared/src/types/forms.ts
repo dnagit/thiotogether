@@ -1,5 +1,5 @@
-import type { BaseEntity } from './api';
-import type { FormFieldType } from '../constants/enums';
+import type { BaseEntity } from './api.js';
+import type { FormFieldType } from '../constants/enums.js';
 
 export interface Form extends BaseEntity {
   name: string;

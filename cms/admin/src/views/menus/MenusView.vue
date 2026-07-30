@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
+import { confirmDelete } from '@/utils/confirm';
 import { http } from '@/api/http';
 import MenuItemTree from './MenuItemTree.vue';
 import { PERMISSIONS, type ApiResponse } from '@cms/shared';
@@ -62,7 +63,7 @@ async function saveMenu(): Promise<void> {
 
 async function deleteMenu(menu: any): Promise<void> {
   try {
-    await ElMessageBox.confirm(`Delete menu "${menu.name}" and all its items?`, 'Confirm', { type: 'warning' });
+    if (!(await confirmDelete(menu.name, { note: `ต้องการลบเมนู "${menu.name}" และรายการย่อยทั้งหมด ใช่หรือไม่?` }))) return;
   } catch {
     return;
   }

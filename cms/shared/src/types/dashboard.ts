@@ -1,5 +1,5 @@
-import type { Donation, DonationProject } from './donations';
-import type { Page } from './content';
+import type { Donation, DonationProject } from './donations.js';
+import type { Page } from './content.js';
 
 export interface AuditLog {
   id: number;

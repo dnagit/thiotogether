@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import { tagMapper } from '@/utils/elementTypes';
 import { useCrud } from '@/composables/useCrud';
 import { formatDateTime } from '@cms/shared';
 
 const crud = useCrud<any>({ endpoint: '/audit-logs' });
 
-const actionTag = (a: string) =>
-  ({ create: 'success', update: 'warning', delete: 'danger', login: 'info' })[a] ?? 'info';
+const actionTag = tagMapper({ create: 'success', update: 'warning', delete: 'danger', login: 'info' });
 </script>
 
 <template>

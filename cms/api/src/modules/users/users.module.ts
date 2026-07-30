@@ -5,6 +5,7 @@ import { BaseService } from '../../core/base/BaseService.js';
 import { BaseController, ok } from '../../core/base/BaseController.js';
 import { crudRouter } from '../../core/base/crudRouter.js';
 import { hashPassword } from '../../core/utils/hash.js';
+import { blank } from '../../core/utils/zod.js';
 import { BadRequestError } from '../../core/errors/AppError.js';
 import { prisma } from '../../core/database/prisma.js';
 import { PERMISSIONS } from '@cms/shared';
@@ -14,12 +15,13 @@ import { authorize } from '../../core/middleware/authorize.js';
 
 // ── Validation ──────────────────────────────────────────────
 export const createUserSchema = z.object({
-  email: z.string().email(),
+  // Lowercased to match the auth flow — `users.email` is case-sensitive on PostgreSQL.
+  email: z.string().email().toLowerCase(),
   name: z.string().min(1).max(120),
   password: z.string().min(8).max(100),
   roleId: z.number().int().positive(),
   isActive: z.boolean().default(true),
-  avatarUrl: z.string().url().nullish(),
+  avatarUrl: blank(z.string().url().nullish()),
 });
 
 export const updateUserSchema = createUserSchema.partial().extend({

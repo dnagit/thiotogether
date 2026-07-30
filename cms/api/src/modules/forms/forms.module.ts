@@ -9,6 +9,7 @@ import { asyncHandler } from '../../core/utils/asyncHandler.js';
 import { ok, created } from '../../core/base/BaseController.js';
 import { NotFoundError, ValidationError } from '../../core/errors/AppError.js';
 import { sendMail } from '../../core/mail/mailer.js';
+import { blank } from '../../core/utils/zod.js';
 import { PERMISSIONS, type FieldError } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
 
@@ -33,10 +34,10 @@ const fieldSchema = z.object({
 const formSchema = z.object({
   name: z.string().min(1).max(150),
   slug: z.string().min(1).max(150).regex(/^[a-z0-9-]+$/),
-  description: z.string().max(500).nullish(),
+  description: blank(z.string().max(500).nullish()),
   submitLabel: z.string().max(60).default('Submit'),
   successMessage: z.string().max(500).default('Thank you!'),
-  notifyEmail: z.string().email().nullish(),
+  notifyEmail: blank(z.string().email().nullish()),
   isActive: z.boolean().default(true),
 });
 
