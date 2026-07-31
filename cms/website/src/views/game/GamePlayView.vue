@@ -73,8 +73,6 @@ const successMessage = ref<string | null>(null);
 /** Tile whose overlay is pinned open by a tap (touch has no hover). */
 const peeked = ref<number | null>(null);
 
-const themeColor = computed(() => board.value?.themeColor ?? 'var(--color-primary)');
-
 /**
  * Square board: 4 tiles → 2×2, 16 → 4×4, 36 → 6×6.
  *

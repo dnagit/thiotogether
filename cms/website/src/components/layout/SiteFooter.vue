@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useSiteStore } from '@/stores/site';
-import MenuLink from './MenuLink.vue';
-import type { MenuItem } from '@cms/shared';
 
 const site = useSiteStore();
-const menu = ref<{ items?: MenuItem[] } | null>(null);
-void site.loadMenu('footer').then((m) => (menu.value = m));
 
-const social = computed(() => Object.entries((site.settings?.socialLinks ?? {}) as Record<string, string>).filter(([, url]) => url));
+// The link/contact/social columns are commented out in the template below; their sources
+// (MenuLink, the `footer` menu fetch, `social`) went with them. Restore both together.
 const footerText = computed(() => site.theme.footerText || `© ${new Date().getFullYear()} ${site.siteName}`);
 
 /**

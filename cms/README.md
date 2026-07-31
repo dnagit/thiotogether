@@ -275,11 +275,11 @@ PORT=4009
 
 # ต้องตรงกับโดเมนจริงเป๊ะ ๆ (มี https:// ไม่มี / ปิดท้าย)
 # ค่าสองตัวล่างคือ CORS allow-list ถ้าผิดเบราว์เซอร์จะบล็อกทุก request
-APP_URL=https://api.example.com
-WEBSITE_URL=https://www.example.com
-ADMIN_URL=https://admin.example.com
+APP_URL=https://tt-api.dna.co.th
+WEBSITE_URL=https://tt.dna.co.th
+ADMIN_URL=https://tt-admin.dna.co.th
 
-DATABASE_URL="postgresql://cms:รหัสผ่านที่ตั้งไว้@localhost:5432/cms?schema=public"
+DATABASE_URL="postgresql://cms:postgres@localhost:5432/cms?schema=public"
 
 # สร้างด้วย: openssl rand -hex 32  (ต้องยาวอย่างน้อย 32 ตัวอักษร)
 JWT_ACCESS_SECRET=<openssl rand -hex 32>
