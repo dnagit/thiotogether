@@ -3,7 +3,7 @@ import { ElMessage } from 'element-plus';
 import type { ApiResponse } from '@cms/shared';
 
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api/v1',
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4009/api/v1',
   withCredentials: true, // refresh token cookie
   timeout: 30_000,
 });

@@ -30,5 +30,5 @@ RUN addgroup -S cms && adduser -S cms -G cms && mkdir -p /app/api/uploads && cho
 USER cms
 
 WORKDIR /app/api
-EXPOSE 4000
+EXPOSE 4009
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/api/src/server.js"]

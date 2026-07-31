@@ -29,7 +29,7 @@ npm run prisma:migrate                # creates tables (prisma migrate dev)
 npm run prisma:seed                   # roles, admin user, pages, menus, projects…
 
 # 3) Run everything
-npm run dev                           # api :4000, website :5173, admin :5174
+npm run dev                           # api :4009, website :5173, admin :5174
 ```
 
 **Default login (admin panel, http://localhost:5174):**
@@ -58,7 +58,7 @@ docker compose up -d --build
 docker compose exec api npx prisma db seed   # optional demo data
 ```
 
-Services: API :4000 · website :8080 · admin :8081. Put a TLS-terminating
+Services: API :4009 · website :8080 · admin :8081. Put a TLS-terminating
 reverse proxy (nginx/Caddy/Cloudflare) in front and point each domain at the
 matching container.
 
@@ -77,7 +77,7 @@ matching container.
 |---|---|---|
 | `https://www.example.com` | เว็บไซต์สาธารณะ | เสิร์ฟไฟล์ static จาก `website/dist` |
 | `https://admin.example.com` | หน้าจัดการ | เสิร์ฟไฟล์ static จาก `admin/dist` |
-| `https://api.example.com` | REST API | reverse proxy ไปที่ Node บนพอร์ต 4000 |
+| `https://api.example.com` | REST API | reverse proxy ไปที่ Node บนพอร์ต 4009 |
 
 > **ทำไมต้องเป็น subdomain ไม่ใช่ path เช่น `/admin`**
 > ทั้งสอง SPA ใช้ `createWebHistory()` แบบ root ถ้าจะย้ายไปอยู่ใต้ path ต้องแก้
@@ -271,7 +271,7 @@ sudo chown -R cms:cms /opt/cms/app/cms/api/uploads
 ```bash
 sudo -u cms tee /opt/cms/app/cms/api/.env > /dev/null <<'EOF'
 NODE_ENV=production
-PORT=4000
+PORT=4009
 
 # ต้องตรงกับโดเมนจริงเป๊ะ ๆ (มี https:// ไม่มี / ปิดท้าย)
 # ค่าสองตัวล่างคือ CORS allow-list ถ้าผิดเบราว์เซอร์จะบล็อกทุก request
@@ -364,7 +364,7 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now cms-api
 sudo systemctl status cms-api --no-pager
-curl -s http://localhost:4000/health     # ต้องได้ {"status":"ok",...}
+curl -s http://localhost:4009/health     # ต้องได้ {"status":"ok",...}
 ```
 
 ดู log เมื่อมีปัญหา
@@ -388,7 +388,7 @@ server {
     client_max_body_size 20m;
 
     location / {
-        proxy_pass http://127.0.0.1:4000;
+        proxy_pass http://127.0.0.1:4009;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;
