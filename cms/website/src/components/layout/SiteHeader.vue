@@ -1,73 +1,71 @@
 <script setup lang="ts">
 /** Header with fully dynamic navigation — no hardcoded links anywhere. */
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useSiteStore } from '@/stores/site';
 import MenuLink from './MenuLink.vue';
 import type { MenuItem } from '@cms/shared';
 
 const site = useSiteStore();
+const route = useRoute();
 const menu = ref<{ items?: MenuItem[] } | null>(null);
-const mobileOpen = ref(false);
+const navOpen = ref(false);
 
 void site.loadMenu('main').then((m) => (menu.value = m));
 
 const items = computed(() => (menu.value?.items ?? []) as MenuItem[]);
 const logo = computed(() => site.theme.logoUrl);
+
+/** Banner pages render their artwork underneath the transparent bar, so the site name reads on it. */
+const overlay = computed(() => route.path === '/' || route.meta.underHeader === true);
+
+watch(() => route.fullPath, () => (navOpen.value = false));
 </script>
 
 <template>
-  <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-100">
-    <div class="container-site flex items-center justify-between h-16">
-      <RouterLink to="/" class="flex items-center gap-2 font-bold text-lg">
-        <img v-if="logo" :src="logo" alt="" class="h-8 w-auto" />
-        <span v-else>{{ site.siteName }}</span>
-      </RouterLink>
-
-      <!-- Desktop nav -->
-      <nav class="hidden md:flex items-center gap-1">
-        <div v-for="item in items" :key="item.id" class="relative group">
-          <MenuLink :item="item" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 inline-flex items-center gap-1">
-            {{ item.label }}
-            <svg v-if="item.children?.length" class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4z" /></svg>
-          </MenuLink>
-          <!-- Dropdown (one nested level shown; deeper levels indent) -->
-          <div
-            v-if="item.children?.length"
-            class="absolute left-0 top-full hidden group-hover:block bg-white border border-gray-100 rounded-lg shadow-lg py-2 min-w-[220px]"
-          >
-            <template v-for="child in item.children" :key="child.id">
-              <MenuLink :item="child" class="block px-4 py-2 text-sm hover:bg-gray-50">{{ child.label }}</MenuLink>
-              <MenuLink
-                v-for="grand in child.children ?? []"
-                :key="grand.id"
-                :item="grand"
-                class="block pl-8 pr-4 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-              >{{ grand.label }}</MenuLink>
-            </template>
-          </div>
-        </div>
-      </nav>
-
-      <!-- Mobile toggle -->
-      <button class="md:hidden p-2" aria-label="Menu" @click="mobileOpen = !mobileOpen">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path v-if="!mobileOpen" d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" />
+  <header class="fixed top-0 inset-x-0 z-40 bg-transparent" :class="overlay ? 'text-white' : ''">
+    <div class="container-site flex items-center h-[var(--header-h)]">
+      <!-- Menu toggle (left, all breakpoints) -->
+      <button class="p-2 -ml-2 shrink-0 text-[#ea480c]" aria-label="Menu" :aria-expanded="navOpen" @click="navOpen = !navOpen">
+        <svg class="w-[var(--burger-size)] h-[var(--burger-size)]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path v-if="!navOpen" d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" />
           <path v-else d="M6 6l12 12M18 6L6 18" stroke-linecap="round" />
         </svg>
       </button>
+
+      <!-- Logo (centered) -->
+      <RouterLink to="/" class="flex-1 flex items-center justify-center gap-2 font-bold text-lg min-w-0">
+        <img v-if="logo" :src="logo" alt="" class="h-[var(--header-h)] w-auto max-w-full object-contain" />
+        <span v-else class="truncate">{{ site.siteName }}</span>
+      </RouterLink>
+
+      <!-- Spacer keeping the logo optically centered -->
+      <div class="w-[calc(var(--burger-size)+0.5rem)] shrink-0" aria-hidden="true"></div>
     </div>
 
-    <!-- Mobile nav -->
-    <nav v-if="mobileOpen" class="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-1">
+    <!--
+      Nav panel: overlays the page so opening it never pushes content down. Its gradient is sampled
+      from the banner artwork (cream #efe9c9 at the top through to the yellow sky #fde164) and kept
+      translucent, with a backdrop blur so the page stays legible behind it.
+    -->
+    <nav
+      v-if="navOpen"
+      class="absolute inset-x-0 top-full max-h-[calc(100vh-var(--header-h))] overflow-y-auto
+             border-t border-white/40 text-gray-900 shadow-lg px-4 py-3 space-y-1
+             bg-gradient-to-b from-[#efe9c9]/90 via-[#f6de8f]/90 to-[#fde164]/90 backdrop-blur-md"
+    >
       <template v-for="item in items" :key="item.id">
-        <MenuLink :item="item" class="block py-2 font-medium" @click="mobileOpen = false">{{ item.label }}</MenuLink>
-        <MenuLink
-          v-for="child in item.children ?? []"
-          :key="child.id"
-          :item="child"
-          class="block py-1.5 pl-4 text-sm text-gray-600"
-          @click="mobileOpen = false"
-        >{{ child.label }}</MenuLink>
+        <MenuLink :item="item" class="block py-2 font-medium" @click="navOpen = false">{{ item.label }}</MenuLink>
+        <template v-for="child in item.children ?? []" :key="child.id">
+          <MenuLink :item="child" class="block py-1.5 pl-4 text-sm text-gray-600" @click="navOpen = false">{{ child.label }}</MenuLink>
+          <MenuLink
+            v-for="grand in child.children ?? []"
+            :key="grand.id"
+            :item="grand"
+            class="block py-1.5 pl-8 text-sm text-gray-500"
+            @click="navOpen = false"
+          >{{ grand.label }}</MenuLink>
+        </template>
       </template>
     </nav>
   </header>

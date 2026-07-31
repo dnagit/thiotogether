@@ -188,15 +188,16 @@ const inputClass =
         We're verifying your transfer slip automatically. Save your Donation ID to check the status anytime.
       </p>
       <div class="flex gap-3 justify-center">
-        <RouterLink :to="`/donation/status/${result.donationCode}`" class="btn-primary">Check Status</RouterLink>
+        <RouterLink :to="`/donation/status/${result.donationCode}`" class="btn-primary" style="background-color: #ea480c;">Check Status</RouterLink>
         <RouterLink to="/donation" class="px-6 py-3 rounded-lg border border-gray-300 font-semibold hover:bg-gray-50">All Projects</RouterLink>
       </div>
     </div>
 
     <template v-else>
       <!-- Banner / project info -->
+      <!-- Top padding clears the floating header so the title never sits underneath it. -->
       <div
-        class="relative py-40 text-white text-center"
+        class="relative pt-[calc(var(--header-h)+2.5rem)] pb-40 text-white text-center"
         :style="project.bannerImage
           ? { backgroundImage: `url(${project.bannerImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
           : { background: themeColor }"
@@ -380,7 +381,7 @@ const inputClass =
               <button
                 type="submit"
                 class="w-full text-white font-semibold py-3.5 rounded-xl transition hover:opacity-90 disabled:opacity-50"
-                :style="{ background: themeColor }"
+                :style="{ background: '#ea480c' }"
                 :disabled="submitting"
               >
                 {{ submitting ? 'Submitting…' : '💛 Submit Donation' }}

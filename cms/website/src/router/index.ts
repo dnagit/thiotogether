@@ -21,6 +21,8 @@ export const router = createRouter({
       path: '/donation/:slug',
       name: 'donation-project',
       component: () => import('@/views/donation/DonationProjectView.vue'),
+      // Opens with a full-bleed banner, so the page starts at the very top and the header floats over it.
+      meta: { underHeader: true },
     },
     {
       path: '/donation/status/:code',

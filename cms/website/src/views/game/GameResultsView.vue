@@ -16,7 +16,14 @@ interface Tile {
   frontImage: string | null;
   status: string;
   reservedBy: string | null;
-  reward: { label: string; imageUrl: string | null } | null;
+  reward: { label: string; imageUrl: string | null; isPrize?: boolean } | null;
+}
+/** Prize lines that landed on a reserved tile — the server only fills this in after the reveal. */
+interface Winner {
+  boardNumber: number;
+  label: string;
+  imageUrl: string | null;
+  winner: string;
 }
 interface Board {
   name: string;
@@ -28,6 +35,7 @@ interface Board {
   revealedAt: string | null;
   commitmentHash: string | null;
   tiles: Tile[];
+  winners: Winner[];
 }
 
 const route = useRoute();
@@ -81,18 +89,18 @@ function closeAll(): void {
 </script>
 
 <template>
-  <div class="container-site py-8 sm:py-12">
+  <div class="font-sukhumvit container-site py-8 sm:py-12">
     <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse" role="status">กำลังโหลดผล…</div>
 
     <div v-else-if="error || !board" class="py-20 text-center">
       <div class="text-5xl mb-3" aria-hidden="true">🔍</div>
       <h1 class="text-xl font-bold mb-2">{{ error }}</h1>
-      <RouterLink to="/games" class="text-blue-600 underline">ดูเกมทั้งหมด</RouterLink>
+      <!-- <RouterLink to="/games" class="text-blue-600 underline">ดูเกมทั้งหมด</RouterLink> -->
     </div>
 
     <template v-else>
       <header class="text-center mb-8">
-        <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมทั้งหมด</RouterLink>
+        <!-- <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมทั้งหมด</RouterLink> -->
         <h1 class="text-2xl sm:text-4xl font-extrabold mt-2">{{ board.name }}</h1>
         <p v-if="revealed" class="text-gray-600 mt-2">🎉 ประกาศผลรางวัลแล้ว</p>
       </header>
@@ -112,14 +120,14 @@ function closeAll(): void {
       <template v-else>
         <!-- Controls -->
         <div class="flex flex-wrap items-center justify-center gap-2 mb-6">
-          <button type="button" class="btn-ghost" :class="{ active: view === 'board' }" @click="view = 'board'">
+          <!-- <button type="button" class="btn-ghost" :class="{ active: view === 'board' }" @click="view = 'board'">
             มุมมองกระดาน
           </button>
           <button type="button" class="btn-ghost" :class="{ active: view === 'table' }" @click="view = 'table'">
             ตารางสรุปผล
-          </button>
+          </button> -->
           <template v-if="view === 'board'">
-            <button v-if="!allOpen" type="button" class="btn-primary" :style="{ background: themeColor }" @click="openAll">
+            <button v-if="!allOpen" type="button" class="btn-primary" :style="{ background: '#ea480c' }" @click="openAll">
               เปิดทั้งหมด
             </button>
             <button v-else type="button" class="btn-ghost" @click="closeAll">ปิดทั้งหมด</button>
@@ -129,7 +137,7 @@ function closeAll(): void {
         <!-- Board -->
         <section v-if="view === 'board'" aria-label="ผลรางวัลรายป้าย" class="board-scroll">
           <ul class="board" role="list" :style="{ '--cols': columns }">
-            <li v-for="tile in board.tiles" :key="tile.boardNumber">
+            <li v-for="tile in board.tiles" :key="tile.boardNumber" style="background-color: #fff1e3;">
               <button
                 type="button"
                 class="flip"
@@ -206,6 +214,22 @@ function closeAll(): void {
           </div>
         </section>
 
+        <!--
+          Winners board, after the tiles so the reveal is read first. Driven by the `isPrize` flag on
+          each reward line, so consolation messages ("ขอบคุณที่ร่วมสนุก") stay out of it even though
+          every tile carries a reward.
+        -->
+        <section v-if="board.winners?.length" aria-labelledby="winners-heading" class="winners mt-8">
+          <h2 id="winners-heading" class="winners-title">ผู้โชคดีที่ได้รับรางวัล</h2>
+          <ul class="winners-list" role="list">
+            <li v-for="w in board.winners" :key="w.boardNumber" class="winner-row">
+              <img v-if="w.imageUrl" :src="w.imageUrl" alt="" loading="lazy" class="winner-img" />
+              <p class="winner-prize">{{ w.label }}</p>
+              <p class="winner-name">{{ w.winner }}</p>
+            </li>
+          </ul>
+        </section>
+
         <!-- Audit footer -->
         <p v-if="board.commitmentHash" class="text-center text-xs text-gray-400 mt-8 break-all">
           ค่าตรวจสอบการสุ่ม (commitment): <span class="font-mono">{{ board.commitmentHash }}</span>
@@ -216,6 +240,42 @@ function closeAll(): void {
 </template>
 
 <style scoped>
+/* Winners board: framed panel, prize on top and the name that booked the tile beneath it. */
+.winners {
+  max-width: 100%;
+  margin-inline: auto;
+  /* border: 3px solid #7c3aed; */
+  border-radius: 14px;
+  background: #fff1e3;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+}
+.winners-title {
+  text-align: center;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  /* The negative term steepens desktop growth while phones stay on the floor value. */
+  font-size: clamp(1.05rem, 3vw - 0.6rem, 2.5rem);
+  margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
+}
+.winners-list {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 3vw, 2rem);
+  padding-block: clamp(0.5rem, 2vw, 1.25rem);
+}
+/* Prize on its own line, the name that booked the tile centred underneath it. */
+.winner-row { text-align: center; }
+.winner-img {
+  width: clamp(48px, 8vw, 96px);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  margin: 0 auto clamp(0.25rem, 0.8vw, 0.5rem);
+}
+.winner-prize { font-weight: 700; font-size: clamp(0.9rem, 2.2vw - 0.4rem, 2rem); line-height: 1.4; }
+.winner-name { font-weight: 700; font-size: clamp(0.75rem, 1.5vw - 0.3rem, 1.35rem); margin-top: 0.35em; }
+
 .card { @apply bg-white border border-gray-100 rounded-2xl p-6 shadow-sm; }
 .btn-primary { @apply text-white font-semibold px-5 py-2.5 rounded-lg transition; }
 .btn-primary:hover { opacity: 0.9; }
@@ -251,43 +311,65 @@ function closeAll(): void {
 }
 .flip.open .flip-inner { transform: rotateY(180deg); }
 
+/**
+ * Same gold frame as the play board: the face carries the gradient and `::before` paints the inner
+ * surface inset by the frame width, since a gradient cannot be a border-color and `border-image`
+ * would square off the rounded corners.
+ */
 .face {
+  --frame: 3px;
+  --face-radius: 14px;
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
+  border-radius: var(--face-radius);
   overflow: hidden;
   backface-visibility: hidden;
-  border: 2px solid #e5e7eb;
+  border: 0;
+  background: linear-gradient(150deg, #ffb648, #ffe08a 38%, #f7913a 70%, #ffcf6b);
+  box-shadow: 0 2px 8px rgb(180 83 9 / 22%);
 }
-.front { background: color-mix(in srgb, var(--accent) 14%, white); border-color: color-mix(in srgb, var(--accent) 35%, white); }
-.back { transform: rotateY(180deg); background: white; }
+.face::before {
+  content: '';
+  position: absolute;
+  inset: var(--frame);
+  border-radius: calc(var(--face-radius) - var(--frame));
+  background: #fff;
+}
+.front::before { background: color-mix(in srgb, var(--accent) 14%, white); }
+.back { transform: rotateY(180deg); }
+/* Revealed side sits on the warm cream so the prize text reads as part of the site's palette. */
+.back::before { background: #fff1e3; }
 
-.face-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.face-img {
+  position: absolute;
+  inset: var(--frame);
+  /* Explicit size, not `auto`: an absolutely positioned replaced element falls back to its intrinsic
+     size and honours only the top/left insets, which would let the art cover the bottom/right frame. */
+  width: calc(100% - var(--frame) * 2);
+  height: calc(100% - var(--frame) * 2);
+  border-radius: calc(var(--face-radius) - var(--frame));
+  object-fit: cover;
+}
 /* Top-right, matching the play board so the front face looks the same in both places. */
 .num {
   position: absolute;
   top: 6px;
-  right: 8px;
+  right: 10px;
   z-index: 1;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   line-height: 1;
-  font-weight: 800;
-  color: #374151;
+  font-weight: 900;
+  font-style: italic;
+  color: #ffd24a;
+  /* Outline instead of a chip: readable over any cover art without covering the picture. */
+  -webkit-text-stroke: 1.2px #7c3a09;
+  paint-order: stroke fill;
+  text-shadow: 0 2px 3px rgb(0 0 0 / 40%);
 }
-/* Same reasoning as the play board: cover art is arbitrary, so give the digits
-   their own contrasting chip rather than hoping they land on a readable area. */
-.num.on-image {
-  color: #fff;
-  min-width: 1.7em;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: rgb(17 24 39 / 68%);
-  text-shadow: 0 1px 2px rgb(0 0 0 / 55%);
-  text-align: center;
-}
+.num.on-image { text-shadow: 0 2px 4px rgb(0 0 0 / 55%); }
 
 .back-content {
   position: relative;
@@ -296,7 +378,9 @@ function closeAll(): void {
   gap: 2px;
   padding: 6px;
   text-align: center;
-  background: rgb(255 255 255 / 90%);
+  /* Same cream as the face behind it, so the text panel disappears into the card when the
+     reward has no image and only tints the picture when it does. */
+  background: rgb(255 241 227 / 90%);
   border-radius: 10px;
   width: 100%;
   /* A square face is shorter than the old 3:4 one, so keep the block inside the

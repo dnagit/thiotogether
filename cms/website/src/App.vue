@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { onErrorCaptured, ref } from 'vue';
+import { computed, onErrorCaptured, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import SiteHeader from '@/components/layout/SiteHeader.vue';
 import SiteFooter from '@/components/layout/SiteFooter.vue';
 import { useSiteStore } from '@/stores/site';
 
 const site = useSiteStore();
+const route = useRoute();
+/**
+ * Pages that open with a full-bleed banner run under the transparent header instead of clearing it:
+ * home, plus any route flagged with `meta.underHeader`.
+ */
+const underHeader = computed(() => route.path === '/' || route.meta.underHeader === true);
 const ready = ref(false);
 const failed = ref(false);
 
@@ -31,7 +38,8 @@ onErrorCaptured((err) => {
   </div>
   <template v-else>
     <SiteHeader />
-    <main class="min-h-[60vh]">
+    <!-- `page-bg` paints the shared backdrop once here, so every route gets it without opting in. -->
+    <main class="page-bg min-h-[60vh]" :class="underHeader ? '' : 'pt-[var(--header-h)]'">
       <RouterView />
     </main>
     <SiteFooter />

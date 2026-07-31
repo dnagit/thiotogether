@@ -233,7 +233,7 @@ function isMine(tile: Tile): boolean {
 </script>
 
 <template>
-  <div class="container-site py-8 sm:py-12">
+  <div class="font-sukhumvit container-site py-8 sm:py-12">
     <!-- Loading -->
     <div v-if="loading" class="py-24 text-center" role="status" aria-live="polite">
       <div class="animate-pulse text-gray-400">กำลังโหลดเกม…</div>
@@ -243,14 +243,14 @@ function isMine(tile: Tile): boolean {
     <div v-else-if="loadError || !board" class="py-20 text-center">
       <div class="text-5xl mb-3" aria-hidden="true">🔍</div>
       <h1 class="text-xl font-bold mb-2">{{ loadError }}</h1>
-      <RouterLink to="/games" class="text-blue-600 underline">ดูเกมทั้งหมด</RouterLink>
+      <!-- <RouterLink to="/games" class="text-blue-600 underline">ดูเกมทั้งหมด</RouterLink> -->
     </div>
 
     <template v-else>
       <!-- Header -->
       <header class="mb-6">
-        <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมทั้งหมด</RouterLink>
-        <h1 class="text-2xl sm:text-4xl font-extrabold mt-2">{{ board.name }}</h1>
+        <!-- <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมทั้งหมด</RouterLink> -->
+        <h1 class="text-center text-2xl sm:text-4xl font-extrabold mt-2">{{ board.name }}</h1>
         <p v-if="board.description" class="text-gray-600 mt-2">{{ board.description }}</p>
       </header>
 
@@ -267,7 +267,7 @@ function isMine(tile: Tile): boolean {
           aria-valuemin="0"
           :aria-valuemax="board.tileCount"
         >
-          <div class="h-full rounded-full transition-all" :style="{ width: `${progress}%`, background: themeColor }" />
+          <div class="h-full rounded-full transition-all" :style="{ width: `${progress}%`, background: '#ea480c' }" />
         </div>
       </section>
 
@@ -297,14 +297,14 @@ function isMine(tile: Tile): boolean {
               maxlength="190"
               placeholder="เช่น สมชาย ใจดี"
               class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2"
-              :style="{ '--tw-ring-color': themeColor }"
+              :style="{ '--tw-ring-color': '#ea480c' }"
               :aria-invalid="!!accountError"
               aria-describedby="account-error"
             />
             <button
               type="submit"
               class="btn-primary"
-              :style="{ background: themeColor }"
+              :style="{ background: '#ea480c' }"
               :disabled="checking"
             >
               {{ checking ? 'กำลังตรวจสอบ…' : 'ตรวจสอบ Token' }}
@@ -328,7 +328,7 @@ function isMine(tile: Tile): boolean {
             <RouterLink
               v-for="p in board.projects" :key="p.id"
               :to="`/donation/${p.slug}`"
-              class="btn-primary" :style="{ background: themeColor }"
+              class="btn-primary" :style="{ background: '#ea480c' }"
             >บริจาคที่ {{ p.name }}</RouterLink>
             <button type="button" class="btn-ghost" @click="resetAccount">เปลี่ยนชื่อบัญชี</button>
           </div>
@@ -339,9 +339,9 @@ function isMine(tile: Tile): boolean {
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div class="font-bold">สวัสดี {{ account.displayName }}</div>
+              <!-- Token balance moved to the coin badge on the board. -->
               <div class="text-sm text-gray-600">
-                มี <b :style="{ color: themeColor }">{{ account.tokens }}</b> Token
-                · เปิดได้อีก <b>{{ atPersonalLimit ? 0 : tilesAffordable }}</b> ป้าย
+                เปิดได้อีก <b>{{ atPersonalLimit ? 0 : tilesAffordable }}</b> ป้าย
                 <span v-if="myTileCount > 0"> · จองไปแล้ว {{ myTileCount }} ป้าย</span>
               </div>
               <div v-if="atPersonalLimit" class="text-sm text-amber-700 mt-1">
@@ -371,7 +371,7 @@ function isMine(tile: Tile): boolean {
                 'tile-mine': isMine(tile),
                 'tile-peeked': peeked === tile.boardNumber,
               }"
-              :style="tile.status === 'AVAILABLE' ? { '--tile-accent': themeColor } : {}"
+              :style="tile.status === 'AVAILABLE' ? { '--tile-accent': '#ea480c' } : {}"
               :aria-label="tileLabel(tile)"
               :aria-pressed="tile.status !== 'AVAILABLE'"
               @click="onTileActivate(tile)"
@@ -392,6 +392,23 @@ function isMine(tile: Tile): boolean {
         </ul>
         <p class="text-xs text-gray-500 mt-3 sm:hidden">แตะป้ายที่ถูกจองแล้วเพื่อดูชื่อผู้จอง</p>
       </section>
+
+      <!--
+        Token balance as a coin badge, in flow below the board and aligned right. The artwork sets the
+        box through its own aspect ratio; the copy sits in the cream panel filling its right side.
+      -->
+      <div v-if="account" class="mt-4 flex justify-end">
+        <!-- The negative term steepens the desktop growth while phones stay pinned to the floor. -->
+        <div class="relative w-[clamp(160px,34vw_-_4rem,520px)] aspect-[413/175]">
+          <img src="/images/bg-coin.png" alt="" aria-hidden="true" class="absolute inset-0 h-full w-full" />
+          <p
+            class="absolute inset-y-0 right-[4%] flex w-[58%] flex-col items-center justify-center text-center
+                   font-bold leading-tight text-amber-800 text-[clamp(0.8rem,2.4vw_-_0.4rem,2.25rem)]"
+          >
+            คุณมี<br />{{ account.tokens }} เหรียญ
+          </p>
+        </div>
+      </div>
 
       <!-- Confirm dialog -->
       <AppModal
@@ -417,7 +434,7 @@ function isMine(tile: Tile): boolean {
           <button
             type="button"
             class="btn-primary flex-1"
-            :style="{ background: themeColor }"
+            :style="{ background: '#ea480c' }"
             :disabled="submitting"
             @click="confirmReserve"
           >
@@ -462,53 +479,81 @@ function isMine(tile: Tile): boolean {
   }
 }
 
+/**
+ * Gold frame: the tile itself carries the gradient and `::before` paints the inner surface inset by
+ * the frame width. A gradient cannot be a `border-color`, and `border-image` would square off the
+ * rounded corners, so the frame is drawn as background showing through the inset.
+ */
 .tile {
+  --frame: 3px;
+  --tile-radius: 14px;
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 14px;
-  border: 2px solid transparent;
+  border-radius: var(--tile-radius);
+  border: 0;
+  padding: 0;
+  background: linear-gradient(150deg, #ffb648, #ffe08a 38%, #f7913a 70%, #ffcf6b);
+  box-shadow: 0 2px 8px rgb(180 83 9 / 22%);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
+.tile::before {
+  content: '';
+  position: absolute;
+  inset: var(--frame);
+  border-radius: calc(var(--tile-radius) - var(--frame));
+  background: #fff;
+}
 .tile:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
 
-.tile-available {
-  background: color-mix(in srgb, var(--tile-accent) 12%, white);
-  border-color: color-mix(in srgb, var(--tile-accent) 35%, white);
-  cursor: pointer;
-}
-.tile-available:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgb(0 0 0 / 12%); }
+.tile-available { cursor: pointer; }
+.tile-available::before { background: color-mix(in srgb, var(--tile-accent) 12%, white); }
+.tile-available:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgb(0 0 0 / 18%); }
 
-.tile-reserved {
+.tile-reserved { cursor: default; }
+.tile-reserved::before {
   background: #e5e7eb;
-  border-color: #d1d5db;
-  cursor: default;
   /* Hatching distinguishes reserved tiles without relying on colour alone. */
   background-image: repeating-linear-gradient(
     45deg, transparent, transparent 6px, rgb(0 0 0 / 5%) 6px, rgb(0 0 0 / 5%) 12px
   );
 }
-.tile-mine { border-color: #059669; box-shadow: inset 0 0 0 2px #a7f3d0; }
+.tile-mine { box-shadow: 0 0 0 2px #059669, 0 2px 8px rgb(180 83 9 / 22%); }
 
-.tile-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tile-img {
+  position: absolute;
+  inset: var(--frame);
+  /* Explicit size, not `auto`: an absolutely positioned replaced element falls back to its intrinsic
+     size and honours only the top/left insets, which would let the art cover the bottom/right frame. */
+  width: calc(100% - var(--frame) * 2);
+  height: calc(100% - var(--frame) * 2);
+  border-radius: calc(var(--tile-radius) - var(--frame));
+  object-fit: cover;
+}
 
 /* Pinned to the top-right corner so cover art stays unobstructed in the middle. */
 .tile-number {
   position: absolute;
   top: 5px;
-  right: 6px;
+  right: 8px;
   z-index: 1;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   line-height: 1;
-  font-weight: 800;
-  color: #374151;
+  font-weight: 900;
+  font-style: italic;
+  color: #ffd24a;
+  /* Outline instead of a chip: the digits stay readable over any cover art while the picture
+     underneath is left uncovered. */
+  -webkit-text-stroke: 1.2px #7c3a09;
+  paint-order: stroke fill;
+  text-shadow: 0 2px 3px rgb(0 0 0 / 40%);
 }
 @media (min-width: 640px) {
-  .tile-number { font-size: 1.2rem; top: 6px; right: 8px; }
+  .tile-number { font-size: 1.45rem; top: 6px; right: 10px; }
 }
 
 /**
@@ -517,14 +562,8 @@ function isMine(tile: Tile): boolean {
  * light, dark or busy — without hiding the picture.
  */
 .tile-number.on-image {
-  color: #fff;
-  min-width: 1.7em;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: rgb(17 24 39 / 68%);
-  backdrop-filter: blur(2px);
-  text-shadow: 0 1px 2px rgb(0 0 0 / 55%);
-  text-align: center;
+  /* The stroke already carries the contrast, so cover art needs no extra treatment. */
+  text-shadow: 0 2px 4px rgb(0 0 0 / 55%);
 }
 
 .tile-reserved .tile-number { opacity: 0.45; }

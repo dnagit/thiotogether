@@ -18,7 +18,7 @@ const router = useRouter();
 const gameId = Number(route.params.id);
 
 const game = ref<any>(null);
-const rewards = ref<Array<{ label: string; imageUrl: string | null }>>([]);
+const rewards = ref<Array<{ label: string; imageUrl: string | null; isPrize: boolean }>>([]);
 const projects = ref<any[]>([]);
 const tiles = ref<any[]>([]);
 const loading = ref(true);
@@ -40,7 +40,7 @@ async function load(): Promise<void> {
       http.get<ApiResponse<any[]>>('/donation-projects', { params: { limit: 100 } }),
     ]);
     game.value = { ...g.data, projectIds: g.data.projects.map((x: any) => x.project.id) };
-    rewards.value = g.data.rewards.map((r: any) => ({ label: r.label, imageUrl: r.imageUrl }));
+    rewards.value = g.data.rewards.map((r: any) => ({ label: r.label, imageUrl: r.imageUrl, isPrize: !!r.isPrize }));
     projects.value = p.data;
   } catch (err: any) {
     error.value = err?.response?.data?.message ?? 'โหลดข้อมูลเกมไม่สำเร็จ';
@@ -118,7 +118,7 @@ async function saveRewards(): Promise<void> {
 }
 
 function addReward(): void {
-  rewards.value.push({ label: '', imageUrl: null });
+  rewards.value.push({ label: '', imageUrl: null, isPrize: false });
 }
 function removeReward(i: number): void {
   rewards.value.splice(i, 1);
@@ -127,7 +127,7 @@ function removeReward(i: number): void {
 /** Fill the list up to tileCount with a repeated consolation line. */
 function padToTileCount(): void {
   const need = (game.value?.tileCount ?? 0) - rewards.value.length;
-  for (let i = 0; i < need; i++) rewards.value.push({ label: 'ขอบคุณที่ร่วมสนุก', imageUrl: null });
+  for (let i = 0; i < need; i++) rewards.value.push({ label: 'ขอบคุณที่ร่วมสนุก', imageUrl: null, isPrize: false });
 }
 
 // ── Paste / import ──────────────────────────────────────────
@@ -235,7 +235,7 @@ async function reshuffle(): Promise<void> {
                   </ElFormItem>
                 </ElCol>
                 <ElCol :span="8">
-                  <ElFormItem label="Token ต่อ 1 ป้าย">
+                  <ElFormItem label="เหรียญ ต่อ 1 ป้าย">
                     <ElInputNumber v-model="game.tokensPerTile" :min="1" :max="100" style="width: 100%" />
                   </ElFormItem>
                 </ElCol>
@@ -246,11 +246,11 @@ async function reshuffle(): Promise<void> {
                 </ElCol>
               </ElRow>
 
-              <ElFormItem label="โครงการบริจาคที่ใช้ token กับเกมนี้ได้" required>
+              <ElFormItem label="โครงการบริจาคที่ใช้ เหรียญ กับเกมนี้ได้" required>
                 <ElSelect v-model="game.projectIds" multiple style="width: 100%">
                   <ElOption
                     v-for="p in projects" :key="p.id" :value="p.id"
-                    :label="p.tokenValue ? `${p.name} — 1 token = ${p.tokenValue} บาท` : `${p.name} (ยังไม่ตั้งค่า token)`"
+                    :label="p.tokenValue ? `${p.name} — 1 token = ${p.tokenValue} บาท` : `${p.name} (ยังไม่ตั้งค่า เหรียญ)`"
                   />
                 </ElSelect>
               </ElFormItem>
@@ -318,6 +318,10 @@ async function reshuffle(): Promise<void> {
                 <template #default="{ row }">
                   <ElInput v-model="row.label" :disabled="readOnly" maxlength="500" placeholder="เช่น บัตรกำนัล 500 บาท" />
                 </template>
+              </ElTableColumn>
+              <!-- Only ticked lines reach the public winners list; the rest are consolation text. -->
+              <ElTableColumn label="เป็นรางวัล" width="100" align="center">
+                <template #default="{ row }"><ElCheckbox v-model="row.isPrize" :disabled="readOnly" /></template>
               </ElTableColumn>
               <ElTableColumn label="รูปตอนเฉลย (ถ้ามี)" width="200">
                 <template #default="{ row }"><MediaPicker v-model="row.imageUrl" :disabled="readOnly" /></template>

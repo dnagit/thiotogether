@@ -50,7 +50,7 @@ const statusInfo: Record<string, { label: string; icon: string; class: string }>
         <div class="flex justify-between"><dt class="text-gray-500">Amount</dt><dd class="font-semibold">{{ formatCurrency(donation.amount, donation.currency) }}</dd></div>
         <div class="flex justify-between"><dt class="text-gray-500">Submitted</dt><dd>{{ formatDateTime(donation.createdAt) }}</dd></div>
       </dl>
-      <RouterLink to="/donation" class="btn-primary w-full text-center block mt-8">Support Another Project</RouterLink>
+      <RouterLink to="/donation" class="btn-primary w-full text-center block mt-8" style="background-color: #ea480c;">Support Another Project</RouterLink>
     </div>
   </div>
 </template>

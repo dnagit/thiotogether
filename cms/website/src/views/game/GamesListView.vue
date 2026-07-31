@@ -41,7 +41,7 @@ const hasGames = computed(() => games.value.length > 0);
 </script>
 
 <template>
-  <div class="container-site py-12">
+  <div class="font-sukhumvit container-site py-12">
     <header class="text-center mb-10">
       <h1 class="text-3xl sm:text-4xl font-extrabold mb-2">เกมเปิดแผ่นป้าย</h1>
       <p class="text-gray-500">บริจาคเพื่อรับ Token แล้วเลือกเปิดแผ่นป้ายลุ้นรางวัล</p>

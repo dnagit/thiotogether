@@ -213,12 +213,20 @@ export const blockDefinitions: BlockDefinition[] = [
     label: 'Call to Action',
     icon: '📢',
     category: 'content',
-    defaultProps: { title: 'Ready?', text: '', buttonLabel: 'Get started', buttonUrl: '#' },
+    defaultProps: { title: 'Ready?', text: '', buttons: [{ label: 'Get started', url: '#', image: '' }] },
     fields: [
       { key: 'title', label: 'Title', type: 'text' },
       { key: 'text', label: 'Text', type: 'textarea' },
-      { key: 'buttonLabel', label: 'Button Label', type: 'text' },
-      { key: 'buttonUrl', label: 'Button URL', type: 'url' },
+      {
+        key: 'buttons',
+        label: 'Button',
+        type: 'items',
+        itemFields: [
+          { key: 'label', label: 'Button Label', type: 'text' },
+          { key: 'url', label: 'Button URL', type: 'url' },
+          { key: 'image', label: 'Button Image (optional — replaces the text button)', type: 'image' },
+        ],
+      },
     ],
   },
   {

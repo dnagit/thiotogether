@@ -39,6 +39,8 @@ const rewardsSchema = z.object({
       z.object({
         label: z.string().min(1).max(500),
         imageUrl: blank(z.string().max(500).nullish()),
+        /** Consolation lines stay false, so only real prizes reach the public winners list. */
+        isPrize: z.boolean().default(false),
       }),
     )
     .max(1000),
@@ -288,6 +290,7 @@ router.put(
           gameId: id,
           label: r.label,
           imageUrl: r.imageUrl ?? null,
+          isPrize: r.isPrize ?? false,
           sortOrder: i,
         })),
       });
@@ -447,7 +450,13 @@ router.post(
     await syncTiles(copy.id, copy.tileCount);
     await setProjects(copy.id, src.projects.map((p) => p.projectId));
     await rawPrisma.reward.createMany({
-      data: src.rewards.map((r, i) => ({ gameId: copy.id, label: r.label, imageUrl: r.imageUrl, sortOrder: i })),
+      data: src.rewards.map((r, i) => ({
+        gameId: copy.id,
+        label: r.label,
+        imageUrl: r.imageUrl,
+        isPrize: r.isPrize,
+        sortOrder: i,
+      })),
     });
 
     created(res, await prisma.game.findFirst({ where: { id: copy.id }, include: adminGameInclude }));

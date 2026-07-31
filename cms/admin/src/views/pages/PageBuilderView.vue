@@ -153,6 +153,21 @@ async function save(): Promise<void> {
                 <ElFormItem label="Background (CSS color/gradient)">
                   <ElInput v-model="selected.styles.background" placeholder="#f8fafc or var(--color-primary)" />
                 </ElFormItem>
+                <ElFormItem label="Overlay Image (pinned bottom-left, in front of background)">
+                  <ElInput v-model="selected.styles.overlayImage" placeholder="/images/banners/banner-sunflower.png" />
+                </ElFormItem>
+                <ElFormItem label="Overlay Image 2 (covers the whole section, in front of the first)">
+                  <ElInput v-model="selected.styles.overlayImageFull" placeholder="/images/banners/banner-leaf.gif" />
+                </ElFormItem>
+                <ElFormItem label="Overlay Bottom Offset">
+                  <ElInput v-model="selected.styles.overlayBottom" placeholder="0 (px) — negative allowed, e.g. -40" />
+                </ElFormItem>
+                <ElFormItem label="Overlay Width (blank = responsive default)">
+                  <ElInput v-model="selected.styles.overlayWidth" placeholder="100%, 640, or clamp(200px, 50vw, 900px)" />
+                </ElFormItem>
+                <ElFormItem label="Aspect Ratio (height follows width)">
+                  <ElInput v-model="selected.styles.aspectRatio" placeholder="2.1 or 21/10 — blank = height from content" />
+                </ElFormItem>
                 <ElFormItem label="Text Color"><ElInput v-model="selected.styles.textColor" /></ElFormItem>
                 <ElFormItem label="Padding Top"><ElInput v-model="selected.styles.paddingTop" placeholder="4rem" /></ElFormItem>
                 <ElFormItem label="Padding Bottom"><ElInput v-model="selected.styles.paddingBottom" placeholder="4rem" /></ElFormItem>

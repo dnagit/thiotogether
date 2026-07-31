@@ -323,7 +323,7 @@ export async function getPublicBoard(slug: string) {
         orderBy: { boardNumber: 'asc' },
         include: {
           reservation: { select: { accountNameSnapshot: true, createdAt: true } },
-          reward: { select: { label: true, imageUrl: true } },
+          reward: { select: { label: true, imageUrl: true, isPrize: true } },
         },
       },
     },
@@ -362,7 +362,24 @@ export async function getPublicBoard(slug: string) {
           : null
         : null,
       // The whole point of the pre-reveal contract: no reward data crosses the wire.
-      reward: revealed && tile.reward ? { label: tile.reward.label, imageUrl: tile.reward.imageUrl } : null,
+      reward:
+        revealed && tile.reward
+          ? { label: tile.reward.label, imageUrl: tile.reward.imageUrl, isPrize: tile.reward.isPrize }
+          : null,
     })),
+    /**
+     * Winners board: prize lines that ended up on a reserved tile, in board order. Empty until the
+     * reveal for the same reason the tile rewards are — it would leak the assignment.
+     */
+    winners: revealed
+      ? game.tiles
+          .filter((t) => t.reward?.isPrize && t.reservation)
+          .map((t) => ({
+            boardNumber: t.boardNumber,
+            label: t.reward!.label,
+            imageUrl: t.reward!.imageUrl,
+            winner: t.reservation!.accountNameSnapshot,
+          }))
+      : [],
   };
 }

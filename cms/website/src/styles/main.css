@@ -9,6 +9,13 @@
   --color-secondary: #0d9488;
   --color-secondary-rgb: 13 148 136;
   --font-family: 'Inter', system-ui, sans-serif;
+  /*
+   * Header bar height — drives the logo size, the nav panel offset and the page top padding.
+   * Scales with the viewport: 210px on wide screens, shrinking to 72px on phones.
+   */
+  --header-h: clamp(72px, 14vw, 210px);
+  /* Hamburger icon — deliberately just a little smaller than the logo. */
+  --burger-size: calc(var(--header-h) * 0.35);
 }
 
 body {
@@ -26,10 +33,44 @@ body {
 .prose-cms ol { @apply list-decimal pl-6 mb-4; }
 .prose-cms img { @apply rounded-lg my-4; }
 
+/*
+ * Canva's "Echo" effect: two offset copies of the glyphs behind the text, fading as they trail off.
+ * Direction -70° with a 31% offset — expressed in `em` so it tracks the fluid font size instead of
+ * drifting apart as the headline grows.
+ */
+/*
+ * Site-wide backdrop behind every page. Painted by a fixed pseudo-element rather than on the element
+ * itself: pages are centred containers capped at 96rem, so a background on them would stop short of
+ * the viewport edges on wide screens and scroll away with the content.
+ */
+.page-bg {
+  position: relative;
+}
+.page-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url('/images/bg-game.png') center / cover no-repeat;
+  /* Held back so the cards and copy in front stay the focus. */
+  opacity: 0.35;
+}
+
+/* Sukhumvit Set ships with macOS/iOS; elsewhere this falls back to the CMS theme font. */
+.font-sukhumvit {
+  font-family: 'Sukhumvit Set', 'SukhumvitSet-Text', Sukhumvit, var(--font-family);
+}
+
+.text-echo {
+  text-shadow:
+    0.05em 0.075em 0 rgba(209, 52, 44, 0.7),
+    0.1em 0.15em 0 rgba(209, 52, 44, 0.3);
+}
+
 .btn-primary {
   background: var(--color-primary);
   @apply inline-block text-white font-semibold px-6 py-3 rounded-lg transition hover:opacity-90;
 }
 .container-site {
-  @apply mx-auto max-w-6xl px-4;
+  @apply mx-auto max-w-[96rem] px-4;
 }
