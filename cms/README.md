@@ -304,7 +304,7 @@ sudo chmod 600 /opt/cms/app/cms/api/.env
 **`admin/.env` และ `website/.env`**
 
 ```bash
-echo 'VITE_API_URL=https://api.example.com/api/v1' | sudo -u cms tee /opt/cms/app/cms/admin/.env
+echo 'VITE_API_URL=https://tt-api.dna.co.th/api/v1' | sudo -u cms tee /opt/cms/app/cms/admin/.env
 echo 'VITE_API_URL=https://api.example.com/api/v1' | sudo -u cms tee /opt/cms/app/cms/website/.env
 ```
 
@@ -316,9 +316,14 @@ echo 'VITE_API_URL=https://api.example.com/api/v1' | sudo -u cms tee /opt/cms/ap
 ```bash
 cd /opt/cms/app/cms
 sudo -u cms npm run prisma:generate
-sudo -u cms npx prisma migrate deploy --schema api/prisma/schema.prisma
+sudo -u cms npm run prisma:deploy   # = prisma migrate deploy (รันในโฟลเดอร์ api)
 sudo -u cms npm run build          # build ทั้ง shared, api, admin, website
 ```
+
+> **อย่าเรียก `npx prisma ...` จาก `cms/` ตรง ๆ** จะได้ `P1012: Environment
+> variable not found: DATABASE_URL` เพราะ Prisma อ่าน `.env` จากโฟลเดอร์ที่รัน
+> คำสั่งกับโฟลเดอร์ของ schema เท่านั้น ไม่เห็น `api/.env` — ให้ใช้ script ข้างบน
+> (วิ่งผ่าน workspace `-w api`) หรือ `cd api` ก่อนเสมอ
 
 ถ้าเป็นการติดตั้งใหม่ (กรณี ข) ให้ใส่ข้อมูลตั้งต้น
 
