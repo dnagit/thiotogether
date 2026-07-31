@@ -336,47 +336,62 @@ sudo -u cms npm run prisma:seed    # สร้าง role, permission และ 
 
 ---
 
-## ขั้นที่ 6 — รัน API เป็น systemd service
+## ขั้นที่ 6 — รัน API ด้วย pm2
+
+ค่าคอนฟิกทั้งหมดอยู่ในไฟล์ `ecosystem.config.cjs` ที่ root ของโปรเจกต์แล้ว
+(อยู่ใน git จึงได้มาพร้อม `git pull` ไม่ต้องพิมพ์คำสั่งยาว ๆ บน server)
 
 ```bash
-sudo tee /etc/systemd/system/cms-api.service > /dev/null <<'EOF'
-[Unit]
-Description=CMS API
-After=network.target postgresql.service
-Requires=postgresql.service
+sudo npm install -g pm2
 
-[Service]
-Type=simple
-User=cms
-Group=cms
-WorkingDirectory=/opt/cms/app/cms/api
-ExecStart=/usr/bin/npm start
-Restart=always
-RestartSec=5
-Environment=NODE_ENV=production
-
-# ความปลอดภัยระดับ process
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/cms/app/cms/api/uploads
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now cms-api
-sudo systemctl status cms-api --no-pager
+cd /opt/cms/app/cms
+sudo -H -u cms pm2 start ecosystem.config.cjs
+sudo -H -u cms pm2 status
 curl -s http://localhost:4009/health     # ต้องได้ {"status":"ok",...}
 ```
 
-ดู log เมื่อมีปัญหา
+> **รันด้วย user `cms` ไม่ใช่ root** pm2 แยก daemon ตาม user ที่รัน ถ้าเผลอ
+> `sudo pm2 start` ครั้งหนึ่ง แล้ว `sudo -u cms pm2 restart` อีกครั้ง จะกลายเป็น
+> คนละ daemon กัน — เห็น process ไม่ตรงกันและอาจรัน API ซ้อนกันสองตัวแย่งพอร์ต 4009
+> ใช้ `sudo -H -u cms pm2 ...` ให้เหมือนกันทุกคำสั่ง (`-H` เพื่อให้ `HOME=/opt/cms`
+> ไม่งั้น pm2 จะไปสร้าง `~/.pm2` ของ root)
+
+**ให้ start เองหลัง server reboot**
 
 ```bash
-sudo journalctl -u cms-api -f
+sudo -H -u cms pm2 save                        # จำ process list ปัจจุบัน
+sudo pm2 startup systemd -u cms --hp /opt/cms  # สร้าง systemd unit ที่ resurrect ให้
 ```
+
+> `pm2 save` ต้องรันใหม่ทุกครั้งที่ **เพิ่ม/ลบ** process ถ้าแค่ restart ไม่ต้องรัน
+
+**ดู log**
+
+```bash
+sudo -H -u cms pm2 logs cms-api          # ตามสด
+sudo -H -u cms pm2 logs cms-api --lines 200
+sudo -H -u cms pm2 monit                 # CPU / RAM แบบ realtime
+```
+
+log สะสมไปเรื่อย ๆ จนดิสก์เต็มได้ ติดตั้งตัวหมุน log ไว้ด้วย
+
+```bash
+sudo -H -u cms pm2 install pm2-logrotate
+sudo -H -u cms pm2 set pm2-logrotate:max_size 20M
+sudo -H -u cms pm2 set pm2-logrotate:retain 14
+```
+
+**คำสั่งที่ใช้บ่อย**
+
+| ทำอะไร | คำสั่ง |
+|---|---|
+| restart หลัง deploy | `sudo -H -u cms pm2 reload cms-api` |
+| หยุด / เริ่ม | `sudo -H -u cms pm2 stop cms-api` · `pm2 start cms-api` |
+| ดูสถานะ + จำนวนครั้งที่ crash | `sudo -H -u cms pm2 status` |
+| ล้าง log เก่า | `sudo -H -u cms pm2 flush` |
+
+> ใช้ `reload` แทน `restart` เมื่อ deploy — `reload` รอให้ request ที่ค้างอยู่เสร็จก่อน
+> (ตรงกับ graceful shutdown ที่ `server.ts` ทำไว้) ส่วน `restart` ตัดทันที
 
 ---
 
@@ -501,9 +516,9 @@ sudo -u cms git pull
 cd cms
 sudo -u cms npm ci
 sudo -u cms npm run prisma:generate
-sudo -u cms npx prisma migrate deploy --schema api/prisma/schema.prisma
+sudo -u cms npm run prisma:deploy
 sudo -u cms npm run build
-sudo systemctl restart cms-api
+sudo -H -u cms pm2 reload cms-api
 ```
 
 > **สำรองฐานข้อมูลก่อน migrate ทุกครั้ง**
@@ -538,11 +553,14 @@ sudo chmod +x /etc/cron.daily/cms-backup
 
 | อาการ | สาเหตุและวิธีแก้ |
 |---|---|
-| หน้าเว็บขึ้นแต่ไม่มีข้อมูล เปิด console เจอ CORS error | `WEBSITE_URL` / `ADMIN_URL` ใน `api/.env` ไม่ตรงกับโดเมนที่เปิดจริง ต้องตรงเป๊ะรวม `https://` และไม่มี `/` ปิดท้าย แล้ว `systemctl restart cms-api` |
+| หน้าเว็บขึ้นแต่ไม่มีข้อมูล เปิด console เจอ CORS error | `WEBSITE_URL` / `ADMIN_URL` ใน `api/.env` ไม่ตรงกับโดเมนที่เปิดจริง ต้องตรงเป๊ะรวม `https://` และไม่มี `/` ปิดท้าย แล้ว `pm2 reload cms-api` |
 | Login ได้แต่ถูกเด้งออกทุก 15 นาที | ยังไม่ได้เปิด HTTPS หรือ nginx ไม่ได้ส่ง `X-Forwarded-Proto` — cookie `secure` จึงไม่ถูกส่งกลับ |
 | เรียก API แล้วได้ 404 ทุกเส้นทาง | เรียกผิด prefix — ทุก endpoint อยู่ใต้ `/api/v1` |
 | Refresh หน้าใน SPA แล้วขึ้น 404 | ขาด `try_files $uri $uri/ /index.html;` ใน server block นั้น |
 | รูปภาพเสียหมด | ไม่ได้ copy `api/uploads/` มาจาก local หรือ path ใน `alias` ผิด (ต้องมี `/` ปิดท้าย) |
+| `pm2 status` ขึ้น `errored` และ restart วนไม่หยุด | ดูสาเหตุจริงด้วย `pm2 logs cms-api --err --lines 100` ส่วนใหญ่คือ `api/.env` ผิด (zod จะฟ้องชื่อตัวแปรที่ผิดตรง ๆ) หรือยังไม่ได้ `npm run build` จึงไม่มี `dist/` |
+| `pm2 status` ไม่เห็น process ทั้งที่เพิ่ง start | รัน pm2 คนละ user กัน — pm2 แยก daemon ตาม user ต้องใช้ `sudo -H -u cms pm2 ...` ให้เหมือนกันทุกครั้ง ตรวจ daemon ที่ค้างด้วย `ps aux \| grep PM2` |
+| API ไม่ขึ้นมาเองหลัง reboot | ลืม `pm2 save` หลัง start หรือยังไม่ได้รัน `pm2 startup systemd -u cms --hp /opt/cms` |
 | `cms-api` ไม่ start และ log ฟ้อง sharp | Node ไม่ใช่เวอร์ชัน 20 — ตรวจด้วย `node -v` แล้วติดตั้ง libvips: `apt install libvips-dev` |
 | อัปโหลดไฟล์ใหญ่แล้วได้ 413 | `client_max_body_size` ใน nginx น้อยกว่า `MAX_UPLOAD_MB` |
 | แก้ `VITE_API_URL` แล้วไม่มีผล | ค่านี้ฝังตอน build ต้อง `npm run build` ใหม่ |
