@@ -402,7 +402,7 @@ sudo tee /etc/nginx/sites-available/cms > /dev/null <<'EOF'
 # ── API ────────────────────────────────────────────────
 server {
     listen 80;
-    server_name api.example.com;
+    server_name tt-api.dna.co.th;
 
     # ไฟล์สลิปบางไฟล์ใหญ่ ต้องมากกว่า MAX_UPLOAD_MB
     client_max_body_size 20m;
@@ -428,8 +428,8 @@ server {
 # ── เว็บไซต์สาธารณะ ─────────────────────────────────────
 server {
     listen 80;
-    server_name www.example.com example.com;
-    root /opt/cms/app/cms/website/dist;
+    server_name tt.dna.co.th;
+    root /var/www/html/front/thiotogether/cms/website/dist;
     index index.html;
 
     location /assets/ {
@@ -449,8 +449,8 @@ server {
 # ── หน้าจัดการ ─────────────────────────────────────────
 server {
     listen 80;
-    server_name admin.example.com;
-    root /opt/cms/app/cms/admin/dist;
+    server_name tt-admin.dna.co.th;
+    root /var/www/html/front/thiotogether/cms/admin/dist;
     index index.html;
 
     location /assets/ {
