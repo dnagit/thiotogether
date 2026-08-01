@@ -107,7 +107,7 @@ async function check(): Promise<void> {
             </li>
           </ul>
           <p class="text-xs text-gray-500 mt-3">
-            Token ใช้ได้เฉพาะเกมที่โครงการนั้นเข้าร่วมเท่านั้น
+            Token ใช้ได้เฉพาะเกมส์ที่โครงการนั้นเข้าร่วมเท่านั้น
           </p>
         </div>
 

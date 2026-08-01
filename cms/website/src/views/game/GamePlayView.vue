@@ -117,7 +117,7 @@ async function loadBoard(): Promise<void> {
       void router.replace({ name: 'game-results', params: { slug } });
     }
   } catch {
-    loadError.value = 'ไม่พบเกมนี้ หรือเกมยังไม่เปิดให้เล่น';
+    loadError.value = 'ไม่พบเกมส์นี้ หรือเกมส์ยังไม่เปิดให้เล่น';
   } finally {
     loading.value = false;
   }
@@ -244,20 +244,20 @@ function isMine(tile: Tile): boolean {
   <div class="font-sukhumvit container-site py-8 sm:py-12">
     <!-- Loading -->
     <div v-if="loading" class="py-24 text-center" role="status" aria-live="polite">
-      <div class="animate-pulse text-gray-400">กำลังโหลดเกม…</div>
+      <div class="animate-pulse text-gray-400">กำลังโหลดเกมส์…</div>
     </div>
 
     <!-- Error -->
     <div v-else-if="loadError || !board" class="py-20 text-center">
       <div class="text-5xl mb-3" aria-hidden="true">🔍</div>
       <h1 class="text-xl font-bold mb-2">{{ loadError }}</h1>
-      <!-- <RouterLink to="/games" class="text-blue-600 underline">ดูเกมทั้งหมด</RouterLink> -->
+      <!-- <RouterLink to="/games" class="text-blue-600 underline">ดูเกมส์ทั้งหมด</RouterLink> -->
     </div>
 
     <template v-else>
       <!-- Header -->
       <header class="mb-6">
-        <!-- <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมทั้งหมด</RouterLink> -->
+        <!-- <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมส์ทั้งหมด</RouterLink> -->
         <h1 class="text-center text-2xl sm:text-4xl font-extrabold mt-2">{{ board.name }}</h1>
         <p v-if="board.description" class="text-gray-600 mt-2">{{ board.description }}</p>
       </header>
@@ -285,7 +285,7 @@ function isMine(tile: Tile): boolean {
         <p>รอผู้จัดกิจกรรมกดเฉลยผล แล้วกลับมาดูได้ที่หน้านี้</p>
       </div>
       <div v-else-if="!canPlay" class="notice notice-info mb-6">
-        <strong>เกมนี้ยังไม่เปิดให้จอง</strong>
+        <strong>เกมส์นี้ยังไม่เปิดให้จอง</strong>
       </div>
 
       <!-- Account gate -->
@@ -327,7 +327,7 @@ function isMine(tile: Tile): boolean {
         <div v-else-if="tilesAffordable < 1 && myTileCount === 0" class="card text-center">
           <div class="text-4xl mb-2" aria-hidden="true">🎫</div>
           <h2 class="font-bold mb-1">
-            {{ account.found ? `บัญชี "${account.displayName}" ยังไม่มี Token สำหรับเกมนี้` : 'ไม่พบบัญชีนี้ในระบบ' }}
+            {{ account.found ? `บัญชี "${account.displayName}" ยังไม่มี Token สำหรับเกมส์นี้` : 'ไม่พบบัญชีนี้ในระบบ' }}
           </h2>
           <p class="text-sm text-gray-600 mb-4">
             รับ Token ได้จากการบริจาคในโครงการที่ร่วมรายการ และ Token จะเข้าหลังผู้ดูแลตรวจสอบแล้ว
@@ -423,7 +423,7 @@ function isMine(tile: Tile): boolean {
         showing it here tells players what is at stake without hinting at where anything sits.
       -->
       <section v-if="board.prizes?.length" aria-labelledby="prizes-heading" class="prizes mt-8">
-        <h2 id="prizes-heading" class="prizes-title">รางวัลในเกมนี้</h2>
+        <h2 id="prizes-heading" class="prizes-title">รางวัลในเกมส์นี้</h2>
         <ul class="prizes-list" role="list">
           <li v-for="(prize, i) in board.prizes" :key="`${prize.label}-${i}`" class="prize-row">
             <img v-if="prize.imageUrl" :src="prize.imageUrl" alt="" loading="lazy" class="prize-img" />

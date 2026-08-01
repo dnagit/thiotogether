@@ -21,7 +21,7 @@ const games = ref<GameCard[]>([]);
 const loading = ref(true);
 const error = ref(false);
 
-applySeo({ title: 'เกมเปิดแผ่นป้าย' });
+applySeo({ title: 'เกมส์เปิดแผ่นป้าย' });
 
 void get<GameCard[]>('/games')
   .then((g) => (games.value = g))
@@ -47,7 +47,7 @@ const hasGames = computed(() => games.value.length > 0);
 <template>
   <div class="font-sukhumvit container-site py-12">
     <header class="text-center mb-10">
-      <h1 class="text-3xl sm:text-4xl font-extrabold mb-2">เกมเปิดแผ่นป้าย</h1>
+      <h1 class="text-3xl sm:text-4xl font-extrabold mb-2">เกมส์เปิดแผ่นป้าย</h1>
       <p class="text-gray-500">บริจาคเพื่อรับ Token แล้วเลือกเปิดแผ่นป้ายลุ้นรางวัล</p>
       <RouterLink to="/tokens" class="inline-block mt-3 text-blue-600 underline text-sm">
         ตรวจสอบ Token ของฉัน
@@ -58,13 +58,13 @@ const hasGames = computed(() => games.value.length > 0);
 
     <div v-else-if="error" class="py-16 text-center">
       <div class="text-5xl mb-3" aria-hidden="true">⚠️</div>
-      <p class="font-semibold mb-1">โหลดรายการเกมไม่สำเร็จ</p>
+      <p class="font-semibold mb-1">โหลดรายการเกมส์ไม่สำเร็จ</p>
       <button type="button" class="text-blue-600 underline" @click="$router.go(0)">ลองใหม่</button>
     </div>
 
     <div v-else-if="!hasGames" class="py-16 text-center">
       <div class="text-5xl mb-3" aria-hidden="true">🎲</div>
-      <p class="font-semibold mb-1">ยังไม่มีเกมที่เปิดให้เล่น</p>
+      <p class="font-semibold mb-1">ยังไม่มีเกมส์ที่เปิดให้เล่น</p>
       <p class="text-gray-500 text-sm">กลับมาใหม่อีกครั้งเร็ว ๆ นี้</p>
     </div>
 

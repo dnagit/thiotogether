@@ -75,7 +75,7 @@ void get<Board>(`/games/${slug}`)
     board.value = b;
     applySeo({ title: `ผลรางวัล — ${b.name}` });
   })
-  .catch(() => (error.value = 'ไม่พบเกมนี้'))
+  .catch(() => (error.value = 'ไม่พบเกมส์นี้'))
   .finally(() => (loading.value = false));
 
 function openTile(n: number): void {
@@ -96,12 +96,12 @@ function closeAll(): void {
     <div v-else-if="error || !board" class="py-20 text-center">
       <div class="text-5xl mb-3" aria-hidden="true">🔍</div>
       <h1 class="text-xl font-bold mb-2">{{ error }}</h1>
-      <!-- <RouterLink to="/games" class="text-blue-600 underline">ดูเกมทั้งหมด</RouterLink> -->
+      <!-- <RouterLink to="/games" class="text-blue-600 underline">ดูเกมส์ทั้งหมด</RouterLink> -->
     </div>
 
     <template v-else>
       <header class="text-center mb-8">
-        <!-- <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมทั้งหมด</RouterLink> -->
+        <!-- <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมส์ทั้งหมด</RouterLink> -->
         <h1 class="text-2xl sm:text-4xl font-extrabold mt-2">{{ board.name }}</h1>
         <p v-if="revealed" class="text-gray-600 mt-2">🎉 ประกาศผลรางวัลแล้ว</p>
       </header>
@@ -114,7 +114,7 @@ function closeAll(): void {
           ผลรางวัลจะแสดงเมื่อป้ายถูกจองครบทุกใบและผู้จัดกิจกรรมกดเฉลย
         </p>
         <RouterLink :to="`/game/${board.slug}`" class="btn-primary inline-block" :style="{ background: themeColor }">
-          กลับไปหน้าเกม
+          กลับไปหน้าเกมส์
         </RouterLink>
       </div>
 
