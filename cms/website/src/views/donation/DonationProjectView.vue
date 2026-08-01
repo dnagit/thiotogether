@@ -102,12 +102,53 @@ const campaignEnded = computed(
   () => !!project.value?.endDate && new Date(project.value.endDate) < new Date(),
 );
 
-function setSlip(file: File | undefined | null): void {
-  if (!file) return;
-  if (!file.type.startsWith('image/')) {
+/**
+ * iPhones store photos as HEIC, and picking one through Files hands it over untouched — only
+ * Safari can display that, so an admin on Chrome would see a broken slip. The phone itself can
+ * decode it, so the conversion happens here, before the upload, and the server only ever sees JPEG.
+ *
+ * The extension is checked as well as the MIME type: iOS reports an empty `type` for some files
+ * picked out of Files.
+ */
+function isHeic(file: File): boolean {
+  return /image\/hei[cf]/.test(file.type) || /\.hei[cf]$/i.test(file.name);
+}
+
+async function toJpeg(file: File): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.9),
+  );
+  if (!blob) throw new Error('canvas produced no blob');
+  return new File([blob], file.name.replace(/\.hei[cf]$/i, '.jpg'), { type: 'image/jpeg' });
+}
+
+async function setSlip(picked: File | undefined | null): Promise<void> {
+  if (!picked) return;
+  // An empty `type` is not a rejection on its own — the extension check below covers HEIC.
+  if (picked.type && !picked.type.startsWith('image/') && !isHeic(picked)) {
     errors.slip = 'Please upload an image of your transfer slip';
     return;
   }
+
+  let file = picked;
+  if (isHeic(picked)) {
+    try {
+      file = await toJpeg(picked);
+    } catch {
+      // A browser that cannot decode HEIC keeps the original: the server accepts it, so the
+      // donation still goes through and only the preview is missing.
+      file = picked;
+    }
+  }
+
+  // Checked after conversion, since that is the size actually uploaded.
   if (file.size > 10 * 1024 * 1024) {
     errors.slip = 'File must be under 10 MB';
     return;
@@ -121,7 +162,7 @@ function setSlip(file: File | undefined | null): void {
 
 function onDrop(e: DragEvent): void {
   dragOver.value = false;
-  setSlip(e.dataTransfer?.files?.[0]);
+  void setSlip(e.dataTransfer?.files?.[0]);
 }
 
 function validate(): boolean {
@@ -305,13 +346,17 @@ const inputClass =
 
             <form v-else class="space-y-4" novalidate @submit.prevent="submit">
               <div>
-                <label class="block text-sm font-medium mb-1.5">ชื่อเล่น หรือ นามแฝง <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-medium mb-1.5">ชื่อเล่น หรือ นามแฝง <span class="text-red-500">*</span><br />
+                  <small>(จะแสดงในยอดเรียลไทม์)</small>
+                </label>
                 <input v-model="form.nickname" :class="inputClass" :style="{ '--tw-ring-color': themeColor }" />
                 <p v-if="errors.nickname" class="text-xs text-red-600 mt-1">{{ errors.nickname }}</p>
               </div>
 
               <div>
-                <label class="block text-sm font-medium mb-1.5">Your Name (account name) <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-medium mb-1.5">Your Name (account name) <span class="text-red-500">*</span><br />
+                  <small>(ใช้สำหรับ log in เล่นเกม)</small>
+                </label>
                 <input v-model="form.accountName" :class="inputClass" :style="{ '--tw-ring-color': themeColor }" />
                 <p v-if="errors.accountName" class="text-xs text-red-600 mt-1">{{ errors.accountName }}</p>
               </div>
@@ -355,7 +400,13 @@ const inputClass =
                     <div class="text-sm text-gray-600">Drag & drop your slip here, or tap to choose</div>
                     <div class="text-xs text-gray-400 mt-1">JPG / PNG / WEBP, max 10 MB</div>
                   </template>
-                  <input type="file" accept="image/*" capture="environment" hidden @change="setSlip(($event.target as HTMLInputElement).files?.[0])" />
+                  <!--
+                    No `capture` attribute: it forces the camera and removes the picker entirely on
+                    iOS, so a slip already saved in Photos becomes unreachable. Without it Safari
+                    offers Photo Library, Take Photo and Browse, which covers both cases.
+                  -->
+                  <!-- The explicit suffixes matter in the Files browser, where iOS filters by extension. -->
+                  <input type="file" accept="image/*,.heic,.heif" hidden @change="void setSlip(($event.target as HTMLInputElement).files?.[0])" />
                 </label>
                 <p v-if="errors.slip" class="text-xs text-red-600 mt-1">{{ errors.slip }}</p>
               </div>

@@ -326,11 +326,33 @@ export async function getPublicBoard(slug: string) {
           reward: { select: { label: true, imageUrl: true, isPrize: true } },
         },
       },
+      /**
+       * The prize catalogue — what players can win, shown before the reveal.
+       *
+       * Read straight off the game in `sortOrder`, never through `tiles`: the reward→tile
+       * assignment lives on BoardTile, so an order that never touches it cannot leak which
+       * tile holds what. Consolation lines are excluded, matching the winners board.
+       */
+      rewards: {
+        where: { isPrize: true, deletedAt: null },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: { label: true, imageUrl: true },
+      },
     },
   });
   if (!game) throw new NotFoundError('Game');
 
   const revealed = game.status === 'REVEALED';
+
+  // Identical prize lines are one entry with a count — a board with ten of the same
+  // voucher should read "×10", not ten repeated rows.
+  const prizes = new Map<string, { label: string; imageUrl: string | null; count: number }>();
+  for (const r of game.rewards) {
+    const key = `${r.label} ${r.imageUrl ?? ''}`;
+    const row = prizes.get(key) ?? { label: r.label, imageUrl: r.imageUrl, count: 0 };
+    row.count += 1;
+    prizes.set(key, row);
+  }
 
   return {
     id: game.id,
@@ -351,6 +373,8 @@ export async function getPublicBoard(slug: string) {
     commitmentHash: revealed ? game.commitmentHash : null,
     reservedCount: game.tiles.filter((t) => t.reservation).length,
     projects: game.projects.map((p) => p.project),
+    /** What this game gives away, available at every stage — it says nothing about where. */
+    prizes: [...prizes.values()],
     tiles: game.tiles.map((tile) => ({
       boardNumber: tile.boardNumber,
       frontImage: tile.frontImage ?? game.tileFrontImage,

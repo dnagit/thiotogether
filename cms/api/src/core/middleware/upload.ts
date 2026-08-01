@@ -5,7 +5,23 @@ import { BadRequestError } from '../errors/AppError.js';
 import { config } from '../config/index.js';
 
 const ALLOWED_MIME: Record<string, string[]> = {
-  image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'],
+  /**
+   * HEIC/HEIF are accepted because that is what an iPhone stores; the donation form converts
+   * them to JPEG on the device before uploading, so these only arrive when that conversion
+   * could not run. Note the bundled libvips decodes AVIF but not HEVC-coded HEIC, so such a
+   * file is stored as-is: no thumbnail, and only Safari can display it.
+   */
+  image: [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'image/svg+xml',
+    'image/heic',
+    'image/heif',
+    'image/heic-sequence',
+    'image/heif-sequence',
+  ],
   video: ['video/mp4', 'video/webm'],
   document: [
     'application/pdf',

@@ -260,10 +260,37 @@ describe('reward secrecy', () => {
     const board = await getPublicBoard(game.slug);
     expect(board.status).toBe('OPEN');
     expect(board.tiles.every((t) => t.reward === null)).toBe(true);
-    // Nothing anywhere in the payload leaks a label.
+    // Consolation lines are not prizes, so nothing in the payload carries a label at all.
     expect(JSON.stringify(board)).not.toContain('รางวัลที่');
+    expect(board.prizes).toEqual([]);
     // The commitment is withheld too until it can be checked against a result.
     expect(board.commitmentHash).toBeNull();
+  });
+
+  it('lists prize lines before the reveal without exposing which tile holds them', async () => {
+    const project = await makeProject();
+    const game = await makeGame([project.id], { tileCount: 3 });
+    // Two identical vouchers and one grand prize.
+    await db.reward.updateMany({
+      where: { gameId: game.id, sortOrder: { in: [0, 1] } },
+      data: { label: 'บัตรกำนัล', isPrize: true },
+    });
+    await db.reward.updateMany({
+      where: { gameId: game.id, sortOrder: 2 },
+      data: { label: 'รางวัลใหญ่', isPrize: true },
+    });
+    await openGame(game.id);
+    await shuffleGame(game.id);
+
+    const board = await getPublicBoard(game.slug);
+    // Duplicates collapse into one entry carrying the count, in sortOrder.
+    expect(board.prizes).toEqual([
+      { label: 'บัตรกำนัล', imageUrl: null, count: 2 },
+      { label: 'รางวัลใหญ่', imageUrl: null, count: 1 },
+    ]);
+    // The catalogue is the only reward data present — the assignment stays hidden.
+    expect(board.tiles.every((t) => t.reward === null)).toBe(true);
+    expect(JSON.stringify(board.tiles)).not.toContain('บัตรกำนัล');
   });
 
   it('hides reserver names when the game is configured to', async () => {

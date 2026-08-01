@@ -27,6 +27,12 @@ interface Tile {
   reservedBy: string | null;
   reward: { label: string; imageUrl: string | null } | null;
 }
+/** A prize line this game gives away. Carries no tile — the assignment stays server-side. */
+interface Prize {
+  label: string;
+  imageUrl: string | null;
+  count: number;
+}
 interface Board {
   name: string;
   slug: string;
@@ -41,6 +47,7 @@ interface Board {
   showReserverNames: boolean;
   reservedCount: number;
   projects: Array<{ id: number; name: string; slug: string }>;
+  prizes: Prize[];
   tiles: Tile[];
 }
 interface AccountState {
@@ -411,6 +418,25 @@ function isMine(tile: Tile): boolean {
         </div>
       </div>
 
+      <!--
+        What this game gives away. The server sends the prize catalogue detached from the tiles, so
+        showing it here tells players what is at stake without hinting at where anything sits.
+      -->
+      <section v-if="board.prizes?.length" aria-labelledby="prizes-heading" class="prizes mt-8">
+        <h2 id="prizes-heading" class="prizes-title">รางวัลในเกมนี้</h2>
+        <ul class="prizes-list" role="list">
+          <li v-for="(prize, i) in board.prizes" :key="`${prize.label}-${i}`" class="prize-row">
+            <img v-if="prize.imageUrl" :src="prize.imageUrl" alt="" loading="lazy" class="prize-img" />
+            <p class="prize-label">{{ prize.label }}</p>
+            <!-- Only worth saying when there is more than one of the same prize. -->
+            <p v-if="prize.count > 1" class="prize-count" :style="{ color: themeColor }">
+              จำนวน {{ prize.count }} รางวัล
+            </p>
+          </li>
+        </ul>
+        <p class="prizes-note">รางวัลจะถูกสุ่มไว้ใต้ป้ายแล้ว และจะทราบผลเมื่อผู้จัดกิจกรรมกดเฉลย</p>
+      </section>
+
       <!-- Confirm dialog -->
       <AppModal
         :open="confirmOpen"
@@ -461,6 +487,51 @@ function isMine(tile: Tile): boolean {
 .btn-ghost {
   @apply border border-gray-300 font-medium px-5 py-2.5 rounded-lg transition hover:bg-gray-50 disabled:opacity-50;
 }
+
+/* Prize catalogue: same cream panel as the winners board on the results page, so the two
+   screens read as one game. */
+.prizes {
+  border-radius: 14px;
+  background: #fff1e3;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+}
+.prizes-title {
+  text-align: center;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  /* The negative term steepens desktop growth while phones stay on the floor value. */
+  font-size: clamp(1.05rem, 3vw - 0.6rem, 2.5rem);
+  margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
+}
+/* Flex rather than `auto-fit` grid tracks: tracks stretch to fill the row, which spreads two
+   prizes across the whole panel. These keep their own width and stay packed together, with the
+   whole group centred — so a short list sits under the middle of the heading instead of drifting
+   to one edge. */
+.prizes-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  padding-block: clamp(0.5rem, 2vw, 1.25rem);
+}
+.prize-row {
+  text-align: center;
+  /* Wide enough for a prize name to sit on one or two lines, never wider than the panel. */
+  flex: 0 1 clamp(140px, 22vw, 220px);
+}
+.prize-img {
+  width: clamp(48px, 8vw, 96px);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  /* `auto` sides centre the picture over the caption; `text-align` alone cannot move a block. */
+  margin: 0 auto clamp(0.25rem, 0.8vw, 0.5rem);
+}
+.prize-label { font-weight: 700; font-size: clamp(0.9rem, 2.2vw - 0.4rem, 1.5rem); line-height: 1.4; }
+.prize-count { font-weight: 700; font-size: clamp(0.75rem, 1.5vw - 0.3rem, 1.05rem); margin-top: 0.35em; }
+.prizes-note { text-align: center; font-size: 0.8rem; color: #6b7280; }
 
 /* Only the board scrolls sideways when a large grid cannot fit — never the page. */
 .board-scroll { overflow-x: auto; padding-bottom: 4px; }

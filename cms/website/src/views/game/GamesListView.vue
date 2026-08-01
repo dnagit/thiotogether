@@ -37,6 +37,10 @@ const badge: Record<string, { text: string; cls: string }> = {
 function linkFor(g: GameCard): string {
   return g.status === 'REVEALED' ? `/game/${g.slug}/results` : `/game/${g.slug}`;
 }
+/** Same fallback as the play and results screens, so a card matches the game it opens. */
+function accentFor(g: GameCard): string {
+  return g.themeColor ?? '#ea480c';
+}
 const hasGames = computed(() => games.value.length > 0);
 </script>
 
@@ -74,7 +78,7 @@ const hasGames = computed(() => games.value.length > 0);
           <div
             v-else
             class="w-full h-44 flex items-center justify-center text-5xl"
-            :style="{ background: g.themeColor ?? 'var(--color-primary)', opacity: 0.85 }"
+            :style="{ background: accentFor(g), opacity: 0.85 }"
             aria-hidden="true"
           >🎁</div>
 
@@ -91,7 +95,7 @@ const hasGames = computed(() => games.value.length > 0);
               <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   class="h-full rounded-full"
-                  :style="{ width: `${(g.reservedCount / g.tileCount) * 100}%`, background: g.themeColor ?? 'var(--color-primary)' }"
+                  :style="{ width: `${(g.reservedCount / g.tileCount) * 100}%`, background: accentFor(g) }"
                 />
               </div>
               <p class="text-xs text-gray-500 mt-2">ใช้ {{ g.tokensPerTile }} Token ต่อ 1 ป้าย</p>
