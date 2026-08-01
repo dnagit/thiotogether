@@ -11,7 +11,7 @@ export function applySeo(seo: SeoMeta & { title?: string }): void {
 
   const title = seo.metaTitle || seo.title || defaults.metaTitle || site.siteName;
   const description = seo.metaDescription || defaults.metaDescription || '';
-  const ogImage = seo.ogImage || defaults.ogImage || '';
+  const ogImage = absoluteUrl(seo.ogImage || defaults.ogImage || '');
 
   document.title = title;
   setMeta('description', description);
@@ -33,6 +33,23 @@ export function applySeo(seo: SeoMeta & { title?: string }): void {
   if (ogImage) setMeta('twitter:image', ogImage);
 
   setJsonLd(seo.jsonLd ?? null);
+}
+
+/**
+ * Open Graph requires an absolute URL: a scraper reads the tag out of the
+ * document and has no page to resolve `/uploads/x.jpg` against. Uploads are
+ * usually stored absolute, but a hand-typed path in the CMS must still work.
+ * The base is the site origin, which is what `<img src>` resolves against
+ * everywhere else in the app.
+ */
+function absoluteUrl(url: string): string {
+  if (!url) return '';
+  try {
+    return new URL(url, window.location.origin).href;
+  } catch {
+    // A malformed value must not take the rest of the head down with it.
+    return '';
+  }
 }
 
 function setMeta(name: string, content: string): void {
