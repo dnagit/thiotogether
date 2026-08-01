@@ -541,7 +541,11 @@ function isMine(tile: Tile): boolean {
   /* Exactly `--cols` columns, so the grid stays square. The min keeps every tile
      at the 44px minimum touch target; the max stops a small board from ballooning. */
   grid-template-columns: repeat(var(--cols), minmax(44px, 108px));
+  /* `safe`: centring a grid that is wider than its scroll container pushes the overflow out
+     both sides, and the left half can never be scrolled back to. `safe` drops to start
+     alignment exactly in that case, so the first column stays reachable on a phone. */
   justify-content: center;
+  justify-content: safe center;
   gap: 10px;
 }
 @media (min-width: 640px) {

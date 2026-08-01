@@ -322,7 +322,10 @@ function closeAll(): void {
   /* Mirrors the play board's square grid; reveal tiles are taller (3:4) so they
      carry the winner's name and prize text. */
   grid-template-columns: repeat(var(--cols), minmax(72px, 140px));
+  /* Same `safe` centring as the play board: a 6×6 grid is wider than a phone, and plain
+     `center` would hide the first column beyond the left edge of the scroll container. */
   justify-content: center;
+  justify-content: safe center;
   gap: 12px;
 }
 @media (min-width: 640px) {
