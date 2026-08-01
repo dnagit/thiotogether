@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { http } from '@/api/http';
 import { useCrud } from '@/composables/useCrud';
 import MediaPicker from '@/components/MediaPicker.vue';
@@ -52,6 +52,45 @@ async function action(id: number, verb: 'duplicate' | 'archive' | 'activate'): P
   await http.post(`/donation-projects/${id}/${verb}`);
   ElMessage.success(verb === 'duplicate' ? 'Duplicated (inactive draft)' : verb === 'archive' ? 'Archived' : 'Activated');
   await crud.fetchList();
+}
+
+/**
+ * Rehearsal cleanup. This one deletes for real and cannot be undone, so it asks for the project
+ * name to be typed out — an OK button is far too easy to hit on the wrong row.
+ */
+async function clearData(row: any): Promise<void> {
+  try {
+    await ElMessageBox.prompt(
+      `ลบการบริจาค token และการจองป้ายที่ใช้ token ของ "${row.name}" ทั้งหมดอย่างถาวร กู้คืนไม่ได้\n\nพิมพ์ชื่อโครงการเพื่อยืนยัน`,
+      'ล้างข้อมูลบริจาคและ token',
+      {
+        type: 'warning',
+        confirmButtonText: 'ล้างข้อมูล',
+        cancelButtonText: 'ยกเลิก',
+        inputPlaceholder: row.name,
+        inputValidator: (value: string) => value?.trim() === row.name || 'ชื่อโครงการไม่ตรง',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  try {
+    const { data } = await http.post<ApiResponse<any>>(`/donation-projects/${row.id}/clear-data`);
+    ElMessage.success(data.message ?? 'ล้างข้อมูลแล้ว');
+
+    // A revealed game keeps its results but has just lost the plays behind them, so say so
+    // instead of leaving the admin to find a half-empty results page later.
+    const revealed = (data.data?.affectedGames ?? []).filter((g: any) => g.status === 'REVEALED');
+    if (revealed.length) {
+      ElMessage.warning(
+        `เกมที่เฉลยไปแล้วได้รับผลกระทบ: ${revealed.map((g: any) => g.name).join(', ')} — กด "เริ่มเกมใหม่" ที่หน้าเกมเพื่อรีเซ็ตกระดาน`,
+      );
+    }
+    await crud.fetchList();
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message ?? 'ล้างข้อมูลไม่สำเร็จ');
+  }
 }
 
 async function move(index: number, dir: -1 | 1): Promise<void> {
@@ -114,6 +153,11 @@ async function move(index: number, dir: -1 | 1): Promise<void> {
             <ElButton size="small" plain @click="action(row.id, 'duplicate')">Copy</ElButton>
             <ElButton v-if="row.isActive" size="small" plain @click="action(row.id, 'archive')">Archive</ElButton>
             <ElButton v-else size="small" plain type="success" @click="action(row.id, 'activate')">Activate</ElButton>
+            <ElButton
+              v-permission="PERMISSIONS.DONATIONS_DELETE"
+              size="small" type="danger" plain
+              @click="clearData(row)"
+            >Clear data</ElButton>
             <ElButton size="small" type="danger" text @click="crud.deleteItem(row.id, row.name)">Delete</ElButton>
           </template>
         </ElTableColumn>

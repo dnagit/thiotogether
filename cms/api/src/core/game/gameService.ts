@@ -310,6 +310,94 @@ export async function revealGame(gameId: number, actorId: number | null) {
   });
 }
 
+export interface ResetOutcome {
+  clearedReservations: number;
+  refundedTokens: number;
+  commitmentHash: string;
+}
+
+/**
+ * Put a played game back to its unplayed state: reservations dropped, tokens returned to the
+ * accounts that spent them, rewards re-shuffled onto a fresh commitment, status back to OPEN.
+ *
+ * Built for rehearsing an event, so it undoes rather than deletes — spent tokens are refunded
+ * through the ledger instead of being written off, otherwise a second run of the same test would
+ * find every tester broke. The ledger stays append-only: nothing is edited, a REFUND row is added
+ * opposite each SPEND.
+ */
+export async function resetGame(gameId: number, actorId: number | null): Promise<ResetOutcome> {
+  return rawPrisma.$transaction(async (tx) => {
+    const game = await tx.game.findUnique({ where: { id: gameId } });
+    if (!game) throw new NotFoundError('Game');
+    if (game.deletedAt) throw new NotFoundError('Game');
+
+    const reservations = await tx.reservation.findMany({
+      where: { gameId },
+      select: { id: true },
+    });
+
+    // Status alone cannot answer "has this been played": closing a game puts it back to DRAFT, so
+    // a played-then-closed game is DRAFT too. Never shuffled and never reserved is the real test.
+    if (!game.shuffledAt && reservations.length === 0) {
+      throw new ConflictError('เกมนี้ยังไม่เคยเปิด ไม่มีอะไรให้เริ่มใหม่');
+    }
+
+    // Refund from the SPEND rows rather than from `reservation.tokensSpent`: one reservation can
+    // draw on several grants when the first runs out, and each grant has to get its own back.
+    const spends = await tx.tokenLedgerEntry.findMany({
+      where: { reason: 'SPEND', reservationId: { in: reservations.map((r) => r.id) } },
+    });
+
+    let refundedTokens = 0;
+    for (const spend of spends) {
+      const tokens = -spend.delta;
+      if (tokens <= 0 || !spend.grantId) continue;
+
+      const grant = await tx.tokenGrant.findUnique({ where: { id: spend.grantId } });
+      if (!grant) continue;
+      // A grant revoked since the spend must not be topped back up past what it ever granted.
+      const restore = Math.min(tokens, grant.tokensGranted - grant.tokensRemaining);
+      if (restore <= 0) continue;
+
+      await tx.tokenGrant.update({
+        where: { id: grant.id },
+        data: { tokensRemaining: { increment: restore } },
+      });
+      await tx.tokenLedgerEntry.create({
+        data: {
+          accountIdentityId: spend.accountIdentityId,
+          projectId: spend.projectId,
+          grantId: grant.id,
+          delta: restore,
+          reason: 'REFUND',
+          description: `เริ่มเกม ${game.name} ใหม่ (คืน ${restore} token)`,
+          actorId,
+        },
+      });
+      refundedTokens += restore;
+    }
+
+    // The ledger outlives the reservation it refers to, and the FK does not cascade, so the
+    // history is detached instead of deleted — the SPEND/REFUND pair stays auditable.
+    await tx.tokenLedgerEntry.updateMany({
+      where: { reservationId: { in: reservations.map((r) => r.id) } },
+      data: { reservationId: null },
+    });
+
+    await tx.reservation.deleteMany({ where: { gameId } });
+    await tx.revealEvent.deleteMany({ where: { gameId } });
+
+    // Back to OPEN before the shuffle: `shuffleGame` refuses to touch a REVEALED game.
+    await tx.game.update({
+      where: { id: gameId },
+      data: { status: 'OPEN', revealedAt: null, shuffledAt: null, commitmentHash: null },
+    });
+    const commitmentHash = await shuffleGame(gameId, tx);
+
+    return { clearedReservations: reservations.length, refundedTokens, commitmentHash };
+  });
+}
+
 /**
  * Board state for players. Reward fields are included **only** once the game is
  * REVEALED — this function is the single source of what a player may see.

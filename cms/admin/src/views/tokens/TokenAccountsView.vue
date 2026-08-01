@@ -7,7 +7,7 @@
  * "where did my tokens go?" can be answered from one screen.
  */
 import { computed, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { http } from '@/api/http';
 import { useCrud } from '@/composables/useCrud';
 import { tagMapper } from '@/utils/elementTypes';
@@ -42,6 +42,45 @@ async function openDetail(row: any): Promise<void> {
     drawer.value = false;
   } finally {
     detailLoading.value = false;
+  }
+}
+
+/**
+ * Rehearsal cleanup for one account. Deletes for real and cannot be undone, so it asks for the
+ * account name to be typed — the rows here look alike and hitting the wrong one is easy.
+ */
+const clearing = ref<number | null>(null);
+
+async function clearAccount(row: any): Promise<void> {
+  try {
+    await ElMessageBox.prompt(
+      `ลบ token ประวัติ และการจองป้ายทั้งหมดของ "${row.displayName}" อย่างถาวร กู้คืนไม่ได้` +
+        `\n(รายการบริจาคจะไม่ถูกลบ ใช้ปุ่มล้างข้อมูลที่หน้าโครงการแทน)` +
+        `\n\nพิมพ์ชื่อบัญชีเพื่อยืนยัน`,
+      'ล้าง Token ของบัญชีนี้',
+      {
+        type: 'warning',
+        confirmButtonText: 'ล้างข้อมูล',
+        cancelButtonText: 'ยกเลิก',
+        inputPlaceholder: row.displayName,
+        inputValidator: (value: string) => value?.trim() === row.displayName || 'ชื่อบัญชีไม่ตรง',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  clearing.value = row.id;
+  try {
+    const { data } = await http.post<ApiResponse<any>>(`/tokens/accounts/${row.id}/clear`);
+    ElMessage.success(data.message ?? 'ล้างข้อมูลแล้ว');
+    // The drawer may be showing the account that just lost its history.
+    if (detail.value?.id === row.id) drawer.value = false;
+    await crud.fetchList();
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message ?? 'ล้างข้อมูลไม่สำเร็จ');
+  } finally {
+    clearing.value = null;
   }
 }
 
@@ -134,8 +173,16 @@ async function submitAdjust(): Promise<void> {
         </ElTableColumn>
         <ElTableColumn label="บริจาค" width="100" align="center" prop="donationCount" />
         <ElTableColumn label="ป้ายที่จอง" width="110" align="center" prop="reservationCount" />
-        <ElTableColumn label="" width="120" fixed="right">
-          <template #default="{ row }"><ElButton size="small" @click="openDetail(row)">ดูประวัติ</ElButton></template>
+        <ElTableColumn label="" width="200" fixed="right">
+          <template #default="{ row }">
+            <ElButton size="small" @click="openDetail(row)">ดูประวัติ</ElButton>
+            <ElButton
+              v-permission="PERMISSIONS.TOKENS_ADJUST"
+              size="small" type="danger" plain
+              :loading="clearing === row.id"
+              @click="clearAccount(row)"
+            >ล้าง</ElButton>
+          </template>
         </ElTableColumn>
         <template #empty><div class="empty">ยังไม่มีบัญชีผู้เล่น — บัญชีจะถูกสร้างเมื่อมีการบริจาคครั้งแรก</div></template>
       </ElTable>

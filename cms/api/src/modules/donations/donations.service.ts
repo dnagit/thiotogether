@@ -321,12 +321,14 @@ export class DonationService extends BaseService<any> {
   async publicStatus(code: string): Promise<any> {
     const donation = await prisma.donation.findFirst({
       where: { donationCode: code },
-      include: { project: { select: { name: true, slug: true, currency: true } } },
+      include: { project: { select: { name: true, slug: true, currency: true, themeColor: true } } },
     });
     if (!donation) throw new NotFoundError('Donation');
     return {
       donationCode: donation.donationCode,
       projectName: donation.project.name,
+      /** Lets the status page keep the colours of the project the donor came from. */
+      projectThemeColor: donation.project.themeColor,
       amount: Number(donation.amount),
       currency: donation.project.currency,
       status: donation.status,

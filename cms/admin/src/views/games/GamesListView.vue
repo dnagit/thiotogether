@@ -71,7 +71,11 @@ function readiness(row: any): { ready: boolean; message: string } {
   return { ready: true, message: 'พร้อมเปิด' };
 }
 
-async function act(row: any, verb: 'open' | 'close' | 'duplicate', confirmText?: string): Promise<void> {
+async function act(
+  row: any,
+  verb: 'open' | 'close' | 'duplicate' | 'reset',
+  confirmText?: string,
+): Promise<void> {
   if (confirmText) {
     try {
       await ElMessageBox.confirm(confirmText, 'ยืนยัน', {
@@ -133,6 +137,17 @@ async function doReveal(): Promise<void> {
   } finally {
     busy.value = null;
   }
+}
+
+/**
+ * Wording for the reset confirmation. It spells out the counts because the damage depends on how
+ * far the game got — resetting an untouched game is harmless, resetting a revealed one throws away
+ * the results everyone has already seen.
+ */
+function resetWarning(row: any): string {
+  const reserved = row._count?.reservations ?? 0;
+  const revealed = row.status === 'REVEALED' ? ' และผลที่เฉลยไปแล้วจะหายไป' : '';
+  return `เริ่มเกม "${row.name}" ใหม่ทั้งหมด: ล้างการจอง ${reserved} รายการ คืน token ให้ผู้เล่นทุกคน แล้วสุ่มจับคู่รางวัลใหม่${revealed} — ใช้สำหรับทดสอบเท่านั้น`;
 }
 
 async function remove(row: any): Promise<void> {
@@ -230,6 +245,15 @@ async function remove(row: any): Promise<void> {
                 >เฉลยผล</ElButton>
               </span>
             </ElTooltip>
+
+            <!-- Rehearsal tool: only meaningful once a game has been opened. -->
+            <ElButton
+              v-if="row.status !== 'DRAFT'"
+              v-permission="PERMISSIONS.GAMES_REVEAL"
+              size="small" type="danger" plain
+              :loading="busy === row.id"
+              @click="act(row, 'reset', resetWarning(row))"
+            >เริ่มเกมใหม่</ElButton>
 
             <ElButton v-permission="PERMISSIONS.GAMES_MANAGE" size="small" plain :loading="busy === row.id" @click="act(row, 'duplicate')">คัดลอก</ElButton>
             <ElButton v-permission="PERMISSIONS.GAMES_MANAGE" size="small" type="danger" text @click="remove(row)">ลบ</ElButton>

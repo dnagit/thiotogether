@@ -10,7 +10,7 @@ import { ok, created } from '../../core/base/BaseController.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../core/errors/AppError.js';
 import { parseListQuery } from '../../core/utils/pagination.js';
 import { blank, blankToUndefined } from '../../core/utils/zod.js';
-import { openGame, revealGame, shuffleGame } from '../../core/game/gameService.js';
+import { openGame, resetGame, revealGame, shuffleGame } from '../../core/game/gameService.js';
 import { PERMISSIONS, slugify } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
 
@@ -418,6 +418,23 @@ router.post(
   asyncHandler(async (req, res) => {
     const game = await revealGame(Number(req.params.id), req.auth ? Number(req.auth.sub) : null);
     ok(res, game, 'เฉลยผลเรียบร้อย');
+  }),
+);
+
+/**
+ * Rehearsal reset: wipes the plays, refunds the tokens and re-shuffles, so the same game can be
+ * run again. Gated on the reveal permission rather than plain manage — it discards results.
+ */
+router.post(
+  '/:id(\\d+)/reset',
+  authorize(PERMISSIONS.GAMES_REVEAL),
+  asyncHandler(async (req, res) => {
+    const outcome = await resetGame(Number(req.params.id), req.auth ? Number(req.auth.sub) : null);
+    ok(
+      res,
+      outcome,
+      `เริ่มเกมใหม่แล้ว ล้างการจอง ${outcome.clearedReservations} รายการ และคืน ${outcome.refundedTokens} token`,
+    );
   }),
 );
 

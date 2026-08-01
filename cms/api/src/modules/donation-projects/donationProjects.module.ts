@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Router } from 'express';
-import { prisma } from '../../core/database/prisma.js';
+import { prisma, rawPrisma } from '../../core/database/prisma.js';
+import { logger } from '../../core/logger.js';
 import { BaseRepository } from '../../core/base/BaseRepository.js';
 import { BaseService } from '../../core/base/BaseService.js';
 import { BaseController, ok, created } from '../../core/base/BaseController.js';
@@ -100,6 +101,73 @@ export class ProjectService extends BaseService<any> {
       verifiedCount: byStatus.VERIFIED?._count._all ?? 0,
       rejectedCount: byStatus.REJECTED?._count._all ?? 0,
     };
+  }
+
+  /**
+   * Wipe every donation and token this project produced, for rehearsing an event on real screens.
+   *
+   * Hard deletes through `rawPrisma`: the normal client turns `delete` into a soft delete, which
+   * would leave the token grants standing and the balances untouched — the opposite of the point.
+   *
+   * Reservations paid for with this project's tokens go too, otherwise a board would stay full
+   * with no tokens behind it. They are found through the ledger rather than through the games,
+   * because that is what records which project actually funded each play.
+   */
+  async clearData(projectId: number): Promise<{
+    donations: number;
+    grants: number;
+    ledgerEntries: number;
+    reservations: number;
+    affectedGames: Array<{ id: number; name: string; status: string }>;
+  }> {
+    const project = await this.getById(projectId);
+
+    return rawPrisma.$transaction(async (tx) => {
+      const spends = await tx.tokenLedgerEntry.findMany({
+        where: { projectId, reservationId: { not: null } },
+        select: { reservationId: true },
+      });
+      const reservationIds = [...new Set(spends.map((s) => s.reservationId!))];
+
+      const affected = await tx.reservation.findMany({
+        where: { id: { in: reservationIds } },
+        select: { game: { select: { id: true, name: true, status: true } } },
+      });
+      const affectedGames = [...new Map(affected.map((r) => [r.game.id, r.game])).values()];
+
+      // Ledger first: it points at both the grants and the reservations being removed.
+      const ledgerEntries = await tx.tokenLedgerEntry.deleteMany({ where: { projectId } });
+      const reservations = await tx.reservation.deleteMany({ where: { id: { in: reservationIds } } });
+      const grants = await tx.tokenGrant.deleteMany({ where: { projectId } });
+      // Verifications and logs cascade from the donation row.
+      const donations = await tx.donation.deleteMany({ where: { projectId } });
+
+      await tx.donationProject.update({
+        where: { id: projectId },
+        data: { currentAmount: 0 },
+      });
+
+      // A board that filled up is playable again now that the plays are gone. REVEALED games are
+      // left alone — undoing a reveal is what the game's own reset button is for.
+      for (const game of affectedGames) {
+        if (game.status === 'FULL') {
+          await tx.game.update({ where: { id: game.id }, data: { status: 'OPEN' } });
+        }
+      }
+
+      logger.warn(
+        { projectId, projectName: project.name, donations: donations.count, grants: grants.count },
+        'Donation and token data cleared for a project',
+      );
+
+      return {
+        donations: donations.count,
+        grants: grants.count,
+        ledgerEntries: ledgerEntries.count,
+        reservations: reservations.count,
+        affectedGames,
+      };
+    });
   }
 
   async duplicate(id: number) {
@@ -231,6 +299,23 @@ router.post(
   asyncHandler(async (req, res) => {
     await projectService.reorder(req.body.orderedIds);
     ok(res, null, 'Reordered');
+  }),
+);
+
+/**
+ * Rehearsal cleanup. Guarded by DONATIONS_DELETE — clearing a project's takings is a bigger act
+ * than editing the project itself, so managing projects is not enough on its own.
+ */
+router.post(
+  '/:id(\\d+)/clear-data',
+  authorize(PERMISSIONS.DONATIONS_DELETE),
+  asyncHandler(async (req, res) => {
+    const result = await projectService.clearData(Number(req.params.id));
+    ok(
+      res,
+      result,
+      `ล้างข้อมูลแล้ว: ${result.donations} การบริจาค, ${result.grants} token grant, ${result.reservations} การจองป้าย`,
+    );
   }),
 );
 

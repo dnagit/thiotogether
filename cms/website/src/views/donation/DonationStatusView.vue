@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { get } from '@/api/client';
 import { applySeo } from '@/composables/useSeo';
@@ -16,6 +16,9 @@ void get<any>(`/donations/${route.params.code}/status`)
   .then((d) => (donation.value = d))
   .catch(() => (notFound.value = true))
   .finally(() => (loading.value = false));
+
+/** Colour of the project this donation belongs to; the site orange until it loads or if none is set. */
+const themeColor = computed(() => donation.value?.projectThemeColor ?? '#ea480c');
 
 const statusInfo: Record<string, { label: string; icon: string; class: string }> = {
   PENDING: { label: 'Pending Verification', icon: '⏳', class: 'text-amber-600 bg-amber-50' },
@@ -50,7 +53,7 @@ const statusInfo: Record<string, { label: string; icon: string; class: string }>
         <div class="flex justify-between"><dt class="text-gray-500">Amount</dt><dd class="font-semibold">{{ formatCurrency(donation.amount, donation.currency) }}</dd></div>
         <div class="flex justify-between"><dt class="text-gray-500">Submitted</dt><dd>{{ formatDateTime(donation.createdAt) }}</dd></div>
       </dl>
-      <RouterLink to="/donation" class="btn-primary w-full text-center block mt-8" style="background-color: #ea480c;">Support Another Project</RouterLink>
+      <RouterLink to="/donation" class="btn-primary w-full text-center block mt-8" :style="{ background: themeColor }">Support Another Project</RouterLink>
     </div>
   </div>
 </template>

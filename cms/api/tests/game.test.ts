@@ -7,9 +7,11 @@ import {
   getPublicBoard,
   openGame,
   reserveTile,
+  resetGame,
   revealGame,
   shuffleGame,
 } from '../src/core/game/gameService.js';
+import { ProjectService } from '../src/modules/donation-projects/donationProjects.module.js';
 
 beforeEach(resetDb);
 
@@ -408,5 +410,113 @@ describe('revealing', () => {
     await expect(
       reserveTile({ gameSlug: game.slug, boardNumber: 1, accountName: 'Somchai', idempotencyKey: 'b' }),
     ).rejects.toThrow();
+  });
+});
+
+describe('resetting a game for a rehearsal', () => {
+  it('clears the plays, refunds the tokens and reopens the board', async () => {
+    const project = await makeProject();
+    const game = await makeGame([project.id], { tileCount: 2 });
+    await openGame(game.id);
+    const identity = await fund(project.id, 'Somchai', 3);
+    await reserveTile({ gameSlug: game.slug, boardNumber: 1, accountName: 'Somchai', idempotencyKey: 'a' });
+    await reserveTile({ gameSlug: game.slug, boardNumber: 2, accountName: 'Somchai', idempotencyKey: 'b' });
+    await revealGame(game.id, null);
+    expect((await getBalance(identity.id)).total).toBe(1);
+
+    const outcome = await resetGame(game.id, null);
+
+    expect(outcome).toMatchObject({ clearedReservations: 2, refundedTokens: 2 });
+    // Tokens are back, and the ledger still balances against the remaining grants.
+    expect((await getBalance(identity.id)).total).toBe(3);
+    expect(await ledgerBalance(identity.id)).toBe(3);
+
+    const after = await db.game.findUniqueOrThrow({ where: { id: game.id } });
+    expect(after.status).toBe('OPEN');
+    expect(after.revealedAt).toBeNull();
+    expect(after.commitmentHash).toBe(outcome.commitmentHash);
+    expect(await db.reservation.count({ where: { gameId: game.id } })).toBe(0);
+    expect(await db.revealEvent.count({ where: { gameId: game.id } })).toBe(0);
+    // Every tile carries a reward again, so the board is immediately playable.
+    expect(await db.boardTile.count({ where: { gameId: game.id, rewardId: null } })).toBe(0);
+  });
+
+  it('lets the same account play the board again afterwards', async () => {
+    const project = await makeProject();
+    const game = await makeGame([project.id], { tileCount: 1 });
+    await openGame(game.id);
+    const identity = await fund(project.id, 'Somchai', 1);
+    await reserveTile({ gameSlug: game.slug, boardNumber: 1, accountName: 'Somchai', idempotencyKey: 'a' });
+    // The board filled up, so a second run would be impossible without the refund.
+    expect((await getBalance(identity.id)).total).toBe(0);
+
+    await resetGame(game.id, null);
+
+    await reserveTile({ gameSlug: game.slug, boardNumber: 1, accountName: 'Somchai', idempotencyKey: 'a' });
+    expect(await db.reservation.count({ where: { gameId: game.id } })).toBe(1);
+    expect((await getBalance(identity.id)).total).toBe(0);
+  });
+
+  it('keeps the spend and refund rows once the reservation is gone', async () => {
+    const project = await makeProject();
+    const game = await makeGame([project.id], { tileCount: 2 });
+    await openGame(game.id);
+    const identity = await fund(project.id, 'Somchai', 2);
+    await reserveTile({ gameSlug: game.slug, boardNumber: 1, accountName: 'Somchai', idempotencyKey: 'a' });
+
+    await resetGame(game.id, null);
+
+    const entries = await db.tokenLedgerEntry.findMany({ where: { accountIdentityId: identity.id } });
+    expect(entries.filter((e) => e.reason === 'SPEND')).toHaveLength(1);
+    expect(entries.filter((e) => e.reason === 'REFUND')).toHaveLength(1);
+    // Detached rather than deleted, so the history survives the reservation it described.
+    expect(entries.every((e) => e.reservationId === null)).toBe(true);
+  });
+
+  it('refuses to reset a game that was never opened', async () => {
+    const project = await makeProject();
+    const game = await makeGame([project.id]);
+
+    await expect(resetGame(game.id, null)).rejects.toThrow(/ยังไม่เคยเปิด/);
+  });
+
+  it('clearing a project wipes its donations, tokens and the plays they paid for', async () => {
+    const project = await makeProject();
+    const other = await makeProject();
+    const game = await makeGame([project.id], { tileCount: 2 });
+    await openGame(game.id);
+    const identity = await fund(project.id, 'Somchai', 2);
+    // A second project's tokens must survive: clearing is scoped to one project.
+    await fund(other.id, 'Somchai', 3);
+    await reserveTile({ gameSlug: game.slug, boardNumber: 1, accountName: 'Somchai', idempotencyKey: 'a' });
+    await reserveTile({ gameSlug: game.slug, boardNumber: 2, accountName: 'Somchai', idempotencyKey: 'b' });
+    expect((await db.game.findUniqueOrThrow({ where: { id: game.id } })).status).toBe('FULL');
+
+    const result = await new ProjectService().clearData(project.id);
+
+    expect(result).toMatchObject({ donations: 1, grants: 1, reservations: 2 });
+    expect(await db.donation.count({ where: { projectId: project.id } })).toBe(0);
+    expect(await db.tokenGrant.count({ where: { projectId: project.id } })).toBe(0);
+    expect(await db.reservation.count({ where: { gameId: game.id } })).toBe(0);
+    // The other project is untouched, so its balance still stands.
+    expect((await getBalance(identity.id)).total).toBe(3);
+    // The board emptied out, so it goes back to accepting plays.
+    expect((await db.game.findUniqueOrThrow({ where: { id: game.id } })).status).toBe('OPEN');
+  });
+
+  it('resets a played game that was closed back to DRAFT', async () => {
+    // Closing sets the status to DRAFT, so status alone cannot tell this from a game that was
+    // never opened — the reset has to look at whether it was ever shuffled or played.
+    const project = await makeProject();
+    const game = await makeGame([project.id], { tileCount: 2 });
+    await openGame(game.id);
+    await fund(project.id, 'Somchai', 1);
+    await reserveTile({ gameSlug: game.slug, boardNumber: 1, accountName: 'Somchai', idempotencyKey: 'a' });
+    await db.game.update({ where: { id: game.id }, data: { status: 'DRAFT' } });
+
+    const outcome = await resetGame(game.id, null);
+
+    expect(outcome.clearedReservations).toBe(1);
+    expect((await db.game.findUniqueOrThrow({ where: { id: game.id } })).status).toBe('OPEN');
   });
 });

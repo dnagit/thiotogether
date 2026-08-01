@@ -12,6 +12,11 @@ applySeo({ title: 'Donation Projects' });
 void get<DonationProject[]>('/donation-projects')
   .then((p) => (projects.value = p))
   .finally(() => (loading.value = false));
+
+/** Same fallback as the project page, so a card matches the campaign it opens. */
+function accentFor(project: DonationProject): string {
+  return project.themeColor ?? '#ea480c';
+}
 </script>
 
 <template>
@@ -35,7 +40,7 @@ void get<DonationProject[]>('/donation-projects')
           loading="lazy"
           class="w-full h-48 object-cover"
         />
-        <div v-else class="w-full h-48 flex items-center justify-center text-5xl" :style="{ background: project.themeColor ?? 'var(--color-primary)', opacity: 0.85 }">💝</div>
+        <div v-else class="w-full h-48 flex items-center justify-center text-5xl" :style="{ background: accentFor(project), opacity: 0.85 }">💝</div>
 
         <div class="p-6">
           <h2 class="font-bold text-xl mb-1">{{ project.name }}</h2>
@@ -46,7 +51,7 @@ void get<DonationProject[]>('/donation-projects')
             <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-2">
               <div
                 class="h-full rounded-full transition-all"
-                :style="{ width: `${project.stats?.progressPercent ?? 0}%`, background: project.themeColor ?? 'var(--color-primary)' }"
+                :style="{ width: `${project.stats?.progressPercent ?? 0}%`, background: accentFor(project) }"
               />
             </div>
             <div class="flex justify-between text-sm">
@@ -62,7 +67,7 @@ void get<DonationProject[]>('/donation-projects')
           <div
             v-else
             class="text-sm font-semibold"
-            :style="{ color: project.themeColor ?? 'var(--color-primary)' }"
+            :style="{ color: accentFor(project) }"
           >
             ร่วมบริจาค →
           </div>

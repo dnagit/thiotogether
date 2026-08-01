@@ -10,6 +10,7 @@ import { ok } from '../../core/base/BaseController.js';
 import { BadRequestError, NotFoundError } from '../../core/errors/AppError.js';
 import { parseListQuery, paginationMeta } from '../../core/utils/pagination.js';
 import { normalizeAccountName } from '../../core/tokens/accountName.js';
+import { logger } from '../../core/logger.js';
 import { DonationStatus, PERMISSIONS } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
 
@@ -246,6 +247,54 @@ router.post(
     });
 
     ok(res, result, `ปรับ token ${delta > 0 ? '+' : ''}${delta} เรียบร้อย`);
+  }),
+);
+
+/**
+ * Rehearsal cleanup for one account: its grants, its ledger and the tiles it booked all go.
+ *
+ * Donations are deliberately left alone — they belong to a project, and wiping them is the
+ * project's own "clear data" action. The account row itself only disappears when nothing else
+ * points at it; deleting it while a donation still refers to it would either break the foreign
+ * key or orphan a real donation from the person who made it.
+ */
+router.post(
+  '/accounts/:id(\\d+)/clear',
+  authorize(PERMISSIONS.TOKENS_ADJUST),
+  asyncHandler(async (req, res) => {
+    const accountIdentityId = Number(req.params.id);
+
+    const result = await rawPrisma.$transaction(async (tx) => {
+      const account = await tx.accountIdentity.findUnique({
+        where: { id: accountIdentityId },
+        include: { _count: { select: { donations: true } } },
+      });
+      if (!account) throw new NotFoundError('Account');
+
+      // Ledger first: its rows point at both the grants and the reservations below.
+      const ledgerEntries = await tx.tokenLedgerEntry.deleteMany({ where: { accountIdentityId } });
+      const reservations = await tx.reservation.deleteMany({ where: { accountIdentityId } });
+      const grants = await tx.tokenGrant.deleteMany({ where: { accountIdentityId } });
+
+      const accountRemoved = account._count.donations === 0;
+      if (accountRemoved) await tx.accountIdentity.delete({ where: { id: accountIdentityId } });
+
+      return {
+        displayName: account.displayName,
+        ledgerEntries: ledgerEntries.count,
+        reservations: reservations.count,
+        grants: grants.count,
+        accountRemoved,
+      };
+    });
+
+    logger.warn({ accountIdentityId, ...result }, 'Token data cleared for an account');
+    ok(
+      res,
+      result,
+      `ล้าง token ของ "${result.displayName}" แล้ว: ${result.grants} grant, ${result.reservations} การจองป้าย` +
+        (result.accountRemoved ? ' และลบบัญชีออกจากรายการ' : ' (ยังมีรายการบริจาคอยู่ จึงคงบัญชีไว้)'),
+    );
   }),
 );
 
