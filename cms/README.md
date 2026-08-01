@@ -399,6 +399,22 @@ sudo -H -u cms pm2 set pm2-logrotate:retain 14
 
 ```bash
 sudo tee /etc/nginx/sites-available/cms > /dev/null <<'EOF'
+# ── ตัวตรวจจับ bot ที่ดึง link preview ──────────────────
+# LINE / Facebook / Slack ไม่รัน JavaScript จึงอ่านได้แค่ index.html ที่ยังไม่มี
+# meta จริง (applySeo() เขียนตอน runtime) ทำให้ share ออกมาเป็นชื่อ shell
+# จึงส่งเฉพาะ user agent กลุ่มนี้ไปที่ API ให้ render Open Graph ของ path นั้น
+# ไม่รวม Googlebot ตั้งใจ — Google รัน JS ได้อยู่แล้ว ถ้าส่ง HTML คนละชุดจะกลายเป็น cloaking
+map $http_user_agent $cms_is_scraper {
+    default 0;
+    "~*(facebookexternalhit|Facebot|Twitterbot|line-poker|LINE|Slackbot|Discordbot|TelegramBot|WhatsApp|Pinterest|SkypeUriPreview|vkShare|redditbot|Iframely|Embedly)" 1;
+}
+
+# bot จะโหลดรูป og:image ตามมาด้วย URL ที่มีนามสกุลไฟล์ต้องเสิร์ฟไฟล์จริงเสมอ
+map $uri $cms_is_page {
+    default 1;
+    "~\."   0;
+}
+
 # ── API ────────────────────────────────────────────────
 server {
     listen 80;
@@ -437,8 +453,27 @@ server {
         try_files $uri =404;
     }
     location / {
+        # `return` ใน `if` เป็นรูปแบบเดียวที่ใช้ร่วมกับ try_files ได้อย่างปลอดภัย
+        # 418 เป็นแค่รหัสที่ไม่ได้ใช้ ไว้กระโดดไป named location
+        error_page 418 = @share_preview;
+        if ($cms_is_scraper$cms_is_page = 11) {
+            return 418;
+        }
+
         add_header Cache-Control "no-cache";
         try_files $uri $uri/ /index.html;   # จำเป็นสำหรับ SPA history mode
+    }
+
+    location @share_preview {
+        proxy_pass http://127.0.0.1:4009/api/v1/public/share-preview?path=$uri;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # ถ้า API ช้าหรือล่ม ต้องไม่ทำให้ preview พัง ให้ตกกลับไปใช้ shell เดิม
+        proxy_connect_timeout 2s;
+        proxy_read_timeout 5s;
+        proxy_intercept_errors on;
+        error_page 500 502 503 504 = /index.html;
     }
 
     gzip on;

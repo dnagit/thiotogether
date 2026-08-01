@@ -13,6 +13,7 @@ import { handlePublicSubmission } from '../forms/forms.module.js';
 import { donationService } from '../donations/donations.service.js';
 import { projectService, stripAmountsForPublic } from '../donation-projects/donationProjects.module.js';
 import { getSettingsMap } from '../settings/settings.module.js';
+import { buildSharePreview, renderSharePreview } from './sharePreview.js';
 import { config } from '../../core/config/index.js';
 import type { FeatureModule } from '../../core/modules.js';
 
@@ -260,6 +261,21 @@ router.get(
     res.setHeader('Content-Type', 'application/xml');
     publicCache(res, 3600);
     res.send(xml);
+  }),
+);
+
+/**
+ * HTML shell with real Open Graph tags, for link-preview scrapers only.
+ * nginx routes matching user agents here; see deploy/nginx-spa.conf.
+ */
+router.get(
+  '/share-preview',
+  asyncHandler(async (req, res) => {
+    const path = typeof req.query.path === 'string' ? req.query.path : '/';
+    const preview = await buildSharePreview(path);
+    res.type('html');
+    publicCache(res, 300);
+    res.send(renderSharePreview(preview));
   }),
 );
 

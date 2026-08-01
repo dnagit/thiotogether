@@ -21,7 +21,9 @@ export function applySeo(seo: SeoMeta & { title?: string }): void {
 
   setProperty('og:title', seo.ogTitle || title);
   setProperty('og:description', seo.ogDescription || description);
-  setProperty('og:image', ogImage);
+  // An empty og:image is worse than none: scrapers treat the tag as present and
+  // show a blank thumbnail instead of falling back to the shell's default.
+  if (ogImage) setProperty('og:image', ogImage);
   setProperty('og:url', window.location.href);
   setProperty('og:type', 'website');
 

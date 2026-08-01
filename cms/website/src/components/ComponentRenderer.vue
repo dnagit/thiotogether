@@ -117,6 +117,7 @@ function overlayStyleFor(block: PageBlock): Record<string, string> {
         :style="overlayStyleFor(block)"
         class="pointer-events-none select-none absolute left-0 bottom-[10%] w-auto max-w-full
                object-contain object-left-bottom h-[48%]"
+          style="z-index: 2;"
       />
       <img
         v-if="fullOverlayFor(block)"
@@ -124,8 +125,9 @@ function overlayStyleFor(block: PageBlock): Record<string, string> {
         alt=""
         aria-hidden="true"
         class="pointer-events-none select-none absolute inset-0 w-full h-full object-cover"
+         style="z-index: 1;"
       />
-      <div class="relative h-full" :class="(block.settings as any)?.fullWidth ? '' : 'container-site'">
+      <div class="relative h-full" style="z-index: 3;" :class="(block.settings as any)?.fullWidth ? '' : 'container-site'">
         <component :is="resolveBlock(block.type)" v-bind="block.props" />
       </div>
     </section>
