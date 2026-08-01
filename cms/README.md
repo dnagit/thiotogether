@@ -617,6 +617,7 @@ sudo chmod +x /etc/cron.daily/cms-backup
 | อาการ | สาเหตุและวิธีแก้ |
 |---|---|
 | หน้าเว็บขึ้นแต่ไม่มีข้อมูล เปิด console เจอ CORS error | `WEBSITE_URL` / `ADMIN_URL` ใน `api/.env` ไม่ตรงกับโดเมนที่เปิดจริง ต้องตรงเป๊ะรวม `https://` และไม่มี `/` ปิดท้าย แล้ว `pm2 reload cms-api` |
+| CORS error ที่บอกว่า `...must not be the wildcard '*' when the request's credentials mode is 'include'` | มีคนใส่ `add_header Access-Control-Allow-Origin *` ไว้ใน nginx **ตัว API ไม่เคยส่ง `*` ออกมาเลย** — มันส่งชื่อ origin เต็ม ๆ กลับไปเมื่อตรงกับ allow-list และไม่ส่ง header อะไรเลยเมื่อไม่ตรง ต้องลบ `add_header Access-Control-*` ทุกบรรทัดออกจาก nginx แล้วปล่อยให้ API จัดการ CORS ฝ่ายเดียว (ดูหัวข้อถัดไป) |
 | Login ได้แต่ถูกเด้งออกทุก 15 นาที | ยังไม่ได้เปิด HTTPS หรือ nginx ไม่ได้ส่ง `X-Forwarded-Proto` — cookie `secure` จึงไม่ถูกส่งกลับ |
 | เรียก API แล้วได้ 404 ทุกเส้นทาง | เรียกผิด prefix — ทุก endpoint อยู่ใต้ `/api/v1` |
 | Refresh หน้าใน SPA แล้วขึ้น 404 | ขาด `try_files $uri $uri/ /index.html;` ใน server block นั้น |
@@ -628,6 +629,46 @@ sudo chmod +x /etc/cron.daily/cms-backup
 | อัปโหลดไฟล์ใหญ่แล้วได้ 413 | `client_max_body_size` ใน nginx น้อยกว่า `MAX_UPLOAD_MB` |
 | แก้ `VITE_API_URL` แล้วไม่มีผล | ค่านี้ฝังตอน build ต้อง `npm run build` ใหม่ |
 | `pg_restore: error: unsupported version` | ไฟล์ dump สร้างจาก PostgreSQL เวอร์ชันใหม่กว่าบน server ตรวจด้วย `pg_restore --list ไฟล์.dump \| head -3` แล้วติดตั้งเวอร์ชันให้ตรงกัน (ดูขั้นที่ 1) |
+
+### CORS เป็นหน้าที่ของ API ฝ่ายเดียว ห้าม nginx ยุ่ง
+
+`api/src/app.ts` ตั้ง allow-list ไว้เป็น `[WEBSITE_URL, ADMIN_URL]` พร้อม `credentials: true`
+พฤติกรรมของมันมีแค่สองแบบ ไม่มีแบบอื่น
+
+| origin ที่ยิงเข้ามา | API ตอบกลับ |
+|---|---|
+| ตรงกับ `WEBSITE_URL` หรือ `ADMIN_URL` | `Access-Control-Allow-Origin: <origin นั้นเต็ม ๆ>` + `Allow-Credentials: true` |
+| ไม่ตรง | **ไม่ส่ง header `Access-Control-*` เลย** |
+
+แปลว่าถ้าเบราว์เซอร์เห็น `Access-Control-Allow-Origin: *` **ค่านั้นมาจาก nginx หรือ CDN เสมอ ไม่ได้มาจาก API**
+และ `add_header` ของ nginx เป็นการ **เพิ่ม** ไม่ใช่ทับของเดิมจาก upstream ใส่ไว้เมื่อไหร่ก็พังเมื่อนั้น
+เพราะ request ที่มี cookie (`credentials: 'include'`) ห้ามเจอ `*` ตามสเปกของเบราว์เซอร์
+
+ไล่หาสาเหตุ 3 คำสั่ง
+
+```bash
+# 1) API ตอบอะไร (ยิงตรงข้าม nginx)
+curl -si -X OPTIONS http://127.0.0.1:4009/api/v1/auth/login \
+  -H "Origin: https://admin.thiotogether.com" \
+  -H "Access-Control-Request-Method: POST" | grep -i access-control
+
+# 2) หลังผ่าน nginx แล้วตอบอะไร
+curl -si -X OPTIONS https://thiotogether.com/api/v1/auth/login \
+  -H "Origin: https://admin.thiotogether.com" \
+  -H "Access-Control-Request-Method: POST" | grep -i access-control
+
+# 3) หา add_header ที่ใส่ไว้
+sudo grep -rn "Access-Control" /etc/nginx/
+```
+
+อ่านผล
+
+- **(1) ถูก แต่ (2) เป็น `*`** → nginx (หรือ Cloudflare) เป็นคนใส่ ลบทิ้งแล้ว `nginx -t && systemctl reload nginx`
+- **(1) ไม่มี header เลย** → `ADMIN_URL` ใน `api/.env` ไม่ตรงกับโดเมนที่เปิดจริง แก้ให้ตรงเป๊ะแล้ว `pm2 reload cms-api`
+
+> เว็บกับ admin อยู่คนละ subdomain แต่โดเมนหลักเดียวกัน (`thiotogether.com`) cookie จึงยังเป็น
+> same-site อยู่ `sameSite=strict` ที่ตั้งไว้ใน `auth.controller.ts` ทำงานได้ปกติ — แต่ถ้าวันไหน
+> ย้าย admin ไปโดเมนอื่นคนละชื่อ cookie จะไม่ถูกส่งอีกเลย ต้องเปลี่ยนเป็น `sameSite: 'none'`
 
 ## Configuration highlights
 
