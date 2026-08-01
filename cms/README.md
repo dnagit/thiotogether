@@ -404,9 +404,16 @@ sudo tee /etc/nginx/sites-available/cms > /dev/null <<'EOF'
 # meta จริง (applySeo() เขียนตอน runtime) ทำให้ share ออกมาเป็นชื่อ shell
 # จึงส่งเฉพาะ user agent กลุ่มนี้ไปที่ API ให้ render Open Graph ของ path นั้น
 # ไม่รวม Googlebot ตั้งใจ — Google รัน JS ได้อยู่แล้ว ถ้าส่ง HTML คนละชุดจะกลายเป็น cloaking
+#
+# ทุกคำในนี้ต้องเป็นชื่อ "บอท" เท่านั้น ห้ามใส่ชื่อ "แอป" เด็ดขาด เพราะ in-app browser
+# ของแอปนั้นจะโดนจับไปด้วย แล้วคนจริง ๆ จะเปิดเว็บไม่ได้เลย — หน้า preview มี
+# <meta http-equiv="refresh"> ชี้กลับมาที่ URL เดิม พอ UA ยังเป็นตัวเดิมก็เข้าหน้า
+# preview ซ้ำ วนไม่รู้จบ (เคสนี้เกิดกับ `LINE` มาแล้ว: in-app browser ของ LINE
+# ส่ง UA ว่า `... Line/13.5.0` ส่วนบอทดึง preview ของ LINE ใช้
+# `facebookexternalhit/1.1;line-poker/1.0` ซึ่งจับด้วยสองคำแรกอยู่แล้ว)
 map $http_user_agent $cms_is_scraper {
     default 0;
-    "~*(facebookexternalhit|Facebot|Twitterbot|line-poker|LINE|Slackbot|Discordbot|TelegramBot|WhatsApp|Pinterest|SkypeUriPreview|vkShare|redditbot|Iframely|Embedly)" 1;
+    "~*(facebookexternalhit|Facebot|Twitterbot|line-poker|Slackbot|Discordbot|TelegramBot|WhatsApp/|Pinterestbot|Pinterest/0\.|SkypeUriPreview|vkShare|redditbot|Iframely|Embedly)" 1;
 }
 
 # bot จะโหลดรูป og:image ตามมาด้วย URL ที่มีนามสกุลไฟล์ต้องเสิร์ฟไฟล์จริงเสมอ
