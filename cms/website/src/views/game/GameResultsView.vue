@@ -48,7 +48,8 @@ const opened = ref<Set<number>>(new Set());
 const view = ref<'board' | 'table'>('board');
 const search = ref('');
 
-const themeColor = computed(() => board.value?.themeColor ?? 'var(--color-primary)');
+/** Same accent rule as the play board, so a game keeps one colour across both screens. */
+const themeColor = computed(() => board.value?.themeColor ?? '#ea480c');
 
 /** Same square layout as the play board, so revealing does not reshape the grid. */
 const columns = computed(() => Math.max(1, Math.ceil(Math.sqrt(board.value?.tiles.length ?? 1))));
@@ -127,7 +128,7 @@ function closeAll(): void {
             ตารางสรุปผล
           </button> -->
           <template v-if="view === 'board'">
-            <button v-if="!allOpen" type="button" class="btn-primary" :style="{ background: '#ea480c' }" @click="openAll">
+            <button v-if="!allOpen" type="button" class="btn-primary" :style="{ background: themeColor }" @click="openAll">
               เปิดทั้งหมด
             </button>
             <button v-else type="button" class="btn-ghost" @click="closeAll">ปิดทั้งหมด</button>

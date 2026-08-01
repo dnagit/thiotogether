@@ -81,6 +81,9 @@ const peeked = ref<number | null>(null);
  * 2×2 board does not blow up to giant tiles on a desktop, and a large board scrolls
  * sideways instead of shrinking below a tappable size on a phone.
  */
+/** Accent for every branded surface on this page; falls back to the site orange when the game sets none. */
+const themeColor = computed(() => board.value?.themeColor ?? '#ea480c');
+
 const columns = computed(() => Math.max(1, Math.ceil(Math.sqrt(board.value?.tiles.length ?? 1))));
 const progress = computed(() =>
   board.value ? Math.round((board.value.reservedCount / board.value.tileCount) * 100) : 0,
@@ -265,7 +268,7 @@ function isMine(tile: Tile): boolean {
           aria-valuemin="0"
           :aria-valuemax="board.tileCount"
         >
-          <div class="h-full rounded-full transition-all" :style="{ width: `${progress}%`, background: '#ea480c' }" />
+          <div class="h-full rounded-full transition-all" :style="{ width: `${progress}%`, background: themeColor }" />
         </div>
       </section>
 
@@ -295,14 +298,14 @@ function isMine(tile: Tile): boolean {
               maxlength="190"
               placeholder="เช่น สมชาย ใจดี"
               class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 focus:outline-none focus:ring-2"
-              :style="{ '--tw-ring-color': '#ea480c' }"
+              :style="{ '--tw-ring-color': themeColor }"
               :aria-invalid="!!accountError"
               aria-describedby="account-error"
             />
             <button
               type="submit"
               class="btn-primary"
-              :style="{ background: '#ea480c' }"
+              :style="{ background: themeColor }"
               :disabled="checking"
             >
               {{ checking ? 'กำลังตรวจสอบ…' : 'ตรวจสอบ Token' }}
@@ -326,7 +329,7 @@ function isMine(tile: Tile): boolean {
             <RouterLink
               v-for="p in board.projects" :key="p.id"
               :to="`/donation/${p.slug}`"
-              class="btn-primary" :style="{ background: '#ea480c' }"
+              class="btn-primary" :style="{ background: themeColor }"
             >บริจาคที่ {{ p.name }}</RouterLink>
             <button type="button" class="btn-ghost" @click="resetAccount">เปลี่ยนชื่อบัญชี</button>
           </div>
@@ -369,7 +372,7 @@ function isMine(tile: Tile): boolean {
                 'tile-mine': isMine(tile),
                 'tile-peeked': peeked === tile.boardNumber,
               }"
-              :style="tile.status === 'AVAILABLE' ? { '--tile-accent': '#ea480c' } : {}"
+              :style="tile.status === 'AVAILABLE' ? { '--tile-accent': themeColor } : {}"
               :aria-label="tileLabel(tile)"
               :aria-pressed="tile.status !== 'AVAILABLE'"
               @click="onTileActivate(tile)"
@@ -432,7 +435,7 @@ function isMine(tile: Tile): boolean {
           <button
             type="button"
             class="btn-primary flex-1"
-            :style="{ background: '#ea480c' }"
+            :style="{ background: themeColor }"
             :disabled="submitting"
             @click="confirmReserve"
           >
