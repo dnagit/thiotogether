@@ -356,14 +356,16 @@ const inputClass =
 
               <div>
                 <label class="block text-sm font-medium mb-1.5">Your Name (account name) <span class="text-red-500">*</span><br />
-                  <small>(ใช้สำหรับ log in เล่นเกม)</small>
+                  <small>(ใช้สำหรับ log in เล่นเกมส์)</small>
                 </label>
                 <input v-model="form.accountName" :class="inputClass" :style="{ '--tw-ring-color': themeColor }" />
                 <p v-if="errors.accountName" class="text-xs text-red-600 mt-1">{{ errors.accountName }}</p>
               </div>
 
               <div>
-                <label class="block text-sm font-medium mb-1.5">Amount ({{ project.currency }}) <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-medium mb-1.5">Amount ({{ project.currency }}) <span class="text-red-500">*</span><br />
+                   <small>(50 บาท = 1 เหรียญ ยอดโดเนทในการกรอกฟอร์มแต่ละครั้งจะไม่นำมาสะสม)</small>
+                </label>
                 <input v-model.number="form.amount" type="number" min="1" step="0.01" :class="inputClass" :style="{ '--tw-ring-color': themeColor }" />
                 <p v-if="errors.amount" class="text-xs text-red-600 mt-1">{{ errors.amount }}</p>
               </div>
