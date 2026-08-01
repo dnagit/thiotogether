@@ -415,6 +415,14 @@ map $uri $cms_is_page {
     "~\."   0;
 }
 
+# `if` รับได้แค่ตัวแปรเดียว ต่อตัวแปรเข้าด้วยกันไม่ได้ — nginx จะอ่าน `$a$b`
+# เป็นชื่อตัวแปรเดียวว่า `a$b` แล้ว `nginx -t` fail ทั้งไฟล์ ต้องรวมสองค่านี้
+# ที่ map แทน (ฝั่งซ้ายของ map ใส่ข้อความปนตัวแปรได้) แล้วค่อยเช็คผลลัพธ์ตัวเดียว
+map "$cms_is_scraper$cms_is_page" $cms_share_preview {
+    default 0;
+    "11"    1;
+}
+
 # ── API ────────────────────────────────────────────────
 server {
     listen 80;
@@ -448,6 +456,11 @@ server {
     root /var/www/html/front/thiotogether/cms/website/dist;
     index index.html;
 
+    # location preview ข้างล่างถูกเข้าถึงผ่าน error_page ซึ่ง nginx จะทำเครื่องหมาย
+    # request ไว้แล้วข้าม error_page ชั้นถัดไปทั้งหมด ถ้าไม่เปิดบรรทัดนี้ fallback
+    # ตอน API ล่มจะไม่ทำงาน bot จะได้หน้า 504 ดิบ ๆ คือ card พังแบบที่ fallback ตั้งใจกันไว้
+    recursive_error_pages on;
+
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
         try_files $uri =404;
@@ -456,7 +469,7 @@ server {
         # `return` ใน `if` เป็นรูปแบบเดียวที่ใช้ร่วมกับ try_files ได้อย่างปลอดภัย
         # 418 เป็นแค่รหัสที่ไม่ได้ใช้ ไว้กระโดดไป named location
         error_page 418 = @share_preview;
-        if ($cms_is_scraper$cms_is_page = 11) {
+        if ($cms_share_preview) {
             return 418;
         }
 
@@ -473,7 +486,15 @@ server {
         proxy_connect_timeout 2s;
         proxy_read_timeout 5s;
         proxy_intercept_errors on;
-        error_page 500 502 503 504 = /index.html;
+        error_page 500 502 503 504 = @spa_shell;
+    }
+
+    # ต้องเป็น named location ไม่ใช่ /index.html เพราะ nginx cache ค่า map ไว้
+    # ตลอดอายุ request เดียว ถ้าวิ่งกลับเข้า `location /` มันจะยังเห็น
+    # $cms_share_preview = 1 แล้วเด้งกลับมาที่นี่วนไปจนสุด แล้วจบด้วย 500
+    location @spa_shell {
+        add_header Cache-Control "no-cache";
+        try_files /index.html =404;
     }
 
     gzip on;
