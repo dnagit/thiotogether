@@ -94,22 +94,22 @@ function closeAll(): void {
     <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse" role="status">กำลังโหลดผล…</div>
 
     <div v-else-if="error || !board" class="py-20 text-center">
-      <div class="text-5xl mb-3" aria-hidden="true">🔍</div>
-      <h1 class="text-xl font-bold mb-2">{{ error }}</h1>
+      <div class="text-3xl mb-3" aria-hidden="true">🔍</div>
+      <h1 class="text-base font-bold mb-2">{{ error }}</h1>
       <!-- <RouterLink to="/games" class="text-blue-600 underline">ดูเกมส์ทั้งหมด</RouterLink> -->
     </div>
 
     <template v-else>
       <header class="text-center mb-8">
         <!-- <RouterLink to="/games" class="text-sm text-gray-500 hover:underline">← เกมส์ทั้งหมด</RouterLink> -->
-        <h1 class="text-2xl sm:text-4xl font-extrabold mt-2">{{ board.name }}</h1>
+        <h1 class="text-lg sm:text-2xl font-extrabold mt-2">{{ board.name }}</h1>
         <p v-if="revealed" class="text-gray-600 mt-2">🎉 ประกาศผลรางวัลแล้ว</p>
       </header>
 
       <!-- Not revealed yet -->
       <div v-if="!revealed" class="max-w-lg mx-auto text-center card">
-        <div class="text-5xl mb-3" aria-hidden="true">⏳</div>
-        <h2 class="font-bold text-lg mb-1">ยังไม่ประกาศผล</h2>
+        <div class="text-3xl mb-3" aria-hidden="true">⏳</div>
+        <h2 class="font-bold text-sm mb-1">ยังไม่ประกาศผล</h2>
         <p class="text-gray-600 mb-4">
           ผลรางวัลจะแสดงเมื่อป้ายถูกจองครบทุกใบและผู้จัดกิจกรรมกดเฉลย
         </p>
@@ -174,7 +174,7 @@ function closeAll(): void {
               </button>
             </li>
           </ul>
-          <p class="text-center text-sm text-gray-500 mt-4">
+          <p class="text-center text-xs text-gray-500 mt-4">
             เปิดแล้ว {{ opened.size }} จาก {{ board.tiles.length }} ป้าย
           </p>
         </section>
@@ -193,7 +193,7 @@ function closeAll(): void {
             />
           </div>
           <div class="overflow-x-auto rounded-xl border border-gray-200">
-            <table class="w-full text-sm">
+            <table class="w-full text-xs">
               <thead class="bg-gray-50">
                 <tr>
                   <th scope="col" class="px-4 py-3 text-left font-semibold w-20">ป้าย</th>
@@ -256,7 +256,7 @@ function closeAll(): void {
   text-decoration: underline;
   text-underline-offset: 4px;
   /* The negative term steepens desktop growth while phones stay on the floor value. */
-  font-size: clamp(1.05rem, 3vw - 0.6rem, 2.5rem);
+  font-size: clamp(0.85rem, 2.2vw - 0.45rem, 1.75rem);
   margin-bottom: clamp(0.5rem, 1.5vw, 1rem);
 }
 .winners-list {
@@ -274,8 +274,8 @@ function closeAll(): void {
   border-radius: 8px;
   margin: 0 auto clamp(0.25rem, 0.8vw, 0.5rem);
 }
-.winner-prize { font-weight: 700; font-size: clamp(0.9rem, 2.2vw - 0.4rem, 2rem); line-height: 1.4; }
-.winner-name { font-weight: 700; font-size: clamp(0.75rem, 1.5vw - 0.3rem, 1.35rem); margin-top: 0.35em; }
+.winner-prize { font-weight: 700; font-size: clamp(0.75rem, 1.7vw - 0.3rem, 1.5rem); line-height: 1.4; }
+.winner-name { font-weight: 700; font-size: clamp(0.65rem, 1.15vw - 0.22rem, 1rem); margin-top: 0.35em; }
 
 .card { @apply bg-white border border-gray-100 rounded-2xl p-6 shadow-sm; }
 .btn-primary { @apply text-white font-semibold px-5 py-2.5 rounded-lg transition; }
@@ -360,7 +360,7 @@ function closeAll(): void {
   top: 6px;
   right: 10px;
   z-index: 1;
-  font-size: 1.35rem;
+  font-size: 1rem;
   line-height: 1;
   font-weight: 900;
   font-style: italic;
@@ -389,11 +389,11 @@ function closeAll(): void {
   max-height: 100%;
   overflow: hidden;
 }
-.back-no { font-size: 10px; font-weight: 700; color: #6b7280; line-height: 1.2; }
+.back-no { font-size: 8px; font-weight: 700; color: #6b7280; line-height: 1.2; }
 .back-row { display: block; min-height: 0; }
 .back-key {
   display: block;
-  font-size: 9px;
+  font-size: 7px;
   line-height: 1.2;
   letter-spacing: 0.04em;
   color: #9ca3af;
@@ -407,7 +407,7 @@ function closeAll(): void {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 11.5px;
+  font-size: 9px;
   line-height: 1.25;
   word-break: break-word;
 }
