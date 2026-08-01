@@ -10,6 +10,7 @@ import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { get } from '@/api/client';
 import { applySeo } from '@/composables/useSeo';
+import AppModal from '@/components/AppModal.vue';
 
 interface Tile {
   boardNumber: number;
@@ -78,7 +79,16 @@ void get<Board>(`/games/${slug}`)
   .catch(() => (error.value = 'ไม่พบเกมส์นี้'))
   .finally(() => (loading.value = false));
 
+/** Tile shown enlarged in the dialog. The text on a tile face is deliberately small, so a
+ *  second tap trades the board view for one that can actually be read. */
+const zoomed = ref<Tile | null>(null);
+
 function openTile(n: number): void {
+  // First tap flips the tile; once it is open the same tap enlarges it.
+  if (opened.value.has(n)) {
+    zoomed.value = board.value?.tiles.find((t) => t.boardNumber === n) ?? null;
+    return;
+  }
   opened.value = new Set(opened.value).add(n);
 }
 function openAll(): void {
@@ -145,7 +155,7 @@ function closeAll(): void {
                 :class="{ open: opened.has(tile.boardNumber) }"
                 :aria-expanded="opened.has(tile.boardNumber)"
                 :aria-label="opened.has(tile.boardNumber)
-                  ? `ป้าย ${tile.boardNumber} จองโดย ${tile.reservedBy ?? 'ไม่มีผู้จอง'} ได้รับ ${tile.reward?.label ?? '-'}`
+                  ? `ป้าย ${tile.boardNumber} จองโดย ${tile.reservedBy ?? 'ไม่มีผู้จอง'} ได้รับ ${tile.reward?.label ?? '-'} กดอีกครั้งเพื่อดูขนาดใหญ่`
                   : `ป้ายหมายเลข ${tile.boardNumber} กดเพื่อเปิดดูรางวัล`"
                 @click="openTile(tile.boardNumber)"
               >
@@ -175,7 +185,8 @@ function closeAll(): void {
             </li>
           </ul>
           <p class="text-center text-xs text-gray-500 mt-4">
-            เปิดแล้ว {{ opened.size }} จาก {{ board.tiles.length }} ป้าย
+            เปิดแล้ว {{ opened.size }} จาก {{ board.tiles.length }} ป้าย ·
+            แตะป้ายที่เปิดแล้วอีกครั้งเพื่อดูขนาดใหญ่
           </p>
         </section>
 
@@ -235,6 +246,27 @@ function closeAll(): void {
         <p v-if="board.commitmentHash" class="text-center text-xs text-gray-400 mt-8 break-all">
           ค่าตรวจสอบการสุ่ม (commitment): <span class="font-mono">{{ board.commitmentHash }}</span>
         </p>
+
+        <!-- Enlarged view of one tile, for the text that a tile face is too small to carry. -->
+        <AppModal
+          :open="!!zoomed"
+          :title="`ป้ายหมายเลข ${zoomed?.boardNumber ?? ''}`"
+          @close="zoomed = null"
+        >
+          <div v-if="zoomed" class="zoom">
+            <img
+              v-if="zoomed.reward?.imageUrl"
+              :src="zoomed.reward.imageUrl"
+              alt=""
+              class="zoom-img"
+            />
+            <p class="zoom-key">จองโดย</p>
+            <p class="zoom-by">{{ zoomed.reservedBy ?? '—' }}</p>
+            <p class="zoom-key">ได้รับ</p>
+            <p class="zoom-reward">{{ zoomed.reward?.label ?? '—' }}</p>
+            <button type="button" class="btn-ghost zoom-close" @click="zoomed = null">ปิด</button>
+          </div>
+        </AppModal>
       </template>
     </template>
   </div>
@@ -413,6 +445,36 @@ function closeAll(): void {
 }
 .back-by { -webkit-line-clamp: 2; font-weight: 600; color: #111827; }
 .back-reward { -webkit-line-clamp: 3; font-weight: 700; color: #047857; }
+
+/* Desktop tiles are up to 168px wide against 140px on a phone, so the face has room for a
+   larger caption without pushing the clamped lines out of the card. Same breakpoint as the
+   board grid above, so the type steps up exactly when the tiles do. */
+@media (min-width: 640px) {
+  .back-no { font-size: 10px; }
+  .back-key { font-size: 8px; }
+  .back-by,
+  .back-reward { font-size: 11.5px; }
+}
+
+/* Enlarged tile. Nothing is clamped or truncated here — this view exists precisely to show the
+   full name and prize that the tile face has to cut short. */
+.zoom { text-align: center; }
+.zoom-img {
+  width: min(220px, 60vw);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+  margin: 0 auto 1rem;
+}
+.zoom-key {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  text-transform: uppercase;
+}
+.zoom-by { font-size: 1.15rem; font-weight: 600; color: #111827; margin-bottom: 1rem; word-break: break-word; }
+.zoom-reward { font-size: 1.35rem; font-weight: 700; color: #047857; word-break: break-word; }
+.zoom-close { margin-top: 1.5rem; width: 100%; }
 
 @media (prefers-reduced-motion: reduce) {
   .flip-inner { transition: none; }
