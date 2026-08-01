@@ -38,8 +38,14 @@ defineProps<{
       pushes it into the artwork.
     -->
     <div class="relative md:-translate-y-[4vw]">
+      <!--
+        The ramp subtracts a flat 1.8rem, which a phone's 8vw (~31px at 390px) barely clears — the
+        preferred value collapses to a couple of pixels there, so the floor is what every mobile
+        viewport actually renders and it has to be a readable heading size on its own. 2rem meets the
+        ramp at ~760px, right about the md breakpoint, so the curve stays continuous above it.
+      -->
       <h1
-        class="font-extrabold text-echo leading-tight text-[clamp(0.8rem,8vw_-_1.8rem,8rem)] mb-[clamp(0.25rem,0.8vw,1rem)]"
+        class="font-extrabold text-echo leading-tight text-[clamp(2rem,8vw_-_1.8rem,8rem)] mb-[clamp(0.25rem,0.8vw,1rem)]"
         v-html="headline"
       />
       <p
