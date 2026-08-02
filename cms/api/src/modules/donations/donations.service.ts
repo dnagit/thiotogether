@@ -178,8 +178,13 @@ export class DonationService extends BaseService<any> {
     note?: string,
   ): Promise<any> {
     const donation = await this.getById(id);
-    const terminal: string[] = [DonationStatus.VERIFIED, DonationStatus.REJECTED];
-    if (terminal.includes(donation.status) && donation.status !== to) {
+    // Rejecting stays available from every status — an approval found to be wrong has to be
+    // reversible, and `transition` claws the granted tokens back when it happens. Approving,
+    // on the other hand, is only a one-way door out of a rejection.
+    if (to !== DonationStatus.REJECTED && donation.status === DonationStatus.REJECTED) {
+      throw new BadRequestError('Donation is already rejected');
+    }
+    if (donation.status === to) {
       throw new BadRequestError(`Donation is already ${donation.status.toLowerCase()}`);
     }
     await this.transition(id, to, actorId, note);
@@ -203,6 +208,8 @@ export class DonationService extends BaseService<any> {
           ...(to === DonationStatus.VERIFIED
             ? { verifiedById: actorId, verifiedAt: new Date() }
             : {}),
+          // An un-approved donation must not keep showing who approved it.
+          ...(REVOKING_STATUSES.includes(to) ? { verifiedById: null, verifiedAt: null } : {}),
         },
       });
       await tx.donationLog.create({

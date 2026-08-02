@@ -63,9 +63,16 @@ async function verify(): Promise<void> {
 }
 
 async function reject(): Promise<void> {
+  // Rejecting an approved donation also claws its tokens back, so the prompt says so up
+  // front rather than letting the admin discover it from the donor's balance.
+  const approved = ['VERIFIED', 'AUTO_VERIFIED'].includes(detail.value.status);
+  const message = approved
+    ? 'รายการนี้อนุมัติไปแล้ว การปฏิเสธจะดึง token ที่ให้ไปแล้วคืนด้วย — ระบุเหตุผลที่ปฏิเสธรายการนี้'
+    : 'ระบุเหตุผลที่ปฏิเสธรายการนี้';
+
   let reason: string;
   try {
-    const res = await ElMessageBox.prompt('ระบุเหตุผลที่ปฏิเสธรายการนี้', 'ปฏิเสธการบริจาค', {
+    const res = await ElMessageBox.prompt(message, 'ปฏิเสธการบริจาค', {
       inputValidator: (v: string) => (v?.trim() ? true : 'กรุณาระบุเหตุผล'),
       confirmButtonText: 'ปฏิเสธ',
       cancelButtonText: 'ยกเลิก',
