@@ -614,22 +614,29 @@ function isMine(tile: Tile): boolean {
 /* Pinned to the top-right corner so cover art stays unobstructed in the middle. */
 .tile-number {
   position: absolute;
-  top: 5px;
-  right: 8px;
+  top: 4px;
+  right: 6px;
   z-index: 1;
-  font-size: 1.15rem;
+  font-size: 0.85rem;
   line-height: 1;
   font-weight: 900;
   font-style: italic;
   color: #ffd24a;
   /* Outline instead of a chip: the digits stay readable over any cover art while the picture
-     underneath is left uncovered. */
-  -webkit-text-stroke: 1.2px #7c3a09;
+     underneath is left uncovered. The stroke tracks the font size — a 1.2px outline on small
+     digits closes up the counters. */
+  -webkit-text-stroke: 0.85px #7c3a09;
   paint-order: stroke fill;
-  text-shadow: 0 2px 3px rgb(0 0 0 / 40%);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 40%);
 }
 @media (min-width: 640px) {
-  .tile-number { font-size: 1.45rem; top: 6px; right: 10px; }
+  .tile-number {
+    font-size: 1.45rem;
+    top: 6px;
+    right: 10px;
+    -webkit-text-stroke-width: 1.2px;
+    text-shadow: 0 2px 3px rgb(0 0 0 / 40%);
+  }
 }
 
 /**
