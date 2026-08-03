@@ -389,10 +389,10 @@ function closeAll(): void {
   border-radius: calc(var(--face-radius) - var(--frame));
   object-fit: cover;
 }
-/* Top-right, matching the play board so the front face looks the same in both places. */
+/* Bottom-right, matching the play board so the front face looks the same in both places. */
 .num {
   position: absolute;
-  top: 6px;
+  bottom: 6px;
   right: 10px;
   z-index: 1;
   font-size: 1rem;

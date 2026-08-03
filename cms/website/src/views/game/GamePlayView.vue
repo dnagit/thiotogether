@@ -611,10 +611,10 @@ function isMine(tile: Tile): boolean {
   object-fit: cover;
 }
 
-/* Pinned to the top-right corner so cover art stays unobstructed in the middle. */
+/* Pinned to the bottom-right corner so cover art stays unobstructed in the middle. */
 .tile-number {
   position: absolute;
-  top: 4px;
+  bottom: 4px;
   right: 6px;
   z-index: 1;
   font-size: 0.85rem;
@@ -632,7 +632,7 @@ function isMine(tile: Tile): boolean {
 @media (min-width: 640px) {
   .tile-number {
     font-size: 1.45rem;
-    top: 6px;
+    bottom: 6px;
     right: 10px;
     -webkit-text-stroke-width: 1.2px;
     text-shadow: 0 2px 3px rgb(0 0 0 / 40%);
@@ -654,7 +654,7 @@ function isMine(tile: Tile): boolean {
 /* Dim the artwork on reserved tiles so taken and free read differently at a glance. */
 .tile-reserved .tile-img { filter: grayscale(0.85) brightness(0.85); opacity: 0.55; }
 
-/* Moved to the opposite corner now that the number occupies the top-right. */
+/* Kept in the top-left, diagonally opposite the number in the bottom-right. */
 .tile-lock {
   position: absolute;
   top: 4px;
