@@ -362,6 +362,7 @@ function closeAll(): void {
   justify-content: center;
   border-radius: var(--face-radius);
   overflow: hidden;
+  -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   border: 0;
   background: linear-gradient(150deg, #ffb648, #ffe08a 38%, #f7913a 70%, #ffcf6b);
@@ -375,6 +376,14 @@ function closeAll(): void {
   background: #fff;
 }
 .front::before { background: color-mix(in srgb, var(--accent) 14%, white); }
+/**
+ * `backface-visibility` alone does not hold: `overflow: hidden` on the face flattens it in WebKit,
+ * so the front — cover art and the tile number — shows through the revealed side. Hiding it outright
+ * is the reliable cut. `visibility` steps at the delay rather than interpolating, so timing it to the
+ * flip's midpoint swaps the faces exactly when the card is edge-on and the change cannot be seen.
+ */
+.front { visibility: visible; transition: visibility 0s linear 0.25s; }
+.flip.open .front { visibility: hidden; }
 .back { transform: rotateY(180deg); }
 /* Revealed side sits on the warm cream so the prize text reads as part of the site's palette. */
 .back::before { background: #fff1e3; }
@@ -481,5 +490,7 @@ function closeAll(): void {
 
 @media (prefers-reduced-motion: reduce) {
   .flip-inner { transition: none; }
+  /* The flip is instant here, so the front must vanish with it rather than a beat later. */
+  .front { transition: none; }
 }
 </style>
