@@ -27,6 +27,8 @@ import BalloonShapePicker from '@/components/birthday/BalloonShapePicker.vue';
 import GiftPicker from '@/components/birthday/GiftPicker.vue';
 import PhotoFramer from '@/components/birthday/PhotoFramer.vue';
 import WishBalloon from '@/components/birthday/WishBalloon.vue';
+import WishCard from '@/components/birthday/WishCard.vue';
+import WishCardActions from '@/components/birthday/WishCardActions.vue';
 
 const NAME_MAX = 60;
 const MESSAGE_MAX = 300;
@@ -39,7 +41,8 @@ const event = ref<BirthdayEvent | null>(null);
 const loading = ref(true);
 const submitting = ref(false);
 const submitError = ref<string | null>(null);
-const result = ref<{ message: string } | null>(null);
+/** The API's reply, kept whole: the id and status decide whether the wish is linkable yet. */
+const result = ref<{ message: string; id: number | string; status: string } | null>(null);
 
 const draft = reactive<WishDraft>({
   name: '',
@@ -114,6 +117,28 @@ function validate(): boolean {
   return Object.keys(errors).length === 0;
 }
 
+/**
+ * The card a visitor takes away with them, built from what they just sent.
+ *
+ * Drawn off screen: the page shows the balloon, but the thing worth keeping is the card,
+ * the same one everybody else will see when they tap that balloon on the wall. It has to be
+ * in the document rather than conjured on demand, because saving rasterises a real `<svg>`.
+ */
+const sentAt = ref<string | null>(null);
+const sentCard = ref<InstanceType<typeof WishCard> | null>(null);
+
+/**
+ * A link to the new card — but only once it is actually there to be opened. An event with
+ * moderation on holds the wish back, and a link to a wall that has not got it yet is worse
+ * than no link at all.
+ */
+const sentLink = computed(() => {
+  if (typeof window === 'undefined' || result.value?.status !== 'APPROVED') return '';
+  const url = new URL(`/birthday/${slug}`, window.location.origin);
+  url.searchParams.set('wish', String(result.value.id));
+  return url.toString();
+});
+
 async function submit(): Promise<void> {
   if (submitting.value || !validate()) {
     // Send focus to what needs fixing rather than leaving the visitor to hunt for it.
@@ -124,7 +149,8 @@ async function submit(): Promise<void> {
   submitError.value = null;
   try {
     const response = await submitWish(slug, draft);
-    result.value = { message: response.message || 'ส่งคำอวยพรเรียบร้อยแล้ว' };
+    result.value = { ...response, message: response.message || 'ส่งคำอวยพรเรียบร้อยแล้ว' };
+    sentAt.value = new Date().toISOString();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err: any) {
     for (const e of err?.response?.data?.errors ?? []) errors[e.field] = e.message;
@@ -139,6 +165,7 @@ async function submit(): Promise<void> {
 
 function writeAnother(): void {
   result.value = null;
+  sentAt.value = null;
   draft.name = '';
   draft.message = '';
   setPhoto(null);
@@ -174,7 +201,35 @@ const inputClass =
         />
       </div>
       <h1 class="mb-2 text-2xl font-extrabold">ส่งคำอวยพรแล้ว 🎉</h1>
-      <p class="mb-8 text-gray-600">{{ result.message }}</p>
+      <p class="mb-6 text-gray-600">{{ result.message }}</p>
+
+      <!-- Off screen, and only here so there is something real to rasterise. -->
+      <div class="card-source" aria-hidden="true">
+        <WishCard
+          ref="sentCard"
+          :name="previewName"
+          :message="draft.message"
+          :balloon-shape="draft.balloonShape"
+          :balloon-color="draft.balloonColor"
+          :photo-url="photoUrl"
+          :framing="draft.photoFraming"
+          :gift-name="selectedGift?.name"
+          :gift-image="selectedGift?.imageUrl"
+          :event-title="event.title"
+          :celebrant-name="event.celebrantName"
+          :created-at="sentAt"
+        />
+      </div>
+
+      <WishCardActions
+        class="mb-8"
+        center
+        :svg="() => sentCard?.svg ?? null"
+        :name="previewName"
+        :link="sentLink"
+        :theme-color="themeColor"
+      />
+
       <div class="flex flex-wrap justify-center gap-3">
         <button
           type="button"
@@ -357,5 +412,19 @@ const inputClass =
 }
 .btn-outline {
   @apply rounded-lg border border-gray-300 px-6 py-3 font-medium transition hover:bg-gray-50;
+}
+
+/*
+ * Rendered but out of sight. Not `display: none`, which would leave the card without the
+ * layout that rasterising it depends on, and not `visibility: hidden`, which still takes up
+ * the page.
+ */
+.card-source {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  pointer-events: none;
 }
 </style>
