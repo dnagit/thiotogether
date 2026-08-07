@@ -287,7 +287,9 @@ function laneSeats(wishes: Wish[], w: number, width: number, columns: number, tr
   return wishes.map((wish, seat) => {
     const { col, row } = place[seat];
     const gap = travel / Math.max(1, counts[col]);
-    const { scale, drawn, tilt, lean } = profile(wish, w);
+    // A lane's room is measured against the slot, not the balloon in it, so the drawn size
+    // is not needed here — only the share of the slot it gives back.
+    const { scale, tilt, lean } = profile(wish, w);
 
     // Half of whatever the lane has spare once this balloon and a worst-case neighbour are
     // standing in it. Two balloons each given half of a gap measured against something no

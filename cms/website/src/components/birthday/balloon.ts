@@ -49,10 +49,19 @@ export const BALLOON_SHAPES: readonly BalloonShape[] = [
   {
     id: 'star',
     label: 'ดาว',
-    // Five points: outer radius 46, inner 19, centred on (50, 52).
-    path: 'M50 6 L61.2 36.6 L93.8 37.8 L68.1 57.9 L77 89.2 L50 71 L23 89.2 L31.9 57.9 L6.2 37.8 L38.8 36.6 Z',
-    // The notch between the two lower points — a string from a spike would read as a sixth ray.
-    tie: { x: 50, y: 71 },
+    /*
+     * Five points, outer radius 46 and inner 27, centred on (50, 52), with the tips eased
+     * by 3.5 and the notches by 9.
+     *
+     * A textbook star sets the inner radius near 0.4 of the outer, which is handsome and
+     * almost hollow: the spikes are all edge and no middle, and a photo clipped into one
+     * loses its subject. At 0.59 there is half again as much of it to look at, and the
+     * eased corners are what a foil star balloon does anyway.
+     */
+    path: 'M48.1 8.9 Q50 6 51.9 8.9 L60.9 22.6 Q65.9 30.2 74.6 32.5 L90.4 36.9 Q93.7 37.8 91.6 40.5 L81.3 53.3 Q75.7 60.3 76.1 69.3 L76.9 85.7 Q77 89.2 73.8 88 L58.4 82.2 Q50 79 41.6 82.2 L26.2 88 Q23 89.2 23.1 85.7 L23.9 69.3 Q24.3 60.3 18.7 53.3 L8.4 40.5 Q6.3 37.8 9.6 36.9 L25.4 32.5 Q34.1 30.2 39.1 22.6 Z',
+    // Inside the notch between the two lower points — a string from a spike would read as
+    // a sixth ray. Just above where the eased notch bottoms out, so the two meet cleanly.
+    tie: { x: 50, y: 80 },
     knot: false,
   },
   {
