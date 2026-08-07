@@ -369,6 +369,7 @@ async function main(): Promise<void> {
   }
 
   await seedBoardGame();
+  await seedBirthday();
 
   console.log('✅ Seed complete.');
   console.log('   Login: admin@example.com / ChangeMe123!');
@@ -459,6 +460,41 @@ async function seedBoardGame(): Promise<void> {
 
   console.log(`   Game "lucky-board-demo" seeded: ${TILE_COUNT} tiles, 3 funded accounts.`);
   console.log('   Demo accounts: ทีโอ้ (5 tokens), player_001 (2), Somchai Jaidee (2)');
+}
+
+/**
+ * A birthday wall ready to receive wishes: the slug the website falls back to when no
+ * event is named in the URL, plus a small gift catalogue so the form's picker is never
+ * empty. No sample wishes — an empty sky with its own call to action is the honest
+ * first-run state.
+ */
+async function seedBirthday(): Promise<void> {
+  const existing = await prisma.birthdayEvent.findUnique({ where: { slug: 'birthday' } });
+  if (existing) {
+    console.log('   Birthday event "birthday" already seeded, skipping.');
+    return;
+  }
+
+  const event = await prisma.birthdayEvent.create({
+    data: {
+      title: 'อวยพรวันเกิด',
+      slug: 'birthday',
+      celebrantName: 'น้องทีโอ้',
+      description: 'เขียนคำอวยพร เลือกลูกโป่งและของขวัญ แล้วปล่อยให้ลอยขึ้นไปด้วยกัน',
+      themeColor: '#ea480c',
+      isOpen: true,
+      isActive: true,
+      requiresApproval: false,
+    },
+  });
+
+  await prisma.birthdayGift.createMany({
+    data: ['เค้กวันเกิด', 'ช่อดอกไม้', 'ตุ๊กตาหมี', 'กล่องของขวัญ', 'บอลลูนช่อ'].map(
+      (name, i) => ({ eventId: event.id, name, sortOrder: i }),
+    ),
+  });
+
+  console.log('   Birthday event "birthday" seeded with 5 gifts.');
 }
 
 main()

@@ -53,6 +53,11 @@ export const PERMISSIONS = {
   TOKENS_VIEW: 'tokens.view',
   TOKENS_ADJUST: 'tokens.adjust',
 
+  BIRTHDAY_VIEW: 'birthday.view',
+  BIRTHDAY_MANAGE: 'birthday.manage',
+  /// Separate from MANAGE: approving decides what the public wall shows.
+  BIRTHDAY_MODERATE: 'birthday.moderate',
+
   AUDIT_LOGS_VIEW: 'audit-logs.view',
 } as const;
 
@@ -77,5 +82,6 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.MEDIA_VIEW,
     PERMISSIONS.MEDIA_UPLOAD,
     PERMISSIONS.GAMES_VIEW,
+    PERMISSIONS.BIRTHDAY_VIEW,
   ],
 };

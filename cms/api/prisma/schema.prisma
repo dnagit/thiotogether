@@ -25,14 +25,14 @@ model User {
   roleId Int  @map("role_id")
   role   Role @relation(fields: [roleId], references: [id])
 
-  refreshTokens       RefreshToken[]
-  passwordResets      PasswordReset[]
-  media               Media[]
-  auditLogs           AuditLog[]
-  verifiedDonations   Donation[]     @relation("DonationVerifier")
-  donationLogs        DonationLog[]
-  tokenLedgerEntries  TokenLedgerEntry[]
-  revealEvents        RevealEvent[]
+  refreshTokens      RefreshToken[]
+  passwordResets     PasswordReset[]
+  media              Media[]
+  auditLogs          AuditLog[]
+  verifiedDonations  Donation[]         @relation("DonationVerifier")
+  donationLogs       DonationLog[]
+  tokenLedgerEntries TokenLedgerEntry[]
+  revealEvents       RevealEvent[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -60,8 +60,8 @@ model Role {
 }
 
 model Permission {
-  id          Int    @id @default(autoincrement())
-  name        String @unique @db.VarChar(100)
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(100)
   description String? @db.VarChar(255)
 
   roles RolePermission[]
@@ -85,14 +85,14 @@ model RolePermission {
 }
 
 model RefreshToken {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique @map("token_hash") @db.VarChar(128)
-  expiresAt DateTime @map("expires_at")
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
-  userAgent String?  @map("user_agent") @db.VarChar(255)
-  ip        String?  @db.VarChar(64)
+  userAgent String?   @map("user_agent") @db.VarChar(255)
+  ip        String?   @db.VarChar(64)
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -103,11 +103,11 @@ model RefreshToken {
 }
 
 model PasswordReset {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique @map("token_hash") @db.VarChar(128)
-  expiresAt DateTime @map("expires_at")
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -211,10 +211,10 @@ enum MenuItemType {
 }
 
 model MenuItem {
-  id       Int   @id @default(autoincrement())
-  menuId   Int   @map("menu_id")
-  menu     Menu  @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  parentId Int?  @map("parent_id")
+  id       Int        @id @default(autoincrement())
+  menuId   Int        @map("menu_id")
+  menu     Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  parentId Int?       @map("parent_id")
   parent   MenuItem?  @relation("MenuItemTree", fields: [parentId], references: [id])
   children MenuItem[] @relation("MenuItemTree")
 
@@ -333,9 +333,9 @@ model DonationProject {
 
   /// Money required for 1 game token. Decimal, never float — token maths must be exact.
   /// Null disables token granting for this project.
-  tokenValue Decimal? @map("token_value") @db.Decimal(14, 2)
+  tokenValue   Decimal? @map("token_value") @db.Decimal(14, 2)
   /// Optional lifetime for tokens granted by this project; null = never expires.
-  tokenTtlDays Int? @map("token_ttl_days")
+  tokenTtlDays Int?     @map("token_ttl_days")
 
   startDate DateTime? @map("start_date")
   endDate   DateTime? @map("end_date")
@@ -458,13 +458,13 @@ model DonationVerification {
   isSlip     Boolean @default(false) @map("is_slip")
   confidence Float   @default(0)
 
-  extractedBankName      String?   @map("extracted_bank_name") @db.VarChar(120)
-  extractedAccountNumber String?   @map("extracted_account_number") @db.VarChar(60)
-  extractedAmount        Decimal?  @map("extracted_amount") @db.Decimal(14, 2)
-  extractedDate          String?   @map("extracted_date") @db.VarChar(20)
-  extractedTime          String?   @map("extracted_time") @db.VarChar(20)
-  referenceNumber        String?   @map("reference_number") @db.VarChar(80)
-  qrPayload              String?   @map("qr_payload") @db.Text
+  extractedBankName      String?  @map("extracted_bank_name") @db.VarChar(120)
+  extractedAccountNumber String?  @map("extracted_account_number") @db.VarChar(60)
+  extractedAmount        Decimal? @map("extracted_amount") @db.Decimal(14, 2)
+  extractedDate          String?  @map("extracted_date") @db.VarChar(20)
+  extractedTime          String?  @map("extracted_time") @db.VarChar(20)
+  referenceNumber        String?  @map("reference_number") @db.VarChar(80)
+  qrPayload              String?  @map("qr_payload") @db.Text
 
   rawResult     Json    @map("raw_result")
   amountMatched Boolean @default(false) @map("amount_matched")
@@ -538,15 +538,15 @@ model TokenGrant {
   donationId Int      @unique @map("donation_id")
   donation   Donation @relation(fields: [donationId], references: [id])
 
-  tokensGranted   Int      @map("tokens_granted")
-  tokensRemaining Int      @map("tokens_remaining")
+  tokensGranted     Int       @map("tokens_granted")
+  tokensRemaining   Int       @map("tokens_remaining")
   /// Snapshot of the project's tokenValue when minted, so later repricing cannot
   /// retroactively change what a donor already earned.
-  tokenValueAtGrant Decimal  @map("token_value_at_grant") @db.Decimal(14, 2)
-  donationAmount    Decimal  @map("donation_amount") @db.Decimal(14, 2)
+  tokenValueAtGrant Decimal   @map("token_value_at_grant") @db.Decimal(14, 2)
+  donationAmount    Decimal   @map("donation_amount") @db.Decimal(14, 2)
   /// Remainder that did NOT become a token. Kept for auditability only — it is
   /// never carried into another submission's calculation.
-  remainderAmount   Decimal  @map("remainder_amount") @db.Decimal(14, 2)
+  remainderAmount   Decimal   @map("remainder_amount") @db.Decimal(14, 2)
   expiresAt         DateTime? @map("expires_at")
 
   ledger TokenLedgerEntry[]
@@ -619,14 +619,14 @@ model Game {
   tileFrontImage String? @map("tile_front_image") @db.VarChar(500)
   tokensPerTile  Int     @default(1) @map("tokens_per_tile")
 
-  status  GameStatus @default(DRAFT)
-  opensAt DateTime?  @map("opens_at")
-  closesAt DateTime? @map("closes_at")
+  status   GameStatus @default(DRAFT)
+  opensAt  DateTime?  @map("opens_at")
+  closesAt DateTime?  @map("closes_at")
 
   /// Show reserver names on unrevealed tiles, or just "มีผู้จองแล้ว".
-  showReserverNames Boolean @default(true) @map("show_reserver_names")
+  showReserverNames  Boolean @default(true) @map("show_reserver_names")
   /// Null = unlimited tiles per account.
-  maxTilesPerAccount Int?   @map("max_tiles_per_account")
+  maxTilesPerAccount Int?    @map("max_tiles_per_account")
   themeColor         String? @map("theme_color") @db.VarChar(20)
 
   /// Set when rewards are shuffled onto tiles. The hash commits to the assignment
@@ -684,10 +684,10 @@ model Reward {
 }
 
 model BoardTile {
-  id          Int    @id @default(autoincrement())
-  gameId      Int    @map("game_id")
-  game        Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  boardNumber Int    @map("board_number")
+  id          Int  @id @default(autoincrement())
+  gameId      Int  @map("game_id")
+  game        Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  boardNumber Int  @map("board_number")
 
   frontImage String? @map("front_image") @db.VarChar(500)
 
@@ -718,13 +718,13 @@ model Reservation {
   tileId Int       @unique @map("tile_id")
   tile   BoardTile @relation(fields: [tileId], references: [id], onDelete: Cascade)
 
-  accountIdentityId Int             @map("account_identity_id")
-  accountIdentity   AccountIdentity @relation(fields: [accountIdentityId], references: [id])
+  accountIdentityId   Int             @map("account_identity_id")
+  accountIdentity     AccountIdentity @relation(fields: [accountIdentityId], references: [id])
   /// Frozen copy of the name as typed at reservation time, so historic results are
   /// not rewritten when an identity's display name changes later.
-  accountNameSnapshot String @map("account_name_snapshot") @db.VarChar(190)
+  accountNameSnapshot String          @map("account_name_snapshot") @db.VarChar(190)
 
-  tokensSpent Int    @map("tokens_spent")
+  tokensSpent    Int    @map("tokens_spent")
   /// Client-supplied key; a retried or double-clicked request returns the original
   /// reservation instead of taking another tile.
   idempotencyKey String @map("idempotency_key") @db.VarChar(64)
@@ -746,9 +746,9 @@ model RevealEvent {
   gameId Int  @map("game_id")
   game   Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  revealedById Int?  @map("revealed_by_id")
-  revealedBy   User? @relation(fields: [revealedById], references: [id])
-  tileCount    Int   @map("tile_count")
+  revealedById   Int?    @map("revealed_by_id")
+  revealedBy     User?   @relation(fields: [revealedById], references: [id])
+  tileCount      Int     @map("tile_count")
   commitmentHash String? @map("commitment_hash") @db.VarChar(64)
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -830,4 +830,97 @@ model VisitorStat {
   deletedAt DateTime? @map("deleted_at")
 
   @@map("visitor_stats")
+}
+
+// ── Birthday wish wall ──────────────────────────────────────
+
+enum BirthdayWishStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model BirthdayEvent {
+  id            Int     @id @default(autoincrement())
+  title         String  @db.VarChar(200)
+  slug          String  @unique @db.VarChar(200)
+  celebrantName String? @map("celebrant_name") @db.VarChar(150)
+  description   String? @db.Text
+  coverImage    String? @map("cover_image") @db.VarChar(500)
+  themeColor    String? @map("theme_color") @db.VarChar(20)
+
+  /// Closes the form. Deliberately separate from hiding the event: after the party the
+  /// wall stays readable while no new wishes can be sent.
+  isOpen           Boolean @default(true) @map("is_open")
+  /// Hides the whole event from the website, wall included.
+  isActive         Boolean @default(true) @map("is_active")
+  /// When true a wish waits for an admin before it floats; when false it appears at once.
+  requiresApproval Boolean @default(false) @map("requires_approval")
+
+  gifts  BirthdayGift[]
+  wishes BirthdayWish[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("birthday_events")
+}
+
+/// The catalogue an admin uploads; a visitor ties one of these under their balloon.
+model BirthdayGift {
+  id      Int           @id @default(autoincrement())
+  eventId Int           @map("event_id")
+  event   BirthdayEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name      String  @db.VarChar(200)
+  imageUrl  String? @map("image_url") @db.VarChar(500)
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  wishes BirthdayWish[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId, sortOrder])
+  @@map("birthday_gifts")
+}
+
+model BirthdayWish {
+  id      Int           @id @default(autoincrement())
+  eventId Int           @map("event_id")
+  event   BirthdayEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name    String @db.VarChar(60)
+  message String @db.Text
+
+  balloonShape String @default("round") @map("balloon_shape") @db.VarChar(20)
+  balloonColor String @default("#0ea5e9") @map("balloon_color") @db.VarChar(20)
+
+  photoUrl  String? @map("photo_url") @db.VarChar(500)
+  /// How the photo sits inside the balloon: a zoom plus an x/y offset in the shape's
+  /// 100×100 box. Stored beside the original upload rather than baked into it, so the
+  /// picture can be reframed later without a re-upload.
+  photoZoom Float?  @map("photo_zoom")
+  photoX    Float?  @map("photo_x")
+  photoY    Float?  @map("photo_y")
+
+  /// SetNull, not Cascade: retiring a gift from the catalogue must not delete the
+  /// wishes that chose it.
+  giftId Int?          @map("gift_id")
+  gift   BirthdayGift? @relation(fields: [giftId], references: [id], onDelete: SetNull)
+
+  status BirthdayWishStatus @default(APPROVED)
+
+  /// Moderation only — never leaves the admin API.
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId, status, createdAt])
+  @@map("birthday_wishes")
 }

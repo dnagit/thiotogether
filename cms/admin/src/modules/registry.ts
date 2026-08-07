@@ -152,6 +152,30 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'birthday',
+    menu: { label: 'อวยพรวันเกิด', icon: 'Sunny', order: 7.5, permission: PERMISSIONS.BIRTHDAY_VIEW },
+    routes: [
+      {
+        path: 'birthday',
+        name: 'birthday',
+        component: () => import('@/views/birthday/BirthdayListView.vue'),
+        meta: { title: 'อวยพรวันเกิด', permission: PERMISSIONS.BIRTHDAY_VIEW },
+      },
+      {
+        path: 'birthday/:id/edit',
+        name: 'birthday-edit',
+        component: () => import('@/views/birthday/BirthdayEditView.vue'),
+        meta: { title: 'ตั้งค่างานวันเกิด', permission: PERMISSIONS.BIRTHDAY_MANAGE },
+      },
+      {
+        path: 'birthday/:id/wishes',
+        name: 'birthday-wishes',
+        component: () => import('@/views/birthday/BirthdayWishesView.vue'),
+        meta: { title: 'คำอวยพร', permission: PERMISSIONS.BIRTHDAY_VIEW },
+      },
+    ],
+  },
+  {
     name: 'tokens',
     menu: { label: 'Token', icon: 'Coin', order: 8, permission: PERMISSIONS.TOKENS_VIEW },
     routes: [

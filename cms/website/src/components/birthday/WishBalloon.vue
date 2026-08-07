@@ -1,0 +1,249 @@
+<script setup lang="ts">
+/**
+ * One balloon with its gift on a string — the single piece of artwork this feature owns.
+ *
+ * The form preview and the floating wall both render this component, so a visitor frames
+ * their photo against exactly the picture everyone else will see. It draws and nothing
+ * else: no animation, no data fetching. The wall supplies the rise, the form supplies the
+ * drag handling.
+ *
+ * Size comes from the `--balloon-w` custom property on any ancestor, so the same markup
+ * serves a thumbnail and a full-height preview.
+ */
+import { computed } from 'vue';
+import {
+  DEFAULT_COLOR,
+  DEFAULT_FRAMING,
+  darken,
+  framingTransform,
+  isLightColor,
+  lighten,
+  nextBalloonUid,
+  shapeById,
+  type PhotoFraming,
+} from './balloon';
+
+const props = withDefaults(
+  defineProps<{
+    shape?: string | null;
+    color?: string | null;
+    photoUrl?: string | null;
+    framing?: PhotoFraming | null;
+    giftImage?: string | null;
+    /** Printed on the gift tag — the person sending the wish. */
+    name?: string | null;
+    /** Renders as a button that emits `open`; the wall uses this, the preview does not. */
+    interactive?: boolean;
+    /** Off while framing a photo, where the string and present are a distraction. */
+    showGift?: boolean;
+  }>(),
+  {
+    shape: 'round',
+    color: DEFAULT_COLOR,
+    photoUrl: null,
+    framing: null,
+    giftImage: null,
+    name: '',
+    interactive: false,
+    showGift: true,
+  },
+);
+
+defineEmits<{ open: [] }>();
+
+const uid = nextBalloonUid();
+
+const shape = computed(() => shapeById(props.shape));
+const color = computed(() => props.color || DEFAULT_COLOR);
+const framing = computed(() => props.framing ?? { ...DEFAULT_FRAMING });
+const transform = computed(() => framingTransform(framing.value));
+
+const crown = computed(() => lighten(color.value, 0.45));
+const edge = computed(() => darken(color.value, 0.22));
+const ribbon = computed(() => lighten(color.value, 0.7));
+const tagText = computed(() => (isLightColor(color.value) ? '#1f2937' : '#ffffff'));
+
+const label = computed(() =>
+  props.name ? `คำอวยพรจาก ${props.name} — กดเพื่ออ่าน` : 'กดเพื่ออ่านคำอวยพร',
+);
+</script>
+
+<template>
+  <component
+    :is="interactive ? 'button' : 'div'"
+    :type="interactive ? 'button' : undefined"
+    class="assembly"
+    :class="{ 'assembly-interactive': interactive }"
+    :aria-label="interactive ? label : undefined"
+    @click="interactive && $emit('open')"
+  >
+    <svg class="balloon" viewBox="0 0 100 104" role="img" :aria-label="`ลูกโป่งรูปทรง${shape.label}`">
+      <defs>
+        <!-- Light falls from the upper left, so the crown sits off-centre. -->
+        <radialGradient :id="`${uid}-fill`" cx="35%" cy="26%" r="78%">
+          <stop offset="0%" :stop-color="crown" />
+          <stop offset="62%" :stop-color="color" />
+          <stop offset="100%" :stop-color="edge" />
+        </radialGradient>
+        <clipPath :id="`${uid}-clip`">
+          <path :d="shape.path" />
+        </clipPath>
+      </defs>
+
+      <path :d="shape.path" :fill="`url(#${uid}-fill)`" />
+
+      <!--
+        The photo is clipped to the body, drawn cover-first and then moved by the framing
+        transform. `slice` guarantees the shape is always full — framing only chooses which
+        part of the picture is on show, so no pan can drag an empty corner into view.
+      -->
+      <g v-if="photoUrl" :clip-path="`url(#${uid}-clip)`">
+        <image
+          :href="photoUrl"
+          x="0"
+          y="0"
+          width="100"
+          height="100"
+          preserveAspectRatio="xMidYMid slice"
+          :transform="transform"
+        />
+        <!-- A whisper of the chosen colour over the photo, so the balloon still reads as that colour. -->
+        <path :d="shape.path" :fill="color" opacity="0.16" />
+      </g>
+
+      <!--
+        Highlight last: it must sit over the photo, or the balloon looks flat once one is
+        added. Clipped, because the upper left of the box is outside the body on the
+        pointier shapes — on a star it would otherwise float beside the balloon as a smudge.
+      -->
+      <g :clip-path="`url(#${uid}-clip)`">
+        <ellipse cx="33" cy="27" rx="9" ry="13" fill="#fff" opacity="0.35" transform="rotate(-22 33 27)" />
+      </g>
+      <path :d="shape.path" fill="none" :stroke="edge" stroke-width="1.4" opacity="0.55" />
+
+      <!-- Knot, then the string running to the bottom edge so it meets the ribbon below seamlessly. -->
+      <path
+        v-if="shape.knot"
+        :d="`M${shape.tie.x - 4} ${shape.tie.y - 1} L${shape.tie.x + 4} ${shape.tie.y - 1} L${shape.tie.x} ${shape.tie.y + 6} Z`"
+        :fill="edge"
+      />
+      <path
+        :d="`M${shape.tie.x} ${shape.tie.y + (shape.knot ? 5 : 0)} L50 104`"
+        fill="none"
+        :stroke="edge"
+        stroke-width="1.2"
+        opacity="0.7"
+      />
+    </svg>
+
+    <!-- `preserveAspectRatio: none` lets one curve stretch to whatever gap the layout leaves. -->
+    <svg
+      v-if="showGift"
+      class="string"
+      viewBox="0 0 20 100"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path d="M10 0 C3 26 17 58 10 100" fill="none" :stroke="edge" stroke-width="1.6" opacity="0.7" />
+    </svg>
+
+    <div v-if="showGift" class="gift">
+      <img v-if="giftImage" :src="giftImage" alt="" loading="lazy" class="gift-img" />
+      <svg v-else class="gift-img" viewBox="0 0 100 88" aria-hidden="true">
+        <rect x="10" y="30" width="80" height="56" rx="6" :fill="color" />
+        <rect x="4" y="20" width="92" height="16" rx="5" :fill="edge" />
+        <rect x="43" y="20" width="14" height="66" :fill="ribbon" />
+        <path
+          d="M50 22 C42 22 30 18 30 10 C30 4 38 2 43 6 C47 9 50 15 50 22 C50 15 53 9 57 6 C62 2 70 4 70 10 C70 18 58 22 50 22 Z"
+          :fill="ribbon"
+        />
+      </svg>
+    </div>
+
+    <!--
+      Outside `.gift`, so the tag is not boxed into the present's 46% and a longer name
+      has the whole assembly width to sit in.
+    -->
+    <span
+      v-if="showGift && name"
+      class="gift-tag"
+      :style="{ background: color, color: tagText }"
+    >{{ name }}</span>
+  </component>
+</template>
+
+<style scoped>
+.assembly {
+  --w: var(--balloon-w, 120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--w);
+  padding: 0;
+  border: 0;
+  background: none;
+  /* Every part scales from one number, so a balloon keeps its proportions at any size. */
+  font-size: calc(var(--w) / 12);
+}
+.assembly-interactive {
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+.assembly-interactive:hover,
+.assembly-interactive:focus-visible {
+  transform: scale(1.06);
+}
+.assembly-interactive:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+.balloon {
+  width: 100%;
+  /* Matches the 100×104 viewBox, so the knot is never clipped. */
+  aspect-ratio: 100 / 104;
+  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 18%));
+}
+
+.string {
+  width: 22%;
+  height: calc(var(--w) * 0.3);
+}
+
+.gift {
+  width: 46%;
+  display: flex;
+  justify-content: center;
+}
+.gift-img {
+  width: 100%;
+  aspect-ratio: 100 / 88;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 6px rgb(0 0 0 / 20%));
+}
+
+/* Sits under the present, in flow — the assembly simply grows by the height of the tag. */
+.gift-tag {
+  margin-top: 0.45em;
+  max-width: 100%;
+  padding: 0.25em 0.7em;
+  border-radius: 999px;
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 22%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assembly-interactive {
+    transition: none;
+  }
+  .assembly-interactive:hover {
+    transform: none;
+  }
+}
+</style>

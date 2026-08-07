@@ -11,6 +11,8 @@ const props = defineProps<{
   title: string;
   /** Blocks Escape and backdrop dismissal while a request is in flight. */
   busy?: boolean;
+  /** `lg` widens the panel for content that is a picture rather than a prompt. */
+  size?: 'md' | 'lg';
 }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -84,7 +86,9 @@ onBeforeUnmount(() => {
           role="dialog"
           aria-modal="true"
           :aria-label="title"
-          class="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl p-6"
+          class="relative w-full bg-white rounded-t-2xl sm:rounded-2xl shadow-xl p-6
+                 max-h-[92vh] overflow-y-auto"
+          :class="size === 'lg' ? 'sm:max-w-lg' : 'sm:max-w-md'"
         >
           <h2 class="text-lg font-bold mb-3">{{ title }}</h2>
           <slot />
