@@ -4,8 +4,8 @@
  *
  * Its own component because the same two buttons stand under the card in its popup and on
  * the screen a visitor lands on after writing a wish, where there is no popup at all — and
- * the part worth having in exactly one place is {@link savesToPhotos}, which decides where
- * a saved picture actually ends up.
+ * the part worth having in exactly one place is {@link viaShareSheet}, which is where the
+ * awkward truth about saving a picture from a web page lives.
  *
  * The card itself is the parent's: this only needs to be able to reach its `<svg>`.
  */
@@ -39,21 +39,38 @@ async function renderPng(): Promise<File | null> {
   return new File([blob], cardFileName(props.name), { type: 'image/png' });
 }
 
-/**
- * Whether "save" should go through the share sheet rather than download the file.
- *
- * On a phone a blob download is not a saved photo: iOS files it away in Files and Android
- * drops it in Downloads, and either way it is not in the camera roll the visitor went
- * looking for. The share sheet is the only route to Photos, and "Save Image" is the first
- * thing on it. A desktop share sheet has no such entry, so there a download is still right.
- */
-const savesToPhotos = computed(
-  () =>
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(pointer: coarse)')?.matches === true,
+const touch = computed(
+  () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)')?.matches === true,
 );
+
+/**
+ * Whether saving has to detour through the share sheet, which is to say: is this an iPhone.
+ *
+ * Everywhere else a download is a save and needs no choosing — Android drops the file
+ * straight into its picture folder, which the gallery indexes, and a desktop puts it where
+ * downloads go. iOS is the exception and there is no way around it: Safari exposes nothing
+ * that writes to Photos, its downloads land in Files instead, and the one route to the
+ * camera roll is the "Save Image" entry on the share sheet. So the sheet is opened *only*
+ * there, and only because the alternative is the picture not arriving where it was asked to.
+ *
+ * `platform` is deprecated but is still how an iPad announces itself: since iPadOS 13 it
+ * claims to be a Mac, and only the touch count gives it away.
+ */
+const onApple = computed(() => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return (
+    /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+});
+/**
+ * Deliberately not also asking for a coarse pointer: an iPad with a keyboard case attached
+ * reports a fine one, and it is still an iPad, where a download still goes to Files.
+ */
+const viaShareSheet = computed(() => onApple.value && typeof navigator.share === 'function');
+
+/** Both routes that end in the device's own picture library — the sheet's, and Android's. */
+const toGallery = computed(() => viaShareSheet.value || touch.value);
 
 function download(file: File): void {
   const url = URL.createObjectURL(file);
@@ -75,7 +92,7 @@ async function save(): Promise<void> {
     const file = await renderPng();
     if (!file) return;
 
-    if (savesToPhotos.value && navigator.canShare?.({ files: [file] })) {
+    if (viaShareSheet.value && navigator.canShare?.({ files: [file] })) {
       try {
         // The picture alone, with no accompanying text: this is the save button, and a
         // sheet given something to say tends to offer to say it somewhere.
@@ -90,6 +107,8 @@ async function save(): Promise<void> {
     }
 
     download(file);
+    // A download on a phone is silent past a notification shade, so say where it went.
+    if (touch.value) note.value = 'บันทึกรูปแล้ว — ดูได้ในแอปรูปภาพ หรือโฟลเดอร์ Download';
   } catch {
     note.value = 'บันทึกรูปไม่สำเร็จ ลองกดค้างที่การ์ดเพื่อบันทึกแทนได้';
   } finally {
@@ -138,14 +157,14 @@ defineExpose({ saving });
   <div :style="buttonTheme">
     <div class="flex flex-wrap gap-2" :class="center ? 'justify-center' : ''">
       <button type="button" class="act act-primary" :disabled="saving" @click="save">
-        {{ saving ? 'กำลังบันทึก…' : savesToPhotos ? '💾 บันทึกลงคลังรูป' : '💾 บันทึกรูป' }}
+        {{ saving ? 'กำลังบันทึก…' : toGallery ? '💾 บันทึกลงคลังรูป' : '💾 บันทึกรูป' }}
       </button>
       <button v-if="link" type="button" class="act" @click="copyLink">🔗 คัดลอกลิงก์</button>
     </div>
 
-    <!-- The sheet is the phone's, so the wording that follows is the phone's too. -->
-    <p v-if="savesToPhotos" class="mt-2 text-xs text-gray-500" :class="center ? 'text-center' : ''">
-      เลือก “บันทึกรูปภาพ” ในเมนูที่ขึ้นมา เพื่อเก็บการ์ดไว้ในคลังรูปของเครื่อง
+    <!-- Only iOS asks anything of the visitor, so only iOS is told what to answer. -->
+    <p v-if="viaShareSheet" class="mt-2 text-xs text-gray-500" :class="center ? 'text-center' : ''">
+      เลือก “บันทึกรูปภาพ” ในเมนูที่ขึ้นมา เพื่อเก็บการ์ดไว้ในคลังรูป
     </p>
 
     <p
