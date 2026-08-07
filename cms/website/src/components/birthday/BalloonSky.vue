@@ -39,8 +39,16 @@ const props = withDefaults(
     slug?: string;
     eventTitle?: string | null;
     celebrantName?: string | null;
+    /** Passed straight through to the card popup, whose buttons wear it. */
+    themeColor?: string | null;
   }>(),
-  { height: 'calc(100svh - var(--header-h))', slug: '', eventTitle: null, celebrantName: null },
+  {
+    height: 'calc(100svh - var(--header-h))',
+    slug: '',
+    eventTitle: null,
+    celebrantName: null,
+    themeColor: null,
+  },
 );
 
 const emit = defineEmits<{
@@ -592,6 +600,7 @@ const galleryWidth = computed(() => {
       :wish="opened"
       :event-title="eventTitle"
       :celebrant-name="celebrantName"
+      :theme-color="themeColor"
       :share-url="shareUrl"
       @close="close"
     />

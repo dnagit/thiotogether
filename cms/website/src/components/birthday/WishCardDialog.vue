@@ -1,33 +1,38 @@
 <script setup lang="ts">
 /**
- * The card behind a balloon, with the two things people want to do with it: keep it and
- * pass it on.
+ * The card behind a balloon, and the one thing people want to do with it: keep it.
  *
- * Sharing prefers the native share sheet with the PNG attached, because that is what puts
- * the card itself into LINE or Messenger rather than a link someone has to tap. Desktop
- * browsers have no such sheet, so there the same buttons fall back to per-network share
- * URLs carrying a link to this wish — which is why the card is addressable at all.
+ * Keeping it means a PNG, built from the rendered `<svg>` so nothing here has to know the
+ * layout. Where that PNG goes depends on the device — see {@link savesToPhotos}, which is
+ * the whole of the difference between a phone and a desktop here.
  *
- * Every export is built from the rendered `<svg>`, so nothing here has to know the layout.
+ * The card stays addressable through `?wish=`, which is what the copy-link button hands
+ * over and what reopens the card on whoever it is sent to.
  */
 import { computed, ref } from 'vue';
 import AppModal from '@/components/AppModal.vue';
 import WishCard from './WishCard.vue';
 import { cardFileName, svgToPng } from './wishCard';
+import { inkColor, isLightColor, lighten, outlineColor } from './balloon';
 import type { Wish } from '@/api/birthday';
 
-const props = defineProps<{
-  wish: Wish | null;
-  eventTitle?: string | null;
-  celebrantName?: string | null;
-  /** Absolute link that reopens this exact card; empty disables the link-based buttons. */
-  shareUrl?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    wish: Wish | null;
+    eventTitle?: string | null;
+    celebrantName?: string | null;
+    /** Absolute link that reopens this exact card; empty hides the copy-link button. */
+    shareUrl?: string;
+    /** The event's colour, so the buttons belong to the party rather than to the browser. */
+    themeColor?: string | null;
+  }>(),
+  { eventTitle: null, celebrantName: null, shareUrl: '', themeColor: null },
+);
 
 defineEmits<{ close: [] }>();
 
 const card = ref<InstanceType<typeof WishCard> | null>(null);
-const busy = ref<'save' | 'share' | null>(null);
+const saving = ref(false);
 const note = ref<string | null>(null);
 
 /** The card's root `<svg>`, reached through the child's exposed ref. */
@@ -42,63 +47,86 @@ async function renderPng(): Promise<File | null> {
   return new File([blob], cardFileName(props.wish.name), { type: 'image/png' });
 }
 
+/**
+ * Whether "save" should go through the share sheet rather than download the file.
+ *
+ * On a phone a blob download is not a saved photo: iOS files it away in Files and Android
+ * drops it in Downloads, and either way it is not in the camera roll the visitor went
+ * looking for. The share sheet is the only route to Photos, and "Save Image" is the first
+ * thing on it. A desktop share sheet has no such entry, so there a download is still right.
+ */
+const savesToPhotos = computed(
+  () =>
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(pointer: coarse)')?.matches === true,
+);
+
+function download(file: File): void {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoked on the next tick so Safari has started the download first.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 async function save(): Promise<void> {
-  if (busy.value) return;
-  busy.value = 'save';
+  if (saving.value) return;
+  saving.value = true;
   note.value = null;
   try {
     const file = await renderPng();
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    // Revoked on the next tick so Safari has started the download first.
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    if (savesToPhotos.value && navigator.canShare?.({ files: [file] })) {
+      try {
+        // The picture alone, with no accompanying text: this is the save button, and a
+        // sheet given something to say tends to offer to say it somewhere.
+        await navigator.share({ files: [file], title: `คำอวยพรจาก ${props.wish?.name ?? ''}` });
+        return;
+      } catch (err: any) {
+        // Dismissing the sheet is a decision, not a failure — nothing more to do.
+        if (err?.name === 'AbortError') return;
+        // Anything else (a browser that offers the sheet and then refuses it) falls
+        // through to the download, which at least puts the file somewhere.
+      }
+    }
+
+    download(file);
   } catch {
     note.value = 'บันทึกรูปไม่สำเร็จ ลองกดค้างที่การ์ดเพื่อบันทึกแทนได้';
   } finally {
-    busy.value = null;
+    saving.value = false;
   }
 }
 
-const canShareFiles = computed(
-  () => typeof navigator !== 'undefined' && typeof navigator.share === 'function',
-);
-
-async function share(): Promise<void> {
-  if (busy.value || !props.wish) return;
-  busy.value = 'share';
-  note.value = null;
-  try {
-    const file = await renderPng();
-    const text = `คำอวยพรจาก ${props.wish.name}`;
-    // `canShare` is asked about this exact payload: a browser may have `share` but refuse
-    // files, in which case sharing the link alone still works.
-    if (file && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: text, text });
-    } else if (props.shareUrl) {
-      await navigator.share({ title: text, text, url: props.shareUrl });
-    }
-  } catch (err: any) {
-    // Dismissing the share sheet rejects with AbortError; that is not a failure.
-    if (err?.name !== 'AbortError') note.value = 'แชร์ไม่สำเร็จ ลองบันทึกรูปแล้วแชร์เองได้';
-  } finally {
-    busy.value = null;
-  }
-}
-
-const networks = computed(() => {
-  const url = encodeURIComponent(props.shareUrl ?? '');
-  if (!props.shareUrl) return [];
-  return [
-    { label: 'LINE', href: `https://social-plugins.line.me/lineit/share?url=${url}` },
-    { label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${url}` },
-    { label: 'X', href: `https://twitter.com/intent/tweet?url=${url}` },
-  ];
+/**
+ * The buttons, dressed in the event's colour.
+ *
+ * Handed to the CSS as custom properties rather than inline styles on each button, so the
+ * hover and disabled states stay in the stylesheet with the rest of the states.
+ *
+ * Only the filled button gets the colour itself. Everything drawn *on* white — the outline
+ * buttons' text, and the tints their border and hover are mixed from — comes from
+ * {@link inkColor} instead, because a theme is free to be yellow, or white, and the raw
+ * shade of either is not something a label can be read in.
+ */
+const theme = computed(() => props.themeColor || '#111827');
+const buttonTheme = computed(() => {
+  const ink = inkColor(theme.value);
+  return {
+    '--act-fill': theme.value,
+    '--act-fill-ink': isLightColor(theme.value) ? '#1f2937' : '#ffffff',
+    '--act-fill-edge': outlineColor(theme.value),
+    '--act-ink': ink,
+    '--act-line': lighten(ink, 0.62),
+    '--act-wash': lighten(ink, 0.92),
+  };
 });
 
 async function copyLink(): Promise<void> {
@@ -116,7 +144,7 @@ async function copyLink(): Promise<void> {
   <AppModal
     :open="!!wish"
     size="lg"
-    :busy="!!busy"
+    :busy="saving"
     :title="wish ? `การ์ดอวยพรจาก ${wish.name}` : ''"
     @close="$emit('close')"
   >
@@ -136,49 +164,47 @@ async function copyLink(): Promise<void> {
         :created-at="wish.createdAt"
       />
 
-      <div class="mt-5 flex flex-wrap gap-2">
-        <button type="button" class="act act-primary" :disabled="!!busy" @click="save">
-          {{ busy === 'save' ? 'กำลังบันทึก…' : '💾 บันทึกรูป' }}
-        </button>
-        <button
-          v-if="canShareFiles"
-          type="button"
-          class="act"
-          :disabled="!!busy"
-          @click="share"
-        >
-          {{ busy === 'share' ? 'กำลังเตรียม…' : '📤 แชร์การ์ด' }}
-        </button>
-        <button v-if="shareUrl" type="button" class="act" @click="copyLink">🔗 คัดลอกลิงก์</button>
+      <div :style="buttonTheme">
+        <div class="mt-5 flex flex-wrap gap-2">
+          <button type="button" class="act act-primary" :disabled="saving" @click="save">
+            {{ saving ? 'กำลังบันทึก…' : savesToPhotos ? '💾 บันทึกลงคลังรูป' : '💾 บันทึกรูป' }}
+          </button>
+          <button v-if="shareUrl" type="button" class="act" @click="copyLink">🔗 คัดลอกลิงก์</button>
+        </div>
+
+        <!-- The sheet is the phone's, so the wording that follows is the phone's too. -->
+        <p v-if="savesToPhotos" class="mt-2 text-xs text-gray-500">
+          เลือก “บันทึกรูปภาพ” ในเมนูที่ขึ้นมา เพื่อเก็บการ์ดไว้ในคลังรูปของเครื่อง
+        </p>
+
+        <p v-if="note" class="mt-3 text-sm text-gray-600" role="status" aria-live="polite">
+          {{ note }}
+        </p>
+
+        <button type="button" class="act mt-3 w-full" @click="$emit('close')">ปิด</button>
       </div>
-
-      <!-- Desktop has no share sheet, so the networks are offered directly. -->
-      <div v-if="!canShareFiles && networks.length" class="mt-2 flex flex-wrap gap-2">
-        <a
-          v-for="net in networks"
-          :key="net.label"
-          class="act"
-          :href="net.href"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          แชร์ไป {{ net.label }}
-        </a>
-      </div>
-
-      <p v-if="note" class="mt-3 text-sm text-gray-600" role="status" aria-live="polite">{{ note }}</p>
-
-      <button type="button" class="act mt-3 w-full" @click="$emit('close')">ปิด</button>
     </template>
   </AppModal>
 </template>
 
 <style scoped>
+/* The `--act-*` properties are the event's colour, set on the wrapper by the script. */
 .act {
-  @apply inline-block rounded-lg border border-gray-300 px-4 py-2.5 text-center text-sm font-semibold
-         transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-block rounded-lg border px-4 py-2.5 text-center text-sm font-semibold
+         transition disabled:cursor-not-allowed disabled:opacity-50;
+  border-color: var(--act-line);
+  color: var(--act-ink);
+}
+.act:hover:not(:disabled) {
+  background: var(--act-wash);
 }
 .act-primary {
-  @apply border-gray-900 bg-gray-900 text-white hover:bg-gray-800;
+  background: var(--act-fill);
+  border-color: var(--act-fill-edge);
+  color: var(--act-fill-ink);
+}
+.act-primary:hover:not(:disabled) {
+  background: var(--act-fill);
+  opacity: 0.9;
 }
 </style>
