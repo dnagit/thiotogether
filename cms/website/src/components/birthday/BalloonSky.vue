@@ -11,9 +11,14 @@
  *    wishes are spread across the whole width at a size worth looking at, and three hundred
  *    queue up the flight path rather than squeezing in beside each other. The sky is only so
  *    wide, but it is arbitrarily tall.
+ *  - **Nothing may line up.** A wall of balloons is not a chart, and the arrangement that
+ *    packs them best is a lattice, which is exactly what a party wall must not look like.
+ *    So an empty sky gets {@link scatterSeats a thrown handful} and a full one gets
+ *    {@link laneSeats lanes} of deliberately unequal length, and either way no two balloons
+ *    are the same size, upright, or swinging in time.
  *  - **A balloon keeps its seat.** Seats are dealt in the order the wishes were written, so
  *    a poll bringing in a new one appends rather than reshuffling the sky mid-flight, and
- *    the drift and speed within a seat are hashed from the wish's id.
+ *    everything about a balloon but its position is hashed from the wish's id.
  *  - **Reduced motion gets a still gallery, not a slower rise.** Someone asking for less
  *    movement is asking not to chase a moving target, so the same balloons are laid out in
  *    a grid with the same popup behind them.
@@ -128,13 +133,35 @@ const { width: skyWidth, height: skyHeight } = useElementSize(sky);
 /** Assembly height ÷ balloon width: the balloon, its string, the present and the name tag. */
 const ASSEMBLY_RATIO = 1.9;
 /**
- * Clear space demanded around a balloon, as a multiple of its width. Sideways this has to
- * cover two neighbours swaying towards each other, so it is twice {@link SWAY_MAX}.
+ * The tightest a lane may be packed, as a multiple of the full balloon width — which is
+ * also the least room a balloon is ever left to move about in: 9% of its width to either
+ * side, even shoulder to shoulder on a phone.
  */
 const GAP_X = 1.18;
-const GAP_Y = 1.18;
-/** Widest drift to either side, as a fraction of the balloon's width. */
-const SWAY_MAX = 0.09;
+/**
+ * What a lane reserves per balloon along the path. {@link MIN_GAP_Y} is the part that has
+ * to survive; the difference is room to sit off the mark, which is worth more than the
+ * balloons it costs — evenly spaced is the other half of what reads as a grid.
+ */
+const GAP_Y = 1.4;
+/** How close two balloons in a lane may ever come, as a multiple of their own heights. */
+const MIN_GAP_Y = 1.05;
+/**
+ * Ceiling on how far a balloon strays from its lane, as a fraction of its width. A quiet
+ * wall has lanes wide enough to swing right across, which is not drifting but wandering.
+ */
+const STRAY_MAX = 0.5;
+/** How far a balloon may hang from upright, in degrees. */
+const MAX_TILT = 7;
+/**
+ * Balloons are drawn between this and full size inside their slot.
+ *
+ * Nothing but variety: a sky of one size, evenly spaced, reads as a grid however carefully
+ * the spacing is jittered — the eye finds the repeat. Since a slot is reserved at full size,
+ * every balloon drawn smaller than its slot only adds clearance, and the room it frees is
+ * handed back as drift (see {@link flight}).
+ */
+const MIN_SCALE = 0.76;
 /** Pixels a second. Constant across sizes, so a crowded sky does not also become a fast one. */
 const SPEED = 46;
 /** How far the flight path may outgrow the window before shrinking the balloons instead. */
@@ -145,6 +172,13 @@ const MAX_CYCLE = 110;
 const MIN_BALLOON_W = 64;
 /** Ceiling for the same knob turned the other way, on a wall with room to spare. */
 const MAX_BALLOON_W = 180;
+
+/** Beyond this many, scattering is neither affordable to compute nor possible to see. */
+const SCATTER_MAX = 90;
+/** Share of the sky a scattered arrangement may cover before it stops finding room. */
+const SCATTER_DENSITY = 0.42;
+/** Tries per balloon when scattering. Enough to find a gap; few enough to stay instant. */
+const SCATTER_TRIES = 28;
 
 /**
  * A step that visits every column exactly once, for spreading the columns' starting heights
@@ -162,9 +196,190 @@ function stride(columns: number): number {
   return 1;
 }
 
+/** Where one balloon sits, and how it behaves once it is there. */
+interface Seat {
+  /** Centre of the balloon, in pixels across the sky. */
+  x: number;
+  /** How far along the loop it starts, 0–1. */
+  phase: number;
+  /** Fraction of the full balloon width it is drawn at. */
+  scale: number;
+  /** Half the width of its drift, in pixels. */
+  drift: number;
+  /** Resting angle, in degrees. */
+  tilt: number;
+  /** Seconds for one lap. */
+  duration: number;
+}
+
+/**
+ * The parts of a balloon that come from the wish rather than from where it was put.
+ *
+ * Drawing every balloon at the size of its slot is what makes a wall look printed rather
+ * than floating, so each takes a hashed share of it and hangs at its own angle. A tilt
+ * pivots about the middle of the assembly — roughly 0.43 of a width below the balloon
+ * itself — so it carries the balloon sideways too, and that has to be paid for out of the
+ * same room the drift comes from.
+ */
+function profile(wish: Wish, w: number): { scale: number; drawn: number; tilt: number; lean: number } {
+  const scale = MIN_SCALE + hash(wish.id, 8) * (1 - MIN_SCALE);
+  const drawn = w * scale;
+  const tilt = MAX_TILT * (hash(wish.id, 10) * 2 - 1);
+  // The sway's own ±1.5° is in the sum: this is the widest the balloon ever leans.
+  const lean = 0.43 * drawn * Math.sin(((Math.abs(tilt) + 1.5) * Math.PI) / 180);
+  return { scale, drawn, tilt, lean };
+}
+
+/**
+ * How many balloons each lane carries.
+ *
+ * An even split gives every lane the same spacing, and the same spacing everywhere is what
+ * draws diagonals across a crowded sky: the eye joins up the repeat. So the lanes are
+ * deliberately uneven. A lane's spacing is its own share of the path, so unequal shares put
+ * each lane on a rhythm of its own and nothing stays lined up for long.
+ *
+ * What makes the shuffling possible is {@link GAP_Y}: it reserves a third more room than a
+ * lane has to have, and `capacity` is where that runs out.
+ */
+function shareOut(total: number, columns: number, capacity: number): number[] {
+  const counts = Array.from(
+    { length: columns },
+    (_, col) => Math.floor(total / columns) + (col < total % columns ? 1 : 0),
+  );
+
+  for (let move = 0; move < columns; move++) {
+    const from = Math.floor(hash(move, 30) * columns);
+    const to = Math.floor(hash(move, 31) * columns);
+    const amount = 1 + Math.floor(hash(move, 32) * 2);
+    // Every lane keeps at least one, so none of the width is left standing empty.
+    if (from === to || counts[from] - amount < 1 || counts[to] + amount > capacity) continue;
+    counts[from] -= amount;
+    counts[to] += amount;
+  }
+
+  return counts;
+}
+
+/**
+ * Balloons dealt into lanes: the dense arrangement.
+ *
+ * Every balloon in a lane shares a speed, so the spacing dealt out here holds forever, and
+ * that is what lets a crowded sky stay legible. It is also what makes it a lattice, which
+ * is why {@link scatterSeats} is tried first whenever there is room for it, and why what
+ * irregularity can be afforded — uneven lanes, size, drift, tilt — is spent here.
+ */
+function laneSeats(wishes: Wish[], w: number, width: number, columns: number, travel: number): Seat[] {
+  const phaseStep = stride(columns);
+  const pitch = width / columns;
+  const assembly = w * ASSEMBLY_RATIO;
+  const counts = shareOut(wishes.length, columns, Math.floor(travel / (assembly * MIN_GAP_Y)));
+
+  // Dealt round the lanes one at a time, skipping any that has taken its share, so
+  // consecutive wishes still land far apart however lopsided the shares are.
+  const place: { col: number; row: number }[] = [];
+  const dealt = counts.map(() => 0);
+  for (let seat = 0, col = 0; seat < wishes.length; col = (col + 1) % columns) {
+    if (dealt[col] >= counts[col]) continue;
+    place.push({ col, row: dealt[col]++ });
+    seat++;
+  }
+
+  return wishes.map((wish, seat) => {
+    const { col, row } = place[seat];
+    const gap = travel / Math.max(1, counts[col]);
+    const { scale, drawn, tilt, lean } = profile(wish, w);
+
+    // Half of whatever the lane has spare once this balloon and a worst-case neighbour are
+    // standing in it. Two balloons each given half of a gap measured against something no
+    // smaller than the other can never close it, so this needs no lookup at the neighbour.
+    const freedom = Math.min(Math.max(0, pitch - (w * (scale + 1)) / 2) / 2, w * STRAY_MAX);
+    const needed = ((w * ASSEMBLY_RATIO * (scale + 1)) / 2) * MIN_GAP_Y;
+
+    return {
+      x: pitch * (col + 0.5) + freedom * 0.45 * (hash(wish.id, 1) * 2 - 1),
+      phase: wrap(
+        (row * gap) / travel +
+          ((col * phaseStep) % columns) / columns +
+          ((hash(wish.id, 9) * 2 - 1) * Math.max(0, gap - needed)) / 2 / travel,
+      ),
+      scale,
+      drift: Math.max(0, freedom * 0.55 - lean),
+      tilt,
+      // One speed per lane, and a different one per lane: it is the only thing keeping the
+      // columns from marching in step, and within a lane it must not vary at all.
+      duration: travel / (SPEED * (0.86 + hash(col, 6) * 0.28)),
+    };
+  });
+}
+
+/**
+ * Balloons thrown at the sky rather than dealt into it: the arrangement that looks like
+ * balloons.
+ *
+ * Each one takes the best of {@link SCATTER_TRIES} hashed guesses — the position furthest
+ * from everything already placed — which fills the sky evenly without ever lining anything
+ * up. Two balloons clear each other if they miss on *either* axis, so the score is the
+ * better of the two separations, and a whole arrangement is only accepted once every pair
+ * reaches 1.
+ *
+ * The catch, and the reason lanes still exist: a scattered cloud only stays clear if it
+ * rises as one, so every balloon here shares a speed. That is no loss — helium does not
+ * sort itself by column — but it does mean the arrangement cannot be repaired later by
+ * anything drifting apart, so it has to be right when it is made.
+ */
+function scatterSeats(
+  wishes: Wish[],
+  w: number,
+  width: number,
+  travel: number,
+  round: number,
+): Seat[] | null {
+  const duration = travel / SPEED;
+  const placed: (Seat & { drawn: number; height: number })[] = [];
+
+  for (const wish of wishes) {
+    const { scale, drawn, tilt, lean } = profile(wish, w);
+    const drift = Math.max(0, w * 0.12 - lean);
+    const height = drawn * ASSEMBLY_RATIO;
+    // Kept a full half-balloon in from either side, drift and lean included, so nothing is
+    // ever half off the edge of the sky.
+    const inset = drawn / 2 + drift + lean;
+    const span = Math.max(0, width - inset * 2);
+
+    let best: { x: number; phase: number; score: number } | null = null;
+    for (let attempt = 0; attempt < SCATTER_TRIES; attempt++) {
+      // A fresh set of guesses each round: retrying the same ones in a longer sky only
+      // re-finds the same dead end, since what blocks a guess is usually its neighbour
+      // sideways and lengthening the path does not move that.
+      const salt = 20 + round * 128 + attempt * 2;
+      const x = inset + hash(wish.id, salt) * span;
+      const phase = hash(wish.id, salt + 1);
+      let score = Infinity;
+      for (const other of placed) {
+        const apart = Math.abs(x - other.x) / ((drawn + other.drawn) / 2 + drift + other.drift);
+        const along = Math.abs(phase - other.phase);
+        const gap = (Math.min(along, 1 - along) * travel) / ((height + other.height) / 2);
+        score = Math.min(score, Math.max(apart, gap));
+        if (score <= (best?.score ?? 0)) break;
+      }
+      if (!best || score > best.score) best = { x, phase, score };
+    }
+
+    if (!best || best.score < 1) return null;
+    placed.push({ x: best.x, phase: best.phase, scale, drift, tilt, duration, drawn, height });
+  }
+
+  return placed;
+}
+
 /**
  * How to fit `n` balloons into the measured sky without them piling on top of each other —
- * and, just as much, without a handful of them huddling in one corner of it.
+ * and, just as much, without them landing in rows.
+ *
+ * The sizing below works in lanes, because lanes are what a hard capacity question can be
+ * answered in. What comes out of it is a size and a length of flight path; the balloons are
+ * then {@link scatterSeats scattered} across that if the sky is empty enough to take a
+ * scattering, and only {@link laneSeats dealt into the lanes} if it is not.
  *
  * Three knobs, spent in that order:
  *
@@ -186,7 +401,8 @@ function stride(columns: number): number {
  * arrangement of that many that does not.
  */
 const layout = computed(() => {
-  const total = Math.max(1, seated.value.length);
+  const wishes = seated.value;
+  const total = Math.max(1, wishes.length);
   const width = skyWidth.value || (typeof window === 'undefined' ? 1024 : window.innerWidth);
   const height = skyHeight.value || (typeof window === 'undefined' ? 720 : window.innerHeight);
   // The responsive size crowding starts from — and, when there is more width than there are
@@ -220,13 +436,37 @@ const layout = computed(() => {
   const assembly = w * ASSEMBLY_RATIO;
   // Out of columns and out of sizes: buy the rest of the clearance with patience.
   if (!fits) travel = Math.max(travel, Math.min(perColumn * assembly * GAP_Y, SPEED * MAX_CYCLE));
+
+  /*
+   * Scattering needs more room than lanes do — a lattice packs to nearly its own area,
+   * where thrown balloons stop finding gaps at about {@link SCATTER_DENSITY} of theirs. It
+   * is bought the same way the lanes buy clearance, by lengthening the path, and only if
+   * the ceiling allows; a wall too full for that keeps its lanes.
+   */
+  let seats: Seat[] | null = null;
+  if (total <= SCATTER_MAX) {
+    const area = wishes.reduce((sum, wish) => {
+      const { drawn } = profile(wish, w);
+      return sum + drawn * drawn * ASSEMBLY_RATIO;
+    }, 0);
+    // Never more than half again the lane arrangement's path: past that, the balloons a
+    // scattering costs are worth more than the scattering.
+    const ceiling = Math.min(
+      Math.max(height + assembly * 2, height * MAX_TRAVEL, SPEED * MAX_CYCLE),
+      travel * 1.5,
+    );
+    let room = Math.max(travel, area / SCATTER_DENSITY / width);
+    for (let round = 0; !seats && room <= ceiling; round++, room *= 1.12) {
+      seats = scatterSeats(wishes, w, width, room, round);
+      if (seats) travel = room;
+    }
+  }
+  seats ??= laneSeats(wishes, w, width, columns, travel);
+
   return {
     w,
-    width,
-    columns,
-    perColumn,
     travel,
-    phaseStep: stride(columns),
+    seats,
     /** The path outgrew one crossing, so the sky is showing a slice at a time. */
     cycling: travel > height + assembly * 2 + 1,
     // Anything the path has over the shortest crossing is queued below the floor, so a
@@ -246,45 +486,39 @@ watch(
 );
 
 /**
- * Flight parameters for one balloon.
+ * One seat, as the CSS custom properties the animation reads.
  *
- * Everything that keeps balloons apart — the column, the phase along the path, the shared
- * per-column speed — comes from the seat. Everything that stops them looking stamped out —
- * the drift within the column, the sway — is hashed from the id, and is bounded so it can
- * never reach into a neighbour's space.
+ * Everything that decides where a balloon may be has already happened in {@link layout};
+ * what is left here is the sway, which is bounded by the drift its seat was given and is
+ * otherwise the balloon's own — a slow swing, at its own width, starting wherever in the
+ * cycle its id says.
  */
 function flight(wish: Wish, seat: number): Record<string, string> {
-  const { w, width, columns, perColumn, travel, phaseStep } = layout.value;
-  const col = seat % columns;
-  const row = Math.floor(seat / columns);
-
-  const colWidth = 100 / columns;
-  // Whatever the column has spare after the balloon and its clearance, half either side —
-  // but never more than a third of a balloon. On a quiet wall the columns are wide, and
-  // unbounded drift there would let two balloons huddle together and undo the spreading.
-  const slack = Math.min(
-    Math.max(0, colWidth - ((w * GAP_X) / width) * 100) / 2,
-    ((w * 0.33) / width) * 100,
-  );
-  const lane = colWidth * (col + 0.5) + (hash(wish.id, 1) * 2 - 1) * slack;
-
-  // One speed per column, not per balloon: balloons sharing a lane must hold their spacing,
-  // and it is the difference between columns that keeps the sky from marching in step.
-  const duration = travel / (SPEED * (0.86 + hash(col, 6) * 0.28));
-  // Negative, so the sky opens already full rather than empty for the first half minute.
-  // Evenly over the path in both directions: down the column by the row, and across the
-  // columns by the stride, so five wishes are five heights rather than five in a row.
-  const phase = (row / perColumn + ((col * phaseStep) % columns) / columns) % 1;
+  const { w, seats } = layout.value;
+  const { x, phase, scale, drift, tilt, duration } = seats[seat];
 
   return {
-    '--lane': `${lane.toFixed(2)}%`,
+    '--balloon-w': `${(w * scale).toFixed(0)}px`,
+    '--lane': `${x.toFixed(1)}px`,
     '--rise-duration': `${duration.toFixed(1)}s`,
+    // Negative, so the sky opens already full rather than empty for the first half minute.
     '--rise-delay': `-${(phase * duration).toFixed(1)}s`,
-    '--sway-duration': `${(4 + hash(wish.id, 4) * 3).toFixed(1)}s`,
-    '--sway': `${(w * SWAY_MAX * (0.45 + hash(wish.id, 5) * 0.55)).toFixed(0)}px`,
-    // Balloons overlap each other consistently instead of flickering over one another.
-    'z-index': String(10 + (seat % 7)),
+    // Slow: at a few seconds a swing reads as a jiggle, and a sky of them as one machine.
+    // Over a quarter of a minute it reads as a balloon finding its own way up.
+    '--sway-duration': `${(9 + hash(wish.id, 4) * 9).toFixed(1)}s`,
+    // Without a delay every balloon starts at the same end of its swing, and the whole sky
+    // leans one way together for the first few seconds.
+    '--sway-delay': `-${(hash(wish.id, 11) * 18).toFixed(1)}s`,
+    '--sway': `${drift.toFixed(1)}px`,
+    '--tilt': `${tilt.toFixed(1)}deg`,
+    // Layered by size, so the small ones sit behind: the same cue as drawing them small.
+    'z-index': String(10 + Math.round(((scale - MIN_SCALE) / (1 - MIN_SCALE)) * 6)),
   };
+}
+
+/** Into 0–1, for phases that a negative jitter can push off either end. */
+function wrap(value: number): number {
+  return ((value % 1) + 1) % 1;
 }
 
 /** The still gallery has the whole page to grow down, so it only ever trims the size. */
@@ -326,7 +560,6 @@ const galleryWidth = computed(() => {
       :class="{ 'sky-paused': !!opened, 'sky-dense': dense }"
       :style="{
         height,
-        '--balloon-w': `${layout.w.toFixed(0)}px`,
         '--travel-start': `${layout.start.toFixed(0)}px`,
         '--travel-end': `${layout.end.toFixed(0)}px`,
       }"
@@ -375,7 +608,8 @@ const galleryWidth = computed(() => {
   overflow: hidden;
 }
 
-/* `--balloon-w`, `--travel-start` and `--travel-end` are measured in JS and set on `.sky`. */
+/* `--travel-start` and `--travel-end` are measured in JS and set on `.sky`; everything
+   per-balloon, `--balloon-w` included, is set on the lane by `flight()`. */
 .lane {
   position: absolute;
   bottom: 0;
@@ -392,7 +626,7 @@ const galleryWidth = computed(() => {
   will-change: auto;
 }
 .sway {
-  animation: sway var(--sway-duration) ease-in-out infinite alternate;
+  animation: sway var(--sway-duration) ease-in-out var(--sway-delay) infinite alternate;
 }
 
 /* Hovering or tabbing to a balloon holds it still, so it can be read and clicked. */
@@ -419,12 +653,14 @@ const galleryWidth = computed(() => {
     transform: translate3d(0, var(--travel-end), 0);
   }
 }
+/* The swing is around `--tilt`, the angle this balloon hangs at when still — a sky of
+   perfectly upright balloons is the other half of what reads as a grid. */
 @keyframes sway {
   from {
-    transform: translateX(calc(var(--sway) * -1)) rotate(-2deg);
+    transform: translateX(calc(var(--sway) * -1)) rotate(calc(var(--tilt) - 1.5deg));
   }
   to {
-    transform: translateX(var(--sway)) rotate(2deg);
+    transform: translateX(var(--sway)) rotate(calc(var(--tilt) + 1.5deg));
   }
 }
 
