@@ -239,33 +239,53 @@ function profile(wish: Wish, w: number): { scale: number; drawn: number; tilt: n
 }
 
 /**
- * How many balloons each lane carries.
+ * How many balloons each lane carries: as near equal as the arithmetic allows.
  *
- * An even split gives every lane the same spacing, and the same spacing everywhere is what
- * draws diagonals across a crowded sky: the eye joins up the repeat. So the lanes are
- * deliberately uneven. A lane's spacing is its own share of the path, so unequal shares put
- * each lane on a rhythm of its own and nothing stays lined up for long.
+ * Density is the one thing that must stay even across the width. A lane holding twice its
+ * neighbour's share does not read as informality, it reads as a sky that is leaning, and no
+ * amount of variety elsewhere argues with it — which is why the irregularity is spent on
+ * {@link laneOffsets rhythm} instead, where it costs nothing to look at.
  *
- * What makes the shuffling possible is {@link GAP_Y}: it reserves a third more room than a
- * lane has to have, and `capacity` is where that runs out.
+ * The lanes that take the remainder are rotated rather than being the first few, so the
+ * extra balloon is not always on the same side.
  */
-function shareOut(total: number, columns: number, capacity: number): number[] {
-  const counts = Array.from(
+function laneCounts(total: number, columns: number): number[] {
+  const spare = total % columns;
+  const shift = Math.floor(hash(columns, 34) * columns);
+  return Array.from(
     { length: columns },
-    (_, col) => Math.floor(total / columns) + (col < total % columns ? 1 : 0),
+    (_, col) => Math.floor(total / columns) + ((col + shift) % columns < spare ? 1 : 0),
   );
+}
 
-  for (let move = 0; move < columns; move++) {
-    const from = Math.floor(hash(move, 30) * columns);
-    const to = Math.floor(hash(move, 31) * columns);
-    const amount = 1 + Math.floor(hash(move, 32) * 2);
-    // Every lane keeps at least one, so none of the width is left standing empty.
-    if (from === to || counts[from] - amount < 1 || counts[to] + amount > capacity) continue;
-    counts[from] -= amount;
-    counts[to] += amount;
+/**
+ * Where each balloon in a lane sits along the loop, as a distance from the lane's start.
+ *
+ * Not evenly spaced: the same spacing in every lane is what draws the diagonals across a
+ * crowded sky, because the eye joins up the repeat. Each lane divides the path into gaps of
+ * its own instead, so no two lanes keep the same rhythm and nothing stays lined up.
+ *
+ * Every gap starts at `minGap` and the *spare* room is what gets shared out unevenly, so
+ * the clearance between two balloons is guaranteed however lopsided the weights come out.
+ * That spare room is what {@link GAP_Y} reserves by asking for a third more than a lane
+ * strictly needs.
+ */
+function laneOffsets(col: number, count: number, travel: number, minGap: number): number[] {
+  const weights = Array.from({ length: count }, (_, row) => 0.55 + hash(`${col}:${row}`, 33));
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  // On a wall too full to give every gap its minimum, the floor drops to whatever the lane
+  // does have: the gaps come out equal, which is the most room an overloaded lane can offer
+  // and exactly what an even split would have done.
+  const base = Math.min(minGap, travel / count);
+  const slack = travel - count * base;
+
+  const offsets: number[] = [];
+  let along = 0;
+  for (const weight of weights) {
+    offsets.push(along);
+    along += base + (slack * weight) / total;
   }
-
-  return counts;
+  return offsets;
 }
 
 /**
@@ -274,16 +294,19 @@ function shareOut(total: number, columns: number, capacity: number): number[] {
  * Every balloon in a lane shares a speed, so the spacing dealt out here holds forever, and
  * that is what lets a crowded sky stay legible. It is also what makes it a lattice, which
  * is why {@link scatterSeats} is tried first whenever there is room for it, and why what
- * irregularity can be afforded — uneven lanes, size, drift, tilt — is spent here.
+ * irregularity can be afforded — uneven rhythm, size, drift, tilt — is spent here.
  */
 function laneSeats(wishes: Wish[], w: number, width: number, columns: number, travel: number): Seat[] {
   const phaseStep = stride(columns);
   const pitch = width / columns;
   const assembly = w * ASSEMBLY_RATIO;
-  const counts = shareOut(wishes.length, columns, Math.floor(travel / (assembly * MIN_GAP_Y)));
+  const counts = laneCounts(wishes.length, columns);
+  const offsets = counts.map((count, col) =>
+    laneOffsets(col, count, travel, assembly * MIN_GAP_Y),
+  );
 
-  // Dealt round the lanes one at a time, skipping any that has taken its share, so
-  // consecutive wishes still land far apart however lopsided the shares are.
+  // Dealt round the lanes one at a time, so consecutive wishes land far apart and every
+  // lane fills at the same rate.
   const place: { col: number; row: number }[] = [];
   const dealt = counts.map(() => 0);
   for (let seat = 0, col = 0; seat < wishes.length; col = (col + 1) % columns) {
@@ -294,7 +317,6 @@ function laneSeats(wishes: Wish[], w: number, width: number, columns: number, tr
 
   return wishes.map((wish, seat) => {
     const { col, row } = place[seat];
-    const gap = travel / Math.max(1, counts[col]);
     // A lane's room is measured against the slot, not the balloon in it, so the drawn size
     // is not needed here — only the share of the slot it gives back.
     const { scale, tilt, lean } = profile(wish, w);
@@ -303,15 +325,10 @@ function laneSeats(wishes: Wish[], w: number, width: number, columns: number, tr
     // standing in it. Two balloons each given half of a gap measured against something no
     // smaller than the other can never close it, so this needs no lookup at the neighbour.
     const freedom = Math.min(Math.max(0, pitch - (w * (scale + 1)) / 2) / 2, w * STRAY_MAX);
-    const needed = ((w * ASSEMBLY_RATIO * (scale + 1)) / 2) * MIN_GAP_Y;
 
     return {
       x: pitch * (col + 0.5) + freedom * 0.45 * (hash(wish.id, 1) * 2 - 1),
-      phase: wrap(
-        (row * gap) / travel +
-          ((col * phaseStep) % columns) / columns +
-          ((hash(wish.id, 9) * 2 - 1) * Math.max(0, gap - needed)) / 2 / travel,
-      ),
+      phase: wrap(((col * phaseStep) % columns) / columns + offsets[col][row] / travel),
       scale,
       drift: Math.max(0, freedom * 0.55 - lean),
       tilt,
