@@ -14,14 +14,15 @@ import { computed } from 'vue';
 import {
   DEFAULT_COLOR,
   DEFAULT_FRAMING,
-  darken,
-  framingTransform,
   isLightColor,
   lighten,
   nextBalloonUid,
+  outlineColor,
+  photoRect,
   shapeById,
   type PhotoFraming,
 } from './balloon';
+import { useImageAspect } from './useImageAspect';
 
 const props = withDefaults(
   defineProps<{
@@ -56,10 +57,21 @@ const uid = nextBalloonUid();
 const shape = computed(() => shapeById(props.shape));
 const color = computed(() => props.color || DEFAULT_COLOR);
 const framing = computed(() => props.framing ?? { ...DEFAULT_FRAMING });
-const transform = computed(() => framingTransform(framing.value));
+
+/**
+ * Placing the photo needs its shape, which is not known until it loads — so it is held back
+ * until then rather than drawn square and jumping into place. The balloon body is already
+ * on screen underneath, and the probe is the same fetch the `<image>` would make anyway.
+ */
+const aspect = useImageAspect(() => props.photoUrl);
+const photo = computed(() =>
+  props.photoUrl && aspect.value
+    ? { href: props.photoUrl, ...photoRect(aspect.value, framing.value) }
+    : null,
+);
 
 const crown = computed(() => lighten(color.value, 0.45));
-const edge = computed(() => darken(color.value, 0.22));
+const edge = computed(() => outlineColor(color.value));
 const ribbon = computed(() => lighten(color.value, 0.7));
 const tagText = computed(() => (isLightColor(color.value) ? '#1f2937' : '#ffffff'));
 
@@ -93,19 +105,17 @@ const label = computed(() =>
       <path :d="shape.path" :fill="`url(#${uid}-fill)`" />
 
       <!--
-        The photo is clipped to the body, drawn cover-first and then moved by the framing
-        transform. `slice` guarantees the shape is always full — framing only chooses which
-        part of the picture is on show, so no pan can drag an empty corner into view.
+        The photo is drawn at the size it covers the box at and clipped to the body, so the
+        shape is always full whatever the framing: panning slides the picture behind the
+        clip rather than dragging its own edge into view. See `photoRect`.
       -->
-      <g v-if="photoUrl" :clip-path="`url(#${uid}-clip)`">
+      <g v-if="photo" :clip-path="`url(#${uid}-clip)`">
         <image
-          :href="photoUrl"
-          x="0"
-          y="0"
-          width="100"
-          height="100"
-          preserveAspectRatio="xMidYMid slice"
-          :transform="transform"
+          :href="photo.href"
+          :x="photo.x"
+          :y="photo.y"
+          :width="photo.width"
+          :height="photo.height"
         />
         <!-- A whisper of the chosen colour over the photo, so the balloon still reads as that colour. -->
         <path :d="shape.path" :fill="color" opacity="0.16" />

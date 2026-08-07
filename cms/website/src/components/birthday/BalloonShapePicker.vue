@@ -7,7 +7,7 @@
  * Native radios under the swatches: arrow keys move through the group and the browser
  * announces "2 of 5" without any of it being reimplemented here.
  */
-import { BALLOON_SHAPES, DEFAULT_COLOR, darken, type BalloonShapeId } from './balloon';
+import { BALLOON_SHAPES, DEFAULT_COLOR, outlineColor, type BalloonShapeId } from './balloon';
 
 defineProps<{ modelValue: BalloonShapeId; color?: string | null }>();
 defineEmits<{ 'update:modelValue': [BalloonShapeId] }>();
@@ -33,7 +33,7 @@ const groupName = `balloon-shape-${Math.random().toString(36).slice(2, 8)}`;
             <path
               :d="shape.path"
               :fill="color || DEFAULT_COLOR"
-              :stroke="darken(color || DEFAULT_COLOR, 0.25)"
+              :stroke="outlineColor(color || DEFAULT_COLOR)"
               stroke-width="2"
             />
           </svg>

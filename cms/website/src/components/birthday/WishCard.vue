@@ -11,13 +11,15 @@
  */
 import { computed, ref } from 'vue';
 import {
-  darken,
-  framingTransform,
+  inkColor,
   lighten,
   nextBalloonUid,
+  outlineColor,
+  photoRect,
   shapeById,
   type PhotoFraming,
 } from './balloon';
+import { useImageAspect } from './useImageAspect';
 import { CARD_FONT, CARD_WIDTH, layoutCard, measureText } from './wishCard';
 
 const props = defineProps<{
@@ -42,8 +44,17 @@ const uid = nextBalloonUid();
 const shape = computed(() => shapeById(props.balloonShape));
 const color = computed(() => props.balloonColor || '#0ea5e9');
 const crown = computed(() => lighten(color.value, 0.45));
-const edge = computed(() => darken(color.value, 0.22));
+const edge = computed(() => outlineColor(color.value));
+/** Text, which needs more contrast than an outline does — the paper is tinted from the same colour. */
+const ink = computed(() => inkColor(color.value));
 const paper = computed(() => lighten(color.value, 0.94));
+
+const aspect = useImageAspect(() => props.photoUrl);
+const photo = computed(() =>
+  props.photoUrl && aspect.value
+    ? { href: props.photoUrl, ...photoRect(aspect.value, props.framing ?? { zoom: 1, x: 0, y: 0 }) }
+    : null,
+);
 
 const layout = computed(() => layoutCard(props.message));
 const height = computed(() => layout.value.height);
@@ -150,7 +161,7 @@ const CONFETTI = [
       :font-family="CARD_FONT"
       font-size="38"
       font-weight="800"
-      :fill="edge"
+      :fill="ink"
     >
       {{ greeting }}
     </text>
@@ -158,15 +169,15 @@ const CONFETTI = [
     <!-- Balloon: the 100-unit box scaled to 260 and centred. -->
     <g transform="translate(230 175) scale(2.6)">
       <path :d="shape.path" :fill="`url(#${uid}-fill)`" />
-      <g v-if="photoUrl" :clip-path="`url(#${uid}-clip)`">
+      <g v-if="photo" :clip-path="`url(#${uid}-clip)`">
+        <!-- Sized to cover the box rather than sliced into it, so the framing pans the
+             picture behind the clip instead of dragging its edge in. See `photoRect`. -->
         <image
-          :href="photoUrl"
-          x="0"
-          y="0"
-          width="100"
-          height="100"
-          preserveAspectRatio="xMidYMid slice"
-          :transform="framingTransform(framing ?? { zoom: 1, x: 0, y: 0 })"
+          :href="photo.href"
+          :x="photo.x"
+          :y="photo.y"
+          :width="photo.width"
+          :height="photo.height"
         />
         <path :d="shape.path" :fill="color" opacity="0.16" />
       </g>
@@ -236,7 +247,7 @@ const CONFETTI = [
       :font-family="CARD_FONT"
       font-size="30"
       font-weight="700"
-      :fill="edge"
+      :fill="ink"
     >
       จาก {{ name }}
     </text>

@@ -82,7 +82,11 @@ export interface BalloonColor {
   hex: string;
 }
 
-/** Party palette. Every entry is dark enough for white text to stay readable on the gift tag. */
+/**
+ * Party palette. The gift tag picks its own text colour per swatch (see {@link isLightColor}),
+ * so a pale balloon is as usable as a dark one — white included, which needs nothing but a
+ * firmer outline to read against the page.
+ */
 export const BALLOON_COLORS: readonly BalloonColor[] = [
   { label: 'แดง', hex: '#e11d48' },
   { label: 'ส้ม', hex: '#ea580c' },
@@ -92,6 +96,7 @@ export const BALLOON_COLORS: readonly BalloonColor[] = [
   { label: 'น้ำเงิน', hex: '#4f46e5' },
   { label: 'ม่วง', hex: '#9333ea' },
   { label: 'ชมพู', hex: '#ec4899' },
+  { label: 'ขาว', hex: '#ffffff' },
 ];
 
 export const DEFAULT_COLOR = BALLOON_COLORS[4].hex;
@@ -140,33 +145,40 @@ export function clampFraming(framing: Partial<PhotoFraming> | null | undefined):
 }
 
 /**
- * The exact panning range for one photo, in box units.
+ * Where to draw the photo inside the 100×100 box, in box units.
  *
- * A photo is drawn cover-first, so it already overflows the 100×100 box on its long axis
- * even at 1× — a landscape picture can slide sideways straight away, while sliding it up
- * would expose the shape. Solving the cover geometry for "no edge enters the box" gives
- * `50 · (ratio · zoom − 1)` per axis, where `ratio` is that axis' share of the overflow.
+ * The picture is sized to *cover* the box at `zoom: 1` and then offset by the framing —
+ * sized, not scaled through `preserveAspectRatio="slice"`. An SVG `<image>` establishes its
+ * own viewport and clips to it, so a slice-fitted photo shifted sideways carries its clip
+ * along and leaves a bare wedge of balloon behind it, which is not framing but tearing.
+ * Given the element the size the picture actually occupies, the balloon's clip path does
+ * the cropping and panning moves the photo *within* the shape, which is the point of it.
+ *
+ * Growing about the centre keeps zoom anchored on what the visitor is looking at.
  */
-export function maxPan(
-  naturalWidth: number,
-  naturalHeight: number,
-  zoom: number,
-): { x: number; y: number } {
-  if (!naturalWidth || !naturalHeight) return { x: 0, y: 0 };
-  const aspect = naturalWidth / naturalHeight;
-  return {
-    x: Math.max(0, 50 * (Math.max(1, aspect) * zoom - 1)),
-    y: Math.max(0, 50 * (Math.max(1, 1 / aspect) * zoom - 1)),
-  };
+export function photoRect(
+  aspect: number,
+  framing: PhotoFraming,
+): { x: number; y: number; width: number; height: number } {
+  const { zoom, x, y } = clampFraming(framing);
+  const ratio = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  const width = 100 * Math.max(1, ratio) * zoom;
+  const height = 100 * Math.max(1, 1 / ratio) * zoom;
+  return { x: 50 - width / 2 + x, y: 50 - height / 2 + y, width, height };
 }
 
 /**
- * SVG transform placing the photo. Scaling happens about the centre of the box so
- * zooming stays anchored to what the visitor is looking at rather than the top-left.
+ * The exact panning range for one photo, in box units.
+ *
+ * Simply how far {@link photoRect} may slide before an edge of it enters the box: half of
+ * whatever the picture overflows by. A landscape photo overflows sideways at 1× and can be
+ * panned left and right straight away, while panning it up would expose the shape; zooming
+ * in buys room on both axes.
  */
-export function framingTransform(framing: PhotoFraming): string {
-  const { zoom, x, y } = clampFraming(framing);
-  return `translate(${(x + 50).toFixed(2)} ${(y + 50).toFixed(2)}) scale(${zoom.toFixed(3)}) translate(-50 -50)`;
+export function maxPan(aspect: number, zoom: number): { x: number; y: number } {
+  if (!Number.isFinite(aspect) || aspect <= 0) return { x: 0, y: 0 };
+  const { width, height } = photoRect(aspect, { zoom, x: 0, y: 0 });
+  return { x: Math.max(0, (width - 100) / 2), y: Math.max(0, (height - 100) / 2) };
 }
 
 // ── Colour helpers ──────────────────────────────────────────
@@ -209,4 +221,22 @@ export function isLightColor(hex: string): boolean {
   const [r, g, b] = parseHex(hex);
   // Rec. 709 luma — closer to perceived brightness than a plain average.
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.65;
+}
+
+/**
+ * The balloon's outline, knot and shadow side.
+ *
+ * A pale balloon is cut deeper than a saturated one: white taken down by the usual amount
+ * is still white, and the shape would dissolve into the page behind it.
+ */
+export function outlineColor(hex: string): string {
+  return darken(hex, isLightColor(hex) ? 0.34 : 0.22);
+}
+
+/**
+ * The same colour taken far enough down to set text in. The greeting card tints its paper
+ * from the balloon too, so a pale balloon has to yield ink that still reads on it.
+ */
+export function inkColor(hex: string): string {
+  return darken(hex, isLightColor(hex) ? 0.55 : 0.22);
 }

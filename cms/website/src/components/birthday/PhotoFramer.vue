@@ -14,8 +14,9 @@
  * Fully controlled: the parent owns the file *and* its object URL, since the same URL also
  * feeds the whole-wish preview and two components minting one apiece would leak.
  */
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { DEFAULT_FRAMING, FRAMING_LIMITS, maxPan, type PhotoFraming } from './balloon';
+import { useImageAspect } from './useImageAspect';
 import { isImageFile, prepareImage } from '@/utils/image';
 import WishBalloon from './WishBalloon.vue';
 
@@ -37,32 +38,19 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 const stage = ref<HTMLElement | null>(null);
 const replaceInput = ref<HTMLInputElement | null>(null);
-const natural = ref<{ width: number; height: number } | null>(null);
 const dragOver = ref(false);
 const busy = ref(false);
 const error = ref<string | null>(null);
 
-/**
- * Measure the picture whenever it changes. It is probed through a detached `Image` because
- * the balloon draws it through an SVG `<image>`, which reports no intrinsic size — and the
- * pan limits are derived from exactly that.
- */
-watch(
-  () => props.photoUrl,
-  (url) => {
-    natural.value = null;
-    if (!url) return;
-    const probe = new Image();
-    probe.onload = () => (natural.value = { width: probe.naturalWidth, height: probe.naturalHeight });
-    probe.src = url;
-  },
-  { immediate: true },
-);
+/** How far the photo may travel is decided by its shape, so that has to be measured first. */
+const aspect = useImageAspect(() => props.photoUrl);
 
 const limits = computed(() =>
-  natural.value ? maxPan(natural.value.width, natural.value.height, props.framing.zoom) : { x: 0, y: 0 },
+  aspect.value ? maxPan(aspect.value, props.framing.zoom) : { x: 0, y: 0 },
 );
-const canPan = computed(() => limits.value.x > 0.5 || limits.value.y > 0.5);
+const canPanX = computed(() => limits.value.x > 0.5);
+const canPanY = computed(() => limits.value.y > 0.5);
+const canPan = computed(() => canPanX.value || canPanY.value);
 
 function commit(next: Partial<PhotoFraming>): void {
   const zoom = Math.min(
@@ -71,7 +59,7 @@ function commit(next: Partial<PhotoFraming>): void {
   );
   // Recomputed against the *new* zoom: zooming back out has to reel the photo in too, or
   // the offset it was left at would pull a bare edge into the shape.
-  const bound = natural.value ? maxPan(natural.value.width, natural.value.height, zoom) : { x: 0, y: 0 };
+  const bound = aspect.value ? maxPan(aspect.value, zoom) : { x: 0, y: 0 };
   const clamp = (value: number, max: number): number => Math.min(max, Math.max(-max, value));
 
   emit('update:framing', {
@@ -136,6 +124,10 @@ function onPointerDown(event: PointerEvent): void {
 
 function onPointerMove(event: PointerEvent): void {
   if (!origin || !stage.value) return;
+  // A drag whose release was never seen — the pointer left the window, or the capture was
+  // taken away — would otherwise leave the photo following the bare cursor forever, and
+  // undo the reset button on the next mouse move.
+  if (event.buttons === 0) return endDrag();
   // Screen pixels → box units: the balloon's own box is 100 wide whatever it is rendered at,
   // so the photo keeps pace with the finger at every preview size.
   const perUnit = stage.value.clientWidth / 100;
@@ -168,7 +160,25 @@ function onKeydown(event: KeyboardEvent): void {
   nudge(move[0], move[1]);
 }
 
+/** Back to a centred, un-zoomed photo — and out of any drag that is still half-finished. */
+function resetFraming(): void {
+  endDrag();
+  emit('update:framing', { ...DEFAULT_FRAMING });
+}
+
 const zoomPercent = computed(() => Math.round(props.framing.zoom * 100));
+
+/**
+ * Which way the photo can go, said plainly. Whether it moves sideways or up and down is
+ * decided by its own shape — a tall photo has nothing spare to the left or right until it
+ * is zoomed in — and that is worth saying rather than leaving a drag to do nothing.
+ */
+const panHint = computed(() => {
+  if (!canPan.value) return 'ขยายรูปก่อน จึงจะเลื่อนเลือกส่วนที่จะแสดงได้';
+  if (canPanX.value && canPanY.value) return 'ลากรูปได้ทุกทิศเพื่อเลือกส่วนที่จะแสดง';
+  if (canPanX.value) return 'ลากซ้าย–ขวาเพื่อเลือกส่วนที่จะแสดง · ขยายรูปเพื่อเลื่อนขึ้น–ลงด้วย';
+  return 'ลากขึ้น–ลงเพื่อเลือกส่วนที่จะแสดง · ขยายรูปเพื่อเลื่อนซ้าย–ขวาด้วย';
+});
 </script>
 
 <template>
@@ -206,6 +216,7 @@ const zoomPercent = computed(() => Math.round(props.framing.zoom * 100));
         @pointermove="onPointerMove"
         @pointerup="endDrag"
         @pointercancel="endDrag"
+        @lostpointercapture="endDrag"
         @keydown="onKeydown"
       >
         <!-- Balloon only: the gift and tag belong to the whole-wish preview, not to framing. -->
@@ -232,18 +243,10 @@ const zoomPercent = computed(() => Math.round(props.framing.zoom * 100));
           />
         </label>
 
-        <p class="text-xs text-gray-500">
-          {{
-            canPan
-              ? 'ลากรูปในลูกโป่งเพื่อเลือกส่วนที่จะให้แสดง'
-              : 'ขยายรูปก่อน จึงจะเลื่อนเลือกส่วนที่จะแสดงได้'
-          }}
-        </p>
+        <p class="text-xs text-gray-500">{{ panHint }}</p>
 
         <div class="flex flex-wrap gap-2">
-          <button type="button" class="mini-btn" @click="commit({ ...DEFAULT_FRAMING })">
-            รีเซ็ตตำแหน่ง
-          </button>
+          <button type="button" class="mini-btn" @click="resetFraming">รีเซ็ตตำแหน่ง</button>
           <button type="button" class="mini-btn" @click="replaceInput?.click()">เปลี่ยนรูป</button>
           <button type="button" class="mini-btn mini-btn-danger" @click="remove">ลบรูป</button>
           <input

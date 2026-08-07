@@ -5,7 +5,7 @@
  * a preset and picking a custom colour cannot both look selected at once.
  */
 import { computed } from 'vue';
-import { BALLOON_COLORS, darken } from './balloon';
+import { BALLOON_COLORS, outlineColor } from './balloon';
 
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ 'update:modelValue': [string] }>();
@@ -34,7 +34,7 @@ const customValue = computed(() => (isPreset.value ? '#ffffff' : props.modelValu
         />
         <span
           class="dot"
-          :style="{ background: color.hex, borderColor: darken(color.hex, 0.25) }"
+          :style="{ background: color.hex, borderColor: outlineColor(color.hex) }"
           aria-hidden="true"
         />
         <span class="sr-only">{{ color.label }}</span>

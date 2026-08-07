@@ -15,6 +15,8 @@ const slug = String(route.params.slug || 'birthday');
 
 /** Reading a message freezes the poll, so the list cannot change under the reader. */
 const reading = ref(false);
+/** Set by the sky once there are more balloons than fit on screen at once. */
+const crowded = ref(false);
 const { event, wishes, loading, loadError, notFound } = useBirthdayWall(slug, {
   paused: () => reading.value,
 });
@@ -51,6 +53,11 @@ watch(event, (e) => {
         <p v-if="wishes.length" class="mt-2 text-sm text-gray-600">
           คำอวยพรทั้งหมด {{ wishes.length }} ใบ · กดที่ลูกโป่งเพื่ออ่าน
         </p>
+        <!-- Past a certain number the sky cycles rather than crowds, so say so: someone
+             counting balloons should know the missing ones are still on their way up. -->
+        <p v-if="crowded" class="mt-1 text-xs text-gray-500">
+          ลูกโป่งจะทยอยลอยขึ้นเรื่อย ๆ รอสักครู่เพื่อดูใบอื่น ๆ
+        </p>
       </header>
 
       <p v-if="loadError" class="container-site mt-8 text-center text-sm text-red-600" role="alert">
@@ -77,6 +84,7 @@ watch(event, (e) => {
         :event-title="event?.title"
         :celebrant-name="event?.celebrantName"
         @update:reading="reading = $event"
+        @update:crowded="crowded = $event"
       />
 
       <div v-if="wishes.length" class="cta">
