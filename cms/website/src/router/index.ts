@@ -1,5 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
+declare module 'vue-router' {
+  interface RouteMeta {
+    /** Chrome to wrap the page in; see `src/layouts`. Absent means the site's own. */
+    layout?: 'default' | 'birthday';
+    /** Page opens with a full-bleed banner and runs under the transparent site header. */
+    underHeader?: boolean;
+  }
+}
+
 /**
  * Dynamic routing: only the donation flow, 404 and 500 are hardcoded.
  * Everything else is resolved from the CMS through the catch-all route —
@@ -56,11 +65,14 @@ export const router = createRouter({
       path: '/birthday/wish/:slug?',
       name: 'birthday-wish',
       component: () => import('@/views/birthday/BirthdayWishFormView.vue'),
+      // A party reached by QR code, not a page of the site: own chrome, see BirthdayLayout.
+      meta: { layout: 'birthday' },
     },
     {
       path: '/birthday/:slug?',
       name: 'birthday-wall',
       component: () => import('@/views/birthday/BirthdayWallView.vue'),
+      meta: { layout: 'birthday' },
     },
     {
       path: '/terms',

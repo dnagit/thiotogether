@@ -55,7 +55,24 @@ body {
   /* Held back so the cards and copy in front stay the focus. */
   opacity: 0.35;
 }
-
+/*
+ * Same trick as `.page-bg`, different artwork. No height of its own: the wish form runs
+ * well past one screen, and a fixed `100vh` here would leave its content spilling out of
+ * the box the footer is positioned against. The fixed pseudo-element covers the viewport
+ * whatever the element does.
+ */
+.birthday-bg {
+  position: relative;
+}
+.birthday-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url('/images/bg-birthday.png') center / cover no-repeat;
+  /* Held back so the cards and copy in front stay the focus. */
+  /* opacity: 0.35; */
+}
 /* Sukhumvit Set ships with macOS/iOS; elsewhere this falls back to the CMS theme font. */
 .font-sukhumvit {
   font-family: 'Sukhumvit Set', 'SukhumvitSet-Text', Sukhumvit, var(--font-family);

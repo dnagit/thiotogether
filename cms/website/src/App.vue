@@ -1,17 +1,23 @@
 <script setup lang="ts">
+/**
+ * Boot, then hand the page to a layout.
+ *
+ * The site settings have to be in before anything renders — the header reads the logo and
+ * the menu from them — so that wait lives here, above every layout. What the page is then
+ * wrapped in comes from `meta.layout` on the route: no flag means the site's own chrome.
+ */
 import { computed, onErrorCaptured, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import SiteHeader from '@/components/layout/SiteHeader.vue';
-import SiteFooter from '@/components/layout/SiteFooter.vue';
+import DefaultLayout from '@/layouts/DefaultLayout.vue';
+import BirthdayLayout from '@/layouts/BirthdayLayout.vue';
 import { useSiteStore } from '@/stores/site';
 
 const site = useSiteStore();
 const route = useRoute();
-/**
- * Pages that open with a full-bleed banner run under the transparent header instead of clearing it:
- * home, plus any route flagged with `meta.underHeader`.
- */
-const underHeader = computed(() => route.path === '/' || route.meta.underHeader === true);
+
+const layouts = { default: DefaultLayout, birthday: BirthdayLayout };
+const layout = computed(() => layouts[route.meta.layout ?? 'default']);
+
 const ready = ref(false);
 const failed = ref(false);
 
@@ -36,14 +42,9 @@ onErrorCaptured((err) => {
       <p class="text-gray-500">Please try again in a moment.</p>
     </div>
   </div>
-  <template v-else>
-    <SiteHeader />
-    <!-- `page-bg` paints the shared backdrop once here, so every route gets it without opting in. -->
-    <main class="page-bg min-h-[60vh]" :class="underHeader ? '' : 'pt-[var(--header-h)]'">
-      <RouterView />
-    </main>
-    <SiteFooter />
-  </template>
+  <component :is="layout" v-else>
+    <RouterView />
+  </component>
 </template>
 
 <style scoped>

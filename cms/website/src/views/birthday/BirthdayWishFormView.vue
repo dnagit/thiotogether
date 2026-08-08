@@ -197,232 +197,230 @@ const inputClass =
 </script>
 
 <template>
-  <div class="page-bg font-sukhumvit">
-    <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse">กำลังโหลด…</div>
+  <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse">กำลังโหลด…</div>
 
-    <!-- No such event: nothing to write on -->
-    <div v-else-if="!event" class="container-site max-w-lg py-24 text-center">
-      <div class="mb-3 text-5xl" aria-hidden="true">🔍</div>
-      <h1 class="mb-2 text-xl font-bold">{{ notFound ? 'ไม่พบงานวันเกิดนี้' : 'โหลดข้อมูลไม่สำเร็จ' }}</h1>
-      <p class="text-gray-600">{{ submitError }}</p>
+  <!-- No such event: nothing to write on -->
+  <div v-else-if="!event" class="container-site max-w-lg py-24 text-center">
+    <div class="mb-3 text-5xl" aria-hidden="true">🔍</div>
+    <h1 class="mb-2 text-xl font-bold">{{ notFound ? 'ไม่พบงานวันเกิดนี้' : 'โหลดข้อมูลไม่สำเร็จ' }}</h1>
+    <p class="text-gray-600">{{ submitError }}</p>
+  </div>
+
+  <!-- Sent -->
+  <div v-else-if="result" class="container-site max-w-xl py-16 text-center">
+    <div class="mx-auto mb-6 w-fit" style="--balloon-w: 190px">
+      <WishBalloon
+        :shape="draft.balloonShape"
+        :color="draft.balloonColor"
+        :photo-url="photoUrl"
+        :framing="draft.photoFraming"
+        :gift-image="selectedGift?.imageUrl"
+        :name="previewName"
+      />
+    </div>
+    <h1 class="mb-2 text-2xl font-extrabold">ส่งคำอวยพรแล้ว 🎉</h1>
+    <p class="mb-6 text-gray-600">{{ result.message }}</p>
+
+    <!-- Off screen, and only here so there is something real to rasterise. -->
+    <div class="card-source" aria-hidden="true">
+      <WishCard
+        ref="sentCard"
+        :name="previewName"
+        :message="draft.message"
+        :balloon-shape="draft.balloonShape"
+        :balloon-color="draft.balloonColor"
+        :photo-url="photoUrl"
+        :framing="draft.photoFraming"
+        :background-url="selectedBackground?.imageUrl"
+        :gift-name="selectedGift?.name"
+        :gift-image="selectedGift?.imageUrl"
+        :event-title="event.title"
+        :celebrant-name="event.celebrantName"
+        :created-at="sentAt"
+      />
     </div>
 
-    <!-- Sent -->
-    <div v-else-if="result" class="container-site max-w-xl py-16 text-center">
-      <div class="mx-auto mb-6 w-fit" style="--balloon-w: 190px">
-        <WishBalloon
+    <WishCardActions
+      class="mb-8"
+      center
+      :svg="() => sentCard?.svg ?? null"
+      :name="previewName"
+      :link="sentLink"
+      :theme-color="themeColor"
+    />
+
+    <div class="flex flex-wrap justify-center gap-3">
+      <button
+        type="button"
+        class="btn-solid"
+        :style="{ background: themeColor }"
+        @click="router.push({ name: 'birthday-wall', params: { slug } })"
+      >
+        ดูลูกโป่งคำอวยพร
+      </button>
+      <button type="button" class="btn-outline" @click="writeAnother">เขียนอีกใบ</button>
+    </div>
+  </div>
+
+  <!-- Closed by the admin -->
+  <div v-else-if="event && !event.isOpen" class="container-site max-w-xl py-20 text-center">
+    <div class="mb-3 text-5xl" aria-hidden="true">🎈</div>
+    <h1 class="mb-2 text-xl font-bold">ปิดรับคำอวยพรแล้ว</h1>
+    <p class="mb-6 text-gray-600">ขอบคุณทุกคนที่ร่วมส่งคำอวยพรนะคะ</p>
+    <RouterLink :to="{ name: 'birthday-wall', params: { slug } }" class="btn-solid" :style="{ background: themeColor }">
+      ดูลูกโป่งคำอวยพร
+    </RouterLink>
+  </div>
+
+  <div v-else-if="event" class="container-site max-w-5xl py-8 sm:py-12">
+    <header class="mb-8 text-center">
+      <h1 class="text-2xl font-extrabold sm:text-4xl">{{ event.title }}</h1>
+      <p v-if="event.celebrantName" class="mt-1 text-lg font-semibold" :style="{ color: themeColor }">
+        สุขสันต์วันเกิด {{ event.celebrantName }}
+      </p>
+      <p v-if="event.description" class="mx-auto mt-2 max-w-xl text-gray-600">{{ event.description }}</p>
+    </header>
+
+    <div class="layout">
+      <!-- Preview: first in the DOM so it lands above the form on a phone. -->
+      <aside class="preview">
+        <div class="preview-inner">
+          <div class="mb-3 flex justify-center gap-1" role="tablist" aria-label="เลือกมุมมองตัวอย่าง">
+            <button
+              v-for="view in ['balloon', 'card'] as const"
+              :key="view"
+              type="button"
+              role="tab"
+              class="tab"
+              :class="{ 'tab-on': previewView === view }"
+              :aria-selected="previewView === view"
+              :style="previewView === view ? { background: themeColor } : undefined"
+              @click="previewView = view"
+            >
+              {{ view === 'balloon' ? 'ลูกโป่ง' : 'การ์ด' }}
+            </button>
+          </div>
+
+          <div v-show="previewView === 'balloon'" class="preview-stage">
+            <WishBalloon
+              :shape="draft.balloonShape"
+              :color="draft.balloonColor"
+              :photo-url="photoUrl"
+              :framing="draft.photoFraming"
+              :gift-image="selectedGift?.imageUrl"
+              :name="previewName"
+            />
+          </div>
+
+          <!--
+            Kept mounted rather than swapped in, so switching tabs is instant and the
+            card is already drawn the moment a background is picked.
+          -->
+          <div v-show="previewView === 'card'" class="preview-card">
+            <WishCard
+              :name="previewName"
+              :message="draft.message || 'ข้อความอวยพรของคุณจะอยู่ตรงนี้'"
+              :balloon-shape="draft.balloonShape"
+              :balloon-color="draft.balloonColor"
+              :photo-url="photoUrl"
+              :framing="draft.photoFraming"
+              :background-url="selectedBackground?.imageUrl"
+              :gift-name="selectedGift?.name"
+              :gift-image="selectedGift?.imageUrl"
+              :event-title="event.title"
+              :celebrant-name="event.celebrantName"
+            />
+          </div>
+
+          <p class="mt-4 text-xs text-gray-500">
+            {{
+              previewView === 'balloon'
+                ? 'ลูกโป่งใบนี้จะลอยขึ้นบนหน้ารวมคำอวยพร กดที่ลูกโป่งเพื่ออ่านข้อความ'
+                : 'การ์ดใบนี้คือรูปที่คุณและเพื่อน ๆ บันทึกเก็บไว้ได้'
+            }}
+          </p>
+        </div>
+      </aside>
+
+      <form class="form" novalidate @submit.prevent="submit">
+        <div>
+          <label for="wish-name" class="mb-2 block font-semibold text-gray-800">ชื่อของคุณ</label>
+          <input
+            id="wish-name"
+            v-model="draft.name"
+            type="text"
+            :maxlength="NAME_MAX"
+            autocomplete="name"
+            placeholder="เช่น น้องมิ้นท์"
+            :class="inputClass"
+            :style="{ '--tw-ring-color': themeColor }"
+            :aria-invalid="!!errors.name"
+            :data-error="!!errors.name"
+            aria-describedby="wish-name-error"
+          />
+          <p class="mt-1 text-xs text-gray-500">ชื่อนี้จะแสดงบนป้ายที่ผูกกับของขวัญ</p>
+          <p v-if="errors.name" id="wish-name-error" class="mt-1 text-sm text-red-600" role="alert">
+            {{ errors.name }}
+          </p>
+        </div>
+
+        <div>
+          <label for="wish-message" class="mb-2 block font-semibold text-gray-800">คำอวยพร</label>
+          <textarea
+            id="wish-message"
+            v-model="draft.message"
+            rows="4"
+            :maxlength="MESSAGE_MAX"
+            placeholder="เขียนคำอวยพรวันเกิด…"
+            :class="inputClass"
+            :style="{ '--tw-ring-color': themeColor }"
+            :aria-invalid="!!errors.message"
+            :data-error="!!errors.message"
+            aria-describedby="wish-message-error"
+          />
+          <div class="mt-1 flex justify-between text-xs text-gray-500">
+            <span>ข้อความจะแสดงเมื่อมีคนกดที่ลูกโป่ง</span>
+            <span>{{ draft.message.length }}/{{ MESSAGE_MAX }}</span>
+          </div>
+          <p v-if="errors.message" id="wish-message-error" class="mt-1 text-sm text-red-600" role="alert">
+            {{ errors.message }}
+          </p>
+        </div>
+
+        <BalloonShapePicker v-model="draft.balloonShape" :color="draft.balloonColor" />
+        <BalloonColorPicker v-model="draft.balloonColor" />
+
+        <PhotoFramer
+          :photo-url="photoUrl"
+          :framing="draft.photoFraming"
           :shape="draft.balloonShape"
           :color="draft.balloonColor"
-          :photo-url="photoUrl"
-          :framing="draft.photoFraming"
-          :gift-image="selectedGift?.imageUrl"
-          :name="previewName"
+          @select="setPhoto"
+          @clear="setPhoto(null)"
+          @update:framing="draft.photoFraming = $event"
         />
-      </div>
-      <h1 class="mb-2 text-2xl font-extrabold">ส่งคำอวยพรแล้ว 🎉</h1>
-      <p class="mb-6 text-gray-600">{{ result.message }}</p>
 
-      <!-- Off screen, and only here so there is something real to rasterise. -->
-      <div class="card-source" aria-hidden="true">
-        <WishCard
-          ref="sentCard"
-          :name="previewName"
-          :message="draft.message"
-          :balloon-shape="draft.balloonShape"
-          :balloon-color="draft.balloonColor"
-          :photo-url="photoUrl"
-          :framing="draft.photoFraming"
-          :background-url="selectedBackground?.imageUrl"
-          :gift-name="selectedGift?.name"
-          :gift-image="selectedGift?.imageUrl"
-          :event-title="event.title"
-          :celebrant-name="event.celebrantName"
-          :created-at="sentAt"
-        />
-      </div>
+        <BackgroundPicker v-model="draft.backgroundId" :backgrounds="backgrounds" />
 
-      <WishCardActions
-        class="mb-8"
-        center
-        :svg="() => sentCard?.svg ?? null"
-        :name="previewName"
-        :link="sentLink"
-        :theme-color="themeColor"
-      />
+        <div>
+          <GiftPicker v-model="draft.giftId" :gifts="gifts" />
+          <p v-if="catalogueMissing" class="mt-2 text-sm text-amber-700" role="status">
+            ผู้จัดงานยังไม่ได้เพิ่มของขวัญ — ตัวเลือกด้านบนเป็นเพียงตัวอย่าง ยังส่งคำอวยพรไม่ได้
+          </p>
+          <p v-if="errors.gift" class="mt-1 text-sm text-red-600" role="alert">{{ errors.gift }}</p>
+        </div>
 
-      <div class="flex flex-wrap justify-center gap-3">
+        <p v-if="submitError" class="text-sm text-red-600" role="alert">{{ submitError }}</p>
+
         <button
-          type="button"
-          class="btn-solid"
+          type="submit"
+          class="btn-solid w-full"
           :style="{ background: themeColor }"
-          @click="router.push({ name: 'birthday-wall', params: { slug } })"
+          :disabled="submitting || catalogueMissing"
         >
-          ดูลูกโป่งคำอวยพร
+          {{ submitting ? 'กำลังส่ง…' : 'ส่งคำอวยพร 🎈' }}
         </button>
-        <button type="button" class="btn-outline" @click="writeAnother">เขียนอีกใบ</button>
-      </div>
-    </div>
-
-    <!-- Closed by the admin -->
-    <div v-else-if="event && !event.isOpen" class="container-site max-w-xl py-20 text-center">
-      <div class="mb-3 text-5xl" aria-hidden="true">🎈</div>
-      <h1 class="mb-2 text-xl font-bold">ปิดรับคำอวยพรแล้ว</h1>
-      <p class="mb-6 text-gray-600">ขอบคุณทุกคนที่ร่วมส่งคำอวยพรนะคะ</p>
-      <RouterLink :to="{ name: 'birthday-wall', params: { slug } }" class="btn-solid" :style="{ background: themeColor }">
-        ดูลูกโป่งคำอวยพร
-      </RouterLink>
-    </div>
-
-    <div v-else-if="event" class="container-site max-w-5xl py-8 sm:py-12">
-      <header class="mb-8 text-center">
-        <h1 class="text-2xl font-extrabold sm:text-4xl">{{ event.title }}</h1>
-        <p v-if="event.celebrantName" class="mt-1 text-lg font-semibold" :style="{ color: themeColor }">
-          สุขสันต์วันเกิด {{ event.celebrantName }}
-        </p>
-        <p v-if="event.description" class="mx-auto mt-2 max-w-xl text-gray-600">{{ event.description }}</p>
-      </header>
-
-      <div class="layout">
-        <!-- Preview: first in the DOM so it lands above the form on a phone. -->
-        <aside class="preview">
-          <div class="preview-inner">
-            <div class="mb-3 flex justify-center gap-1" role="tablist" aria-label="เลือกมุมมองตัวอย่าง">
-              <button
-                v-for="view in ['balloon', 'card'] as const"
-                :key="view"
-                type="button"
-                role="tab"
-                class="tab"
-                :class="{ 'tab-on': previewView === view }"
-                :aria-selected="previewView === view"
-                :style="previewView === view ? { background: themeColor } : undefined"
-                @click="previewView = view"
-              >
-                {{ view === 'balloon' ? 'ลูกโป่ง' : 'การ์ด' }}
-              </button>
-            </div>
-
-            <div v-show="previewView === 'balloon'" class="preview-stage">
-              <WishBalloon
-                :shape="draft.balloonShape"
-                :color="draft.balloonColor"
-                :photo-url="photoUrl"
-                :framing="draft.photoFraming"
-                :gift-image="selectedGift?.imageUrl"
-                :name="previewName"
-              />
-            </div>
-
-            <!--
-              Kept mounted rather than swapped in, so switching tabs is instant and the
-              card is already drawn the moment a background is picked.
-            -->
-            <div v-show="previewView === 'card'" class="preview-card">
-              <WishCard
-                :name="previewName"
-                :message="draft.message || 'ข้อความอวยพรของคุณจะอยู่ตรงนี้'"
-                :balloon-shape="draft.balloonShape"
-                :balloon-color="draft.balloonColor"
-                :photo-url="photoUrl"
-                :framing="draft.photoFraming"
-                :background-url="selectedBackground?.imageUrl"
-                :gift-name="selectedGift?.name"
-                :gift-image="selectedGift?.imageUrl"
-                :event-title="event.title"
-                :celebrant-name="event.celebrantName"
-              />
-            </div>
-
-            <p class="mt-4 text-xs text-gray-500">
-              {{
-                previewView === 'balloon'
-                  ? 'ลูกโป่งใบนี้จะลอยขึ้นบนหน้ารวมคำอวยพร กดที่ลูกโป่งเพื่ออ่านข้อความ'
-                  : 'การ์ดใบนี้คือรูปที่คุณและเพื่อน ๆ บันทึกเก็บไว้ได้'
-              }}
-            </p>
-          </div>
-        </aside>
-
-        <form class="form" novalidate @submit.prevent="submit">
-          <div>
-            <label for="wish-name" class="mb-2 block font-semibold text-gray-800">ชื่อของคุณ</label>
-            <input
-              id="wish-name"
-              v-model="draft.name"
-              type="text"
-              :maxlength="NAME_MAX"
-              autocomplete="name"
-              placeholder="เช่น น้องมิ้นท์"
-              :class="inputClass"
-              :style="{ '--tw-ring-color': themeColor }"
-              :aria-invalid="!!errors.name"
-              :data-error="!!errors.name"
-              aria-describedby="wish-name-error"
-            />
-            <p class="mt-1 text-xs text-gray-500">ชื่อนี้จะแสดงบนป้ายที่ผูกกับของขวัญ</p>
-            <p v-if="errors.name" id="wish-name-error" class="mt-1 text-sm text-red-600" role="alert">
-              {{ errors.name }}
-            </p>
-          </div>
-
-          <div>
-            <label for="wish-message" class="mb-2 block font-semibold text-gray-800">คำอวยพร</label>
-            <textarea
-              id="wish-message"
-              v-model="draft.message"
-              rows="4"
-              :maxlength="MESSAGE_MAX"
-              placeholder="เขียนคำอวยพรวันเกิด…"
-              :class="inputClass"
-              :style="{ '--tw-ring-color': themeColor }"
-              :aria-invalid="!!errors.message"
-              :data-error="!!errors.message"
-              aria-describedby="wish-message-error"
-            />
-            <div class="mt-1 flex justify-between text-xs text-gray-500">
-              <span>ข้อความจะแสดงเมื่อมีคนกดที่ลูกโป่ง</span>
-              <span>{{ draft.message.length }}/{{ MESSAGE_MAX }}</span>
-            </div>
-            <p v-if="errors.message" id="wish-message-error" class="mt-1 text-sm text-red-600" role="alert">
-              {{ errors.message }}
-            </p>
-          </div>
-
-          <BalloonShapePicker v-model="draft.balloonShape" :color="draft.balloonColor" />
-          <BalloonColorPicker v-model="draft.balloonColor" />
-
-          <PhotoFramer
-            :photo-url="photoUrl"
-            :framing="draft.photoFraming"
-            :shape="draft.balloonShape"
-            :color="draft.balloonColor"
-            @select="setPhoto"
-            @clear="setPhoto(null)"
-            @update:framing="draft.photoFraming = $event"
-          />
-
-          <BackgroundPicker v-model="draft.backgroundId" :backgrounds="backgrounds" />
-
-          <div>
-            <GiftPicker v-model="draft.giftId" :gifts="gifts" />
-            <p v-if="catalogueMissing" class="mt-2 text-sm text-amber-700" role="status">
-              ผู้จัดงานยังไม่ได้เพิ่มของขวัญ — ตัวเลือกด้านบนเป็นเพียงตัวอย่าง ยังส่งคำอวยพรไม่ได้
-            </p>
-            <p v-if="errors.gift" class="mt-1 text-sm text-red-600" role="alert">{{ errors.gift }}</p>
-          </div>
-
-          <p v-if="submitError" class="text-sm text-red-600" role="alert">{{ submitError }}</p>
-
-          <button
-            type="submit"
-            class="btn-solid w-full"
-            :style="{ background: themeColor }"
-            :disabled="submitting || catalogueMissing"
-          >
-            {{ submitting ? 'กำลังส่ง…' : 'ส่งคำอวยพร 🎈' }}
-          </button>
-        </form>
-      </div>
+      </form>
     </div>
   </div>
 </template>
@@ -451,8 +449,8 @@ const inputClass =
 @media (min-width: 900px) {
   .preview {
     position: sticky;
-    /* Clears the floating site header, which grows with the viewport. */
-    top: calc(var(--header-h) * 0.5 + 1rem);
+    /* The layout's middle band is the scrollport now, so this is an offset from its top. */
+    top: 1rem;
   }
 }
 .preview-stage {
