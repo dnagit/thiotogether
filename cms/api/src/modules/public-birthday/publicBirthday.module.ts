@@ -36,6 +36,8 @@ const wishSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, 'balloonColor must be a hex colour like #0ea5e9')
     .default('#0ea5e9'),
   giftId: z.coerce.number().int().positive().optional(),
+  /** Card artwork. Absent is a legitimate choice: the plain card. */
+  backgroundId: z.coerce.number().int().positive().optional(),
   /**
    * Framing, as produced by the form's editor. Bounds are generous on purpose — the
    * exact travel a photo has depends on its aspect ratio, which only the browser knows.
@@ -46,19 +48,21 @@ const wishSchema = z.object({
   photoY: z.coerce.number().min(-500).max(500).optional(),
 });
 
-/** Public projection of a gift — the admin's ordering and activity flags stay behind. */
-const giftSelect = { id: true, name: true, imageUrl: true } as const;
+/**
+ * Public projection of a catalogue row — a gift or a card background. The admin's ordering
+ * and activity flags stay behind; what is left is what the picker draws.
+ */
+const catalogueSelect = { id: true, name: true, imageUrl: true } as const;
+const activeRows = {
+  where: { deletedAt: null, isActive: true },
+  orderBy: { sortOrder: 'asc' },
+  select: catalogueSelect,
+} as const;
 
 async function findEvent(slug: string) {
   const event = await prisma.birthdayEvent.findFirst({
     where: { slug, isActive: true },
-    include: {
-      gifts: {
-        where: { deletedAt: null, isActive: true },
-        orderBy: { sortOrder: 'asc' },
-        select: giftSelect,
-      },
-    },
+    include: { gifts: activeRows, backgrounds: activeRows },
   });
   if (!event) throw new NotFoundError('Birthday event');
   return event;
@@ -77,6 +81,7 @@ router.get(
       themeColor: event.themeColor,
       isOpen: event.isOpen,
       gifts: event.gifts,
+      backgrounds: event.backgrounds,
     });
   }),
 );
@@ -103,7 +108,8 @@ router.get(
         photoX: true,
         photoY: true,
         createdAt: true,
-        gift: { select: giftSelect },
+        gift: { select: catalogueSelect },
+        background: { select: catalogueSelect },
       },
     });
 
@@ -129,9 +135,15 @@ router.post(
     const event = await findEvent(req.params.slug);
     if (!event.isOpen) throw new ConflictError('ปิดรับคำอวยพรแล้ว');
 
-    // Checked against the *active* catalogue, so a retired gift cannot be posted by id.
+    // Checked against the *active* catalogues, so a retired row cannot be posted by id.
     if (req.body.giftId !== undefined && !event.gifts.some((g) => g.id === req.body.giftId)) {
       throw new BadRequestError('ไม่พบของขวัญที่เลือก');
+    }
+    if (
+      req.body.backgroundId !== undefined &&
+      !event.backgrounds.some((b) => b.id === req.body.backgroundId)
+    ) {
+      throw new BadRequestError('ไม่พบพื้นหลังการ์ดที่เลือก');
     }
 
     let photoUrl: string | null = null;
@@ -149,6 +161,7 @@ router.post(
         balloonShape: req.body.balloonShape,
         balloonColor: req.body.balloonColor,
         giftId: req.body.giftId ?? null,
+        backgroundId: req.body.backgroundId ?? null,
         photoUrl,
         // Framing is meaningless without a photo, so it is only kept alongside one.
         photoZoom: photoUrl ? (req.body.photoZoom ?? 1) : null,

@@ -467,6 +467,11 @@ async function seedBoardGame(): Promise<void> {
  * event is named in the URL, plus a small gift catalogue so the form's picker is never
  * empty. No sample wishes — an empty sky with its own call to action is the honest
  * first-run state.
+ *
+ * No card backgrounds either, and deliberately: one needs a real picture, and a seeded
+ * row pointing at a URL that does not exist would put a broken image in the picker. An
+ * empty list is already a working state — every card is the plain one until an admin
+ * uploads artwork.
  */
 async function seedBirthday(): Promise<void> {
   const existing = await prisma.birthdayEvent.findUnique({ where: { slug: 'birthday' } });

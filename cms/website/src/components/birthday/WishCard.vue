@@ -29,6 +29,8 @@ const props = defineProps<{
   balloonColor: string;
   photoUrl?: string | null;
   framing?: PhotoFraming | null;
+  /** Artwork behind the whole card; null is the plain tinted paper. */
+  backgroundUrl?: string | null;
   giftName?: string | null;
   giftImage?: string | null;
   /** Event heading printed above the greeting, e.g. "อวยพรวันเกิดพี่เจี๊ยบ". */
@@ -48,6 +50,22 @@ const edge = computed(() => outlineColor(color.value));
 /** Text, which needs more contrast than an outline does — the paper is tinted from the same colour. */
 const ink = computed(() => inkColor(color.value));
 const paper = computed(() => lighten(color.value, 0.94));
+
+/**
+ * How the card stays readable on artwork nobody vetted.
+ *
+ * Not a veil over the whole thing: dimming a picture enough for small grey text to survive
+ * a *black* upload leaves nothing of the picture. So the artwork runs full strength to the
+ * edges and the writing sits on a panel inset from them — the arrangement most printed
+ * cards use, and the reason they work with any photograph on the front.
+ *
+ * The panel keeps the message at 9:1 even over black, and the two muted greys are nudged
+ * darker when there is artwork, because they had little contrast to spare on white.
+ */
+const PANEL_INSET = 30;
+const PANEL_OPACITY = 0.85;
+const muted = computed(() => (props.backgroundUrl ? '#4b5563' : '#6b7280'));
+const faint = computed(() => (props.backgroundUrl ? '#6b7280' : '#9ca3af'));
 
 const aspect = useImageAspect(() => props.photoUrl);
 const photo = computed(() =>
@@ -120,6 +138,30 @@ const CONFETTI = [
     </defs>
 
     <rect :width="CARD_WIDTH" :height="height" :fill="`url(#${uid}-paper)`" />
+    <!--
+      The artwork, then the panel the card is written on. `slice` is right here where it
+      was wrong on the balloon: nothing pans across this, so the picture is simply cropped
+      to fill the card.
+    -->
+    <template v-if="backgroundUrl">
+      <image
+        :href="backgroundUrl"
+        x="0"
+        y="0"
+        :width="CARD_WIDTH"
+        :height="height"
+        preserveAspectRatio="xMidYMid slice"
+      />
+      <rect
+        :x="PANEL_INSET"
+        :y="PANEL_INSET"
+        :width="CARD_WIDTH - PANEL_INSET * 2"
+        :height="height - PANEL_INSET * 2"
+        rx="22"
+        fill="#ffffff"
+        :opacity="PANEL_OPACITY"
+      />
+    </template>
     <rect
       x="14"
       y="14"
@@ -150,7 +192,7 @@ const CONFETTI = [
       text-anchor="middle"
       :font-family="CARD_FONT"
       font-size="22"
-      fill="#6b7280"
+      :fill="muted"
     >
       {{ eventTitle }}
     </text>
@@ -234,7 +276,7 @@ const CONFETTI = [
         :y="giftY"
         :font-family="CARD_FONT"
         font-size="22"
-        fill="#6b7280"
+        :fill="muted"
       >
         {{ giftLabel }}
       </text>
@@ -258,7 +300,7 @@ const CONFETTI = [
       text-anchor="middle"
       :font-family="CARD_FONT"
       font-size="20"
-      fill="#9ca3af"
+      :fill="faint"
     >
       {{ dateLabel }}
     </text>

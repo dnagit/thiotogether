@@ -10,7 +10,7 @@
  * The gift catalogue is admin data, so it is the one thing this screen has to fetch
  * before it can be used.
  */
-import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { applySeo } from '@/composables/useSeo';
 import {
@@ -18,10 +18,12 @@ import {
   isPlaceholderGift,
   submitWish,
   type BirthdayEvent,
+  type CardBackground,
   type Gift,
   type WishDraft,
 } from '@/api/birthday';
 import { DEFAULT_COLOR, DEFAULT_FRAMING, type BalloonShapeId } from '@/components/birthday/balloon';
+import BackgroundPicker from '@/components/birthday/BackgroundPicker.vue';
 import BalloonColorPicker from '@/components/birthday/BalloonColorPicker.vue';
 import BalloonShapePicker from '@/components/birthday/BalloonShapePicker.vue';
 import GiftPicker from '@/components/birthday/GiftPicker.vue';
@@ -50,6 +52,7 @@ const draft = reactive<WishDraft>({
   balloonShape: 'round' as BalloonShapeId,
   balloonColor: DEFAULT_COLOR,
   giftId: null,
+  backgroundId: null,
   photo: null,
   photoFraming: { ...DEFAULT_FRAMING },
 });
@@ -89,6 +92,22 @@ const catalogueMissing = computed(() => isPlaceholderGift(draft.giftId));
 const themeColor = computed(() => event.value?.themeColor ?? '#ea480c');
 const gifts = computed<Gift[]>(() => event.value?.gifts ?? []);
 const selectedGift = computed(() => gifts.value.find((g) => g.id === draft.giftId) ?? null);
+/**
+ * Which preview is on show. Picking a background switches to the card by itself: the
+ * choice is invisible on the balloon, and a picker that appears to do nothing is worse
+ * than a panel that changes under you.
+ */
+const previewView = ref<'balloon' | 'card'>('balloon');
+watch(
+  () => draft.backgroundId,
+  () => (previewView.value = 'card'),
+);
+
+const backgrounds = computed<CardBackground[]>(() => event.value?.backgrounds ?? []);
+/** Drives the card preview, so picking a background redraws it on the spot. */
+const selectedBackground = computed(
+  () => backgrounds.value.find((b) => b.id === draft.backgroundId) ?? null,
+);
 /** The tag shows the sender's name; a placeholder keeps the preview from collapsing while empty. */
 const previewName = computed(() => draft.name.trim() || 'ชื่อของคุณ');
 
@@ -213,6 +232,7 @@ const inputClass =
           :balloon-color="draft.balloonColor"
           :photo-url="photoUrl"
           :framing="draft.photoFraming"
+          :background-url="selectedBackground?.imageUrl"
           :gift-name="selectedGift?.name"
           :gift-image="selectedGift?.imageUrl"
           :event-title="event.title"
@@ -266,8 +286,23 @@ const inputClass =
         <!-- Preview: first in the DOM so it lands above the form on a phone. -->
         <aside class="preview">
           <div class="preview-inner">
-            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">ตัวอย่าง</h2>
-            <div class="preview-stage">
+            <div class="mb-3 flex justify-center gap-1" role="tablist" aria-label="เลือกมุมมองตัวอย่าง">
+              <button
+                v-for="view in ['balloon', 'card'] as const"
+                :key="view"
+                type="button"
+                role="tab"
+                class="tab"
+                :class="{ 'tab-on': previewView === view }"
+                :aria-selected="previewView === view"
+                :style="previewView === view ? { background: themeColor } : undefined"
+                @click="previewView = view"
+              >
+                {{ view === 'balloon' ? 'ลูกโป่ง' : 'การ์ด' }}
+              </button>
+            </div>
+
+            <div v-show="previewView === 'balloon'" class="preview-stage">
               <WishBalloon
                 :shape="draft.balloonShape"
                 :color="draft.balloonColor"
@@ -277,8 +312,33 @@ const inputClass =
                 :name="previewName"
               />
             </div>
+
+            <!--
+              Kept mounted rather than swapped in, so switching tabs is instant and the
+              card is already drawn the moment a background is picked.
+            -->
+            <div v-show="previewView === 'card'" class="preview-card">
+              <WishCard
+                :name="previewName"
+                :message="draft.message || 'ข้อความอวยพรของคุณจะอยู่ตรงนี้'"
+                :balloon-shape="draft.balloonShape"
+                :balloon-color="draft.balloonColor"
+                :photo-url="photoUrl"
+                :framing="draft.photoFraming"
+                :background-url="selectedBackground?.imageUrl"
+                :gift-name="selectedGift?.name"
+                :gift-image="selectedGift?.imageUrl"
+                :event-title="event.title"
+                :celebrant-name="event.celebrantName"
+              />
+            </div>
+
             <p class="mt-4 text-xs text-gray-500">
-              ลูกโป่งใบนี้จะลอยขึ้นบนหน้ารวมคำอวยพร กดที่ลูกโป่งเพื่ออ่านข้อความ
+              {{
+                previewView === 'balloon'
+                  ? 'ลูกโป่งใบนี้จะลอยขึ้นบนหน้ารวมคำอวยพร กดที่ลูกโป่งเพื่ออ่านข้อความ'
+                  : 'การ์ดใบนี้คือรูปที่คุณและเพื่อน ๆ บันทึกเก็บไว้ได้'
+              }}
             </p>
           </div>
         </aside>
@@ -341,6 +401,8 @@ const inputClass =
             @update:framing="draft.photoFraming = $event"
           />
 
+          <BackgroundPicker v-model="draft.backgroundId" :backgrounds="backgrounds" />
+
           <div>
             <GiftPicker v-model="draft.giftId" :gifts="gifts" />
             <p v-if="catalogueMissing" class="mt-2 text-sm text-amber-700" role="status">
@@ -397,6 +459,25 @@ const inputClass =
   display: flex;
   justify-content: center;
   --balloon-w: clamp(150px, 42vw, 210px);
+}
+
+/* The card is 720 wide by its own reckoning; here it is however wide the column is. */
+.preview-card {
+  max-width: 240px;
+  margin: 0 auto;
+}
+.preview-card :deep(svg) {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 12%);
+}
+
+.tab {
+  @apply rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-600 transition;
+}
+.tab-on {
+  @apply border-transparent text-white;
 }
 
 .form {

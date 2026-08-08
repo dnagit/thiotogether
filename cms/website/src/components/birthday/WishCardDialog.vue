@@ -50,6 +50,7 @@ const busy = computed(() => actions.value?.saving === true);
         :balloon-color="wish.balloonColor"
         :photo-url="wish.photoUrl"
         :framing="wish.photoFraming"
+        :background-url="wish.background?.imageUrl"
         :gift-name="wish.gift?.name"
         :gift-image="wish.gift?.imageUrl"
         :event-title="eventTitle"

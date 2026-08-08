@@ -14,13 +14,14 @@ import { PERMISSIONS, slugify } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
 
 /**
- * Admin side of the birthday wish wall: the event, the gift catalogue a visitor
- * chooses from, and moderation of the wishes themselves.
+ * Admin side of the birthday wish wall: the event, the two catalogues a visitor chooses
+ * from — presents, and artwork for the card their wish becomes — and moderation of the
+ * wishes themselves.
  *
- * The catalogue is edited as a full replacement list, the same shape as game rewards —
- * far easier to reason about than per-row diffing, and the admin table is small enough
- * that sending it whole costs nothing. Gifts already chosen by a wish are kept as
- * soft-deleted rows rather than removed, so those wishes keep their present.
+ * A catalogue is edited as a full replacement list, the same shape as game rewards — far
+ * easier to reason about than per-row diffing, and the admin table is small enough that
+ * sending it whole costs nothing. Rows already chosen by a wish are kept as soft-deleted
+ * rather than removed, so those wishes keep what they picked.
  */
 
 // ── Validation ──────────────────────────────────────────────
@@ -53,6 +54,21 @@ const giftsSchema = z.object({
     .max(200),
 });
 
+const backgroundsSchema = z.object({
+  backgrounds: z
+    .array(
+      z.object({
+        /** Present for a background being kept; absent for one just added in the UI. */
+        id: z.coerce.number().int().positive().optional(),
+        name: z.string().min(1).max(200),
+        /** Required, unlike a gift's image: the picture is the whole of a background. */
+        imageUrl: z.string().min(1).max(500),
+        isActive: z.boolean().default(true),
+      }),
+    )
+    .max(100),
+});
+
 const wishStatusSchema = z.object({
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
 });
@@ -61,43 +77,55 @@ const wishStatusSchema = z.object({
 
 const eventInclude = {
   gifts: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } },
+  backgrounds: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } },
   _count: { select: { wishes: true } },
 } as const;
 
-/**
- * Replace the catalogue with the submitted list.
- *
- * Rows that disappear are soft-deleted rather than dropped: a wish points at its gift,
- * and hard-deleting would either fail on the constraint or null out a present someone
- * already chose. `sortOrder` is rewritten from the array order, so reordering in the
- * admin table is just a re-save.
- */
-async function replaceGifts(
-  eventId: number,
-  gifts: Array<{ id?: number; name: string; imageUrl?: string | null; isActive: boolean }>,
-): Promise<void> {
-  const keptIds = gifts.map((g) => g.id).filter((id): id is number => typeof id === 'number');
+interface CatalogueRow {
+  id?: number;
+  name: string;
+  imageUrl?: string | null;
+  isActive: boolean;
+}
 
-  await rawPrisma.birthdayGift.updateMany({
+/**
+ * Replace one of an event's catalogues with the submitted list.
+ *
+ * Rows that disappear are soft-deleted rather than dropped: a wish points at its gift and
+ * at its background, and hard-deleting would either fail on the constraint or null out
+ * something someone already chose. `sortOrder` is rewritten from the array order, so
+ * reordering in the admin table is just a re-save.
+ *
+ * The two tables differ only in whether `imageUrl` may be null, which the schemas above
+ * have already settled by the time a list gets here.
+ */
+async function replaceCatalogue(
+  table: typeof rawPrisma.birthdayGift | typeof rawPrisma.birthdayCardBackground,
+  eventId: number,
+  rows: CatalogueRow[],
+): Promise<void> {
+  const keptIds = rows.map((row) => row.id).filter((id): id is number => typeof id === 'number');
+
+  await (table as any).updateMany({
     where: { eventId, deletedAt: null, id: { notIn: keptIds.length ? keptIds : [0] } },
     data: { deletedAt: new Date() },
   });
 
-  for (const [index, gift] of gifts.entries()) {
+  for (const [index, row] of rows.entries()) {
     const data = {
-      name: gift.name,
-      imageUrl: gift.imageUrl ?? null,
-      isActive: gift.isActive,
+      name: row.name,
+      imageUrl: row.imageUrl ?? null,
+      isActive: row.isActive,
       sortOrder: index,
     };
-    if (gift.id) {
+    if (row.id) {
       // `updateMany` scoped by eventId: an id from another event must not be writable.
-      await rawPrisma.birthdayGift.updateMany({
-        where: { id: gift.id, eventId },
+      await (table as any).updateMany({
+        where: { id: row.id, eventId },
         data: { ...data, deletedAt: null },
       });
     } else {
-      await rawPrisma.birthdayGift.create({ data: { ...data, eventId } });
+      await (table as any).create({ data: { ...data, eventId } });
     }
   }
 }
@@ -205,7 +233,23 @@ router.put(
     if (!(await rawPrisma.birthdayEvent.findUnique({ where: { id } }))) {
       throw new NotFoundError('Birthday event');
     }
-    await replaceGifts(id, req.body.gifts);
+    await replaceCatalogue(rawPrisma.birthdayGift, id, req.body.gifts);
+    ok(res, await prisma.birthdayEvent.findFirst({ where: { id }, include: eventInclude }), 'Updated');
+  }),
+);
+
+// ── Card backgrounds ────────────────────────────────────────
+
+router.put(
+  '/:id(\\d+)/backgrounds',
+  authorize(PERMISSIONS.BIRTHDAY_MANAGE),
+  validate({ body: backgroundsSchema }),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!(await rawPrisma.birthdayEvent.findUnique({ where: { id } }))) {
+      throw new NotFoundError('Birthday event');
+    }
+    await replaceCatalogue(rawPrisma.birthdayCardBackground, id, req.body.backgrounds);
     ok(res, await prisma.birthdayEvent.findFirst({ where: { id }, include: eventInclude }), 'Updated');
   }),
 );
@@ -227,7 +271,10 @@ router.get(
         orderBy: { createdAt: 'desc' },
         skip: query.skip,
         take: query.take,
-        include: { gift: { select: { id: true, name: true, imageUrl: true } } },
+        include: {
+          gift: { select: { id: true, name: true, imageUrl: true } },
+          background: { select: { id: true, name: true, imageUrl: true } },
+        },
       }),
       prisma.birthdayWish.count({ where }),
     ]);

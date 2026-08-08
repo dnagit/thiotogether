@@ -857,14 +857,38 @@ model BirthdayEvent {
   /// When true a wish waits for an admin before it floats; when false it appears at once.
   requiresApproval Boolean @default(false) @map("requires_approval")
 
-  gifts  BirthdayGift[]
-  wishes BirthdayWish[]
+  gifts       BirthdayGift[]
+  backgrounds BirthdayCardBackground[]
+  wishes      BirthdayWish[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
   @@map("birthday_events")
+}
+
+/// Artwork behind the greeting card a wish becomes — the picture people save and send on.
+/// Nothing to do with the balloon: the wall never shows it.
+model BirthdayCardBackground {
+  id      Int           @id @default(autoincrement())
+  eventId Int           @map("event_id")
+  event   BirthdayEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name String @db.VarChar(200)
+  /// Required, unlike a gift's: a background with no picture is not a choice.
+  imageUrl  String  @map("image_url") @db.VarChar(500)
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  wishes BirthdayWish[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId, sortOrder])
+  @@map("birthday_card_backgrounds")
 }
 
 /// The catalogue an admin uploads; a visitor ties one of these under their balloon.
@@ -911,6 +935,11 @@ model BirthdayWish {
   /// wishes that chose it.
   giftId Int?          @map("gift_id")
   gift   BirthdayGift? @relation(fields: [giftId], references: [id], onDelete: SetNull)
+
+  /// The card artwork this wish was written on. Null is the plain card, and is also where
+  /// a wish lands if its background is later deleted outright — same reasoning as the gift.
+  backgroundId Int?                    @map("background_id")
+  background   BirthdayCardBackground? @relation(fields: [backgroundId], references: [id], onDelete: SetNull)
 
   status BirthdayWishStatus @default(APPROVED)
 

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
- * Event settings and the gift catalogue.
+ * Event settings and the two catalogues: presents to tie under a balloon, and artwork for
+ * the card a wish becomes.
  *
- * The catalogue is saved as a whole list, matching the API: rows carry their id so an
- * existing gift keeps its identity (and the wishes attached to it) through a reorder or
- * a rename, while a new row has none and is created.
+ * Each is saved as a whole list, matching the API: rows carry their id so an existing entry
+ * keeps its identity (and the wishes attached to it) through a reorder or a rename, while a
+ * new row has none and is created.
  *
- * Retiring a gift is offered as "ปิดใช้งาน" as well as delete, because a deleted gift
+ * Retiring an entry is offered as "ปิดใช้งาน" as well as delete, because a deleted one
  * disappears from the picker but the wishes that already chose it keep showing it — the
  * toggle makes that the obvious move rather than a surprise.
  */
@@ -17,7 +18,8 @@ import { http } from '@/api/http';
 import MediaPicker from '@/components/MediaPicker.vue';
 import { PERMISSIONS, type ApiResponse } from '@cms/shared';
 
-interface Gift {
+/** Both catalogues are the same row; only a background insists on having a picture. */
+interface CatalogueRow {
   id?: number;
   name: string;
   imageUrl: string | null;
@@ -29,7 +31,11 @@ const router = useRouter();
 const id = Number(route.params.id);
 
 const event = ref<any>(null);
-const gifts = ref<Gift[]>([]);
+const gifts = ref<CatalogueRow[]>([]);
+const backgrounds = ref<CatalogueRow[]>([]);
+
+const toRows = (list: any[]): CatalogueRow[] =>
+  list.map((row) => ({ id: row.id, name: row.name, imageUrl: row.imageUrl, isActive: row.isActive }));
 const loading = ref(true);
 const saving = ref(false);
 
@@ -41,12 +47,8 @@ void http
   .get<ApiResponse<any>>(`/birthday/${id}`)
   .then(({ data }) => {
     event.value = data.data;
-    gifts.value = data.data.gifts.map((g: any) => ({
-      id: g.id,
-      name: g.name,
-      imageUrl: g.imageUrl,
-      isActive: g.isActive,
-    }));
+    gifts.value = toRows(data.data.gifts);
+    backgrounds.value = toRows(data.data.backgrounds ?? []);
   })
   .catch(() => void router.push({ name: 'birthday' }))
   .finally(() => (loading.value = false));
@@ -75,26 +77,47 @@ async function saveGifts(): Promise<void> {
     const { data } = await http.put<ApiResponse<any>>(`/birthday/${id}/gifts`, { gifts: gifts.value });
     // Re-read so newly created rows come back with their ids; without this a second
     // save would create duplicates instead of updating what was just added.
-    gifts.value = data.data.gifts.map((g: any) => ({
-      id: g.id, name: g.name, imageUrl: g.imageUrl, isActive: g.isActive,
-    }));
+    gifts.value = toRows(data.data.gifts);
     ElMessage.success('บันทึกของขวัญแล้ว');
   } finally {
     saving.value = false;
   }
 }
 
-function addGift(): void {
-  gifts.value.push({ name: '', imageUrl: null, isActive: true });
+async function saveBackgrounds(): Promise<void> {
+  if (backgrounds.value.some((b) => !b.name.trim())) {
+    ElMessage.warning('กรุณาใส่ชื่อพื้นหลังให้ครบทุกช่อง');
+    return;
+  }
+  // The API rejects a background with no picture, so it is caught here where the empty
+  // row is still on screen and obvious.
+  if (backgrounds.value.some((b) => !b.imageUrl)) {
+    ElMessage.warning('กรุณาเลือกรูปพื้นหลังให้ครบทุกแถว');
+    return;
+  }
+  saving.value = true;
+  try {
+    const { data } = await http.put<ApiResponse<any>>(`/birthday/${id}/backgrounds`, {
+      backgrounds: backgrounds.value,
+    });
+    backgrounds.value = toRows(data.data.backgrounds);
+    ElMessage.success('บันทึกพื้นหลังการ์ดแล้ว');
+  } finally {
+    saving.value = false;
+  }
 }
-function removeGift(index: number): void {
-  gifts.value.splice(index, 1);
+
+function addRow(list: CatalogueRow[]): void {
+  list.push({ name: '', imageUrl: null, isActive: true });
 }
-function move(index: number, delta: number): void {
+function removeRow(list: CatalogueRow[], index: number): void {
+  list.splice(index, 1);
+}
+function move(list: CatalogueRow[], index: number, delta: number): void {
   const target = index + delta;
-  if (target < 0 || target >= gifts.value.length) return;
-  const [row] = gifts.value.splice(index, 1);
-  gifts.value.splice(target, 0, row);
+  if (target < 0 || target >= list.length) return;
+  const [row] = list.splice(index, 1);
+  list.splice(target, 0, row);
 }
 
 async function copy(text: string): Promise<void> {
@@ -177,7 +200,7 @@ async function copy(text: string): Promise<void> {
         </ElButton>
       </ElCard>
 
-      <ElCard>
+      <ElCard class="mb">
         <template #header>
           <div class="card-header">
             <b>ของขวัญให้เลือก</b>
@@ -188,8 +211,8 @@ async function copy(text: string): Promise<void> {
         <ElTable :data="gifts" size="small">
           <ElTableColumn label="ลำดับ" width="110" align="center">
             <template #default="{ $index }">
-              <ElButton size="small" text :disabled="$index === 0" @click="move($index, -1)">↑</ElButton>
-              <ElButton size="small" text :disabled="$index === gifts.length - 1" @click="move($index, 1)">↓</ElButton>
+              <ElButton size="small" text :disabled="$index === 0" @click="move(gifts, $index, -1)">↑</ElButton>
+              <ElButton size="small" text :disabled="$index === gifts.length - 1" @click="move(gifts, $index, 1)">↓</ElButton>
             </template>
           </ElTableColumn>
           <ElTableColumn label="ชื่อของขวัญ" min-width="200">
@@ -203,7 +226,7 @@ async function copy(text: string): Promise<void> {
           </ElTableColumn>
           <ElTableColumn label="" width="80" align="center">
             <template #default="{ $index }">
-              <ElButton size="small" type="danger" text @click="removeGift($index)">ลบ</ElButton>
+              <ElButton size="small" type="danger" text @click="removeRow(gifts, $index)">ลบ</ElButton>
             </template>
           </ElTableColumn>
         </ElTable>
@@ -214,7 +237,7 @@ async function copy(text: string): Promise<void> {
         </div>
 
         <div class="mt">
-          <ElButton @click="addGift">+ เพิ่มของขวัญ</ElButton>
+          <ElButton @click="addRow(gifts)">+ เพิ่มของขวัญ</ElButton>
           <ElButton v-permission="PERMISSIONS.BIRTHDAY_MANAGE" type="primary" :loading="saving" @click="saveGifts">
             บันทึกของขวัญ
           </ElButton>
@@ -223,6 +246,55 @@ async function copy(text: string): Promise<void> {
           ของขวัญที่ถูกลบจะหายจากตัวเลือก แต่คำอวยพรที่เลือกไว้แล้วยังแสดงของขวัญเดิมต่อไป
         </div>
       </ElCard>
+
+      <ElCard>
+        <template #header>
+          <div class="card-header">
+            <b>พื้นหลังการ์ด</b>
+            <span class="text-muted">ผู้ร่วมงานจะเลือกหนึ่งแบบเป็นพื้นหลังการ์ดอวยพรของตัวเอง</span>
+          </div>
+        </template>
+
+        <ElTable :data="backgrounds" size="small">
+          <ElTableColumn label="ลำดับ" width="110" align="center">
+            <template #default="{ $index }">
+              <ElButton size="small" text :disabled="$index === 0" @click="move(backgrounds, $index, -1)">↑</ElButton>
+              <ElButton size="small" text :disabled="$index === backgrounds.length - 1" @click="move(backgrounds, $index, 1)">↓</ElButton>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn label="ชื่อแบบ" min-width="200">
+            <template #default="{ row }"><ElInput v-model="row.name" placeholder="เช่น ลายคอนเฟตติ" /></template>
+          </ElTableColumn>
+          <ElTableColumn label="รูปพื้นหลัง" width="220">
+            <template #default="{ row }"><MediaPicker v-model="row.imageUrl" /></template>
+          </ElTableColumn>
+          <ElTableColumn label="เปิดใช้" width="100" align="center">
+            <template #default="{ row }"><ElSwitch v-model="row.isActive" /></template>
+          </ElTableColumn>
+          <ElTableColumn label="" width="80" align="center">
+            <template #default="{ $index }">
+              <ElButton size="small" type="danger" text @click="removeRow(backgrounds, $index)">ลบ</ElButton>
+            </template>
+          </ElTableColumn>
+        </ElTable>
+
+        <div v-if="!backgrounds.length" class="empty">
+          <div class="empty-icon">🖼️</div>
+          <p>ยังไม่มีพื้นหลัง — ถ้าไม่เพิ่ม ทุกคนจะได้การ์ดพื้นสีเรียบตามสีลูกโป่ง</p>
+        </div>
+
+        <div class="mt">
+          <ElButton @click="addRow(backgrounds)">+ เพิ่มพื้นหลัง</ElButton>
+          <ElButton v-permission="PERMISSIONS.BIRTHDAY_MANAGE" type="primary" :loading="saving" @click="saveBackgrounds">
+            บันทึกพื้นหลัง
+          </ElButton>
+        </div>
+        <div class="hint text-muted mt">
+          แนะนำรูปแนวตั้งอัตราส่วนราว 4:5 (เช่น 1440×1800) — การ์ดจะครอบรูปให้เต็มและเคลือบสีขาวบาง ๆ
+          ทับไว้เพื่อให้อ่านข้อความออก
+        </div>
+      </ElCard>
+
     </template>
   </div>
 </template>

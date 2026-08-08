@@ -21,6 +21,18 @@ export interface Gift {
   imageUrl: string | null;
 }
 
+/**
+ * Artwork for the back of the greeting card, also uploaded by the admin.
+ *
+ * Same shape as a gift but for the picture, which is the whole point of one and so is
+ * never null. Choosing none is allowed and means the plain card.
+ */
+export interface CardBackground {
+  id: number | string;
+  name: string;
+  imageUrl: string;
+}
+
 export interface BirthdayEvent {
   slug: string;
   title: string;
@@ -32,6 +44,7 @@ export interface BirthdayEvent {
   /** False once the admin closes submissions; the form turns into a read-only notice. */
   isOpen: boolean;
   gifts: Gift[];
+  backgrounds: CardBackground[];
 }
 
 export interface Wish {
@@ -43,6 +56,7 @@ export interface Wish {
   photoUrl: string | null;
   photoFraming: PhotoFraming | null;
   gift: Gift | null;
+  background: CardBackground | null;
   createdAt: string | null;
 }
 
@@ -52,6 +66,8 @@ export interface WishDraft {
   balloonShape: BalloonShapeId;
   balloonColor: string;
   giftId: number | string | null;
+  /** Null is the plain card, which is what an event with no backgrounds gives everyone. */
+  backgroundId: number | string | null;
   photo: File | null;
   photoFraming: PhotoFraming;
 }
@@ -75,7 +91,13 @@ export function isPlaceholderGift(id: Gift['id'] | null): boolean {
 
 export async function fetchEvent(slug: string): Promise<BirthdayEvent> {
   const event = await get<BirthdayEvent>(`/birthday/${encodeURIComponent(slug)}`);
-  return { ...event, gifts: event.gifts?.length ? event.gifts : FALLBACK_GIFTS };
+  return {
+    ...event,
+    gifts: event.gifts?.length ? event.gifts : FALLBACK_GIFTS,
+    // No stand-ins for backgrounds: an empty list is a complete answer — every card is
+    // the plain one — where an empty gift catalogue would leave the picker blank.
+    backgrounds: event.backgrounds ?? [],
+  };
 }
 
 export async function fetchWishes(slug: string): Promise<Wish[]> {
@@ -97,6 +119,7 @@ export async function submitWish(
   body.append('balloonShape', draft.balloonShape);
   body.append('balloonColor', draft.balloonColor);
   if (draft.giftId !== null) body.append('giftId', String(draft.giftId));
+  if (draft.backgroundId !== null) body.append('backgroundId', String(draft.backgroundId));
   if (draft.photo) {
     body.append('photo', draft.photo);
     body.append('photoZoom', draft.photoFraming.zoom.toFixed(3));
