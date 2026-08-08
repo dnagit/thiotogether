@@ -40,137 +40,172 @@ const pinned = computed(() => route.name === 'birthday-wall');
 /**
  * The band of clouds across the top.
  *
- * Three short loops with an alpha channel, each holding one cloud that all but fills its
- * 1920×800 frame — so an instance *is* a cloud, and the band is built by scattering a few
- * of them. Sizes and offsets are in `vw` throughout: this is a picture of a sky and should
- * scale with the page rather than reflow inside it.
+ * Two transparent PNGs, each holding one cloud that fills four fifths of its 1920×800 frame
+ * and sits centred in it — so an instance *is* a cloud, and the band is built by scattering
+ * a number of them at different sizes.
  *
- * Ten of them on a wide screen and eight on a phone. Every instance is another VP9 decoder
- * running at the source's full 1920×800 however small it is drawn, so they are made wide
- * and overlapping rather than small and many — if this ever costs too much on an old phone,
- * re-export the three files at 960×400 and nothing here has to change.
+ * They were WebM before, then GIF. WebM lost because Safari will not composite the alpha of
+ * a VP9 file and every iPhone got opaque blocks; GIF lost because the three files came to
+ * 143 MB and its transparency is one bit, so the soft edges went hard. A PNG has real alpha,
+ * works everywhere, and costs two decodes for the whole page however many clouds there are.
  *
- * Note for Safari: these are VP9-with-alpha, which it does not composite. There, the sky is
- * simply cloudless — the page is built to look right without them.
+ * The drift is the trade that comes with a still image: the artwork no longer animates
+ * itself, so the page moves it instead — see `.cloud` in the stylesheet.
  */
 const wide = useMediaQuery('(min-width: 700px)');
 
 /**
  * Two arrangements rather than one that scales.
  *
- * Widths are in `vw` in both, which is what keeps a cloud a cloud rather than a shape that
- * reflows. Where they part company is the vertical: on a wide screen the bank is a band
- * across the top and `vw` places it, but a phone is a third as wide and twice as tall, so
- * the same numbers draw a sliver. There the tops are in `svh` instead, and the bank is
- * carried down to about halfway.
+ * Both are written in cloud units — see `--cloud-u` — which keeps a cloud a cloud rather
+ * than a shape that reflows. Where they part company is the vertical: on a wide screen the
+ * bank is a band across the top and the same unit places it, but a phone is a third as wide
+ * and twice as tall, so those numbers would draw a sliver. There `y` is in `svh` and the
+ * bank carries much further down the screen.
+ *
+ * Both hold eleven. The rows differ — four across a wide screen, five down a phone — because
+ * a phone fits two or three clouds abreast where a monitor fits five.
  */
 type Cloud = {
-  src: 1 | 2 | 3;
-  left: number;
+  src: 1 | 2;
+  /**
+   * Where the middle of the cloud sits: `x` across the page as a percentage, `y` down it in
+   * the set's own unit. Both are the middle of the *cloud*, not of its frame — see `clouds`.
+   */
+  x: number;
+  y: number;
+  /** Frame width, in cloud units. The cloud inside it is four fifths of this. */
   width: number;
-  top: string;
   flip?: boolean;
-  /** Seconds into the 7.68s loop to start at, so two instances of one file differ. */
-  seek?: number;
+  /** How long one sweep of the wander takes. Distance is derived from `width`. */
+  time: number;
 };
 
+/**
+ * No two the same size, and the range is wide enough to read as distance rather than as
+ * eleven of one cloud: the largest is a little over twice the smallest.
+ */
 const CLOUDS_WIDE: Cloud[] = [
-  // Three overlapping runs. A scatter leaves holes; the artwork this copies is a solid bank.
-  { src: 1, left: -12, width: 44, top: '-8vw' },
-  { src: 2, left: 18, width: 46, top: '-9vw' },
-  { src: 1, left: 50, width: 46, top: '-8vw', flip: true },
-  { src: 2, left: 78, width: 44, top: '-7vw', flip: true },
+  // Top of the bank — edge to edge, and the biggest of them.
+  { src: 1, x: 8.4, y: 3.5, width: 37, time: 17 },
+  { src: 2, x: 22.5, y: 0.8, width: 30, flip: true, time: 26 },
+  { src: 1, x: 37.2, y: 4.2, width: 35, time: 34 },
+  { src: 2, x: 54.0, y: 2.7, width: 32, flip: true, time: 22 },
+  { src: 1, x: 75.3, y: 2.9, width: 36, time: 31 },
+  { src: 2, x: 90.7, y: 0.5, width: 31, flip: true, time: 19 },
 
-  { src: 3, left: -6, width: 42, top: '1vw', flip: true },
-  { src: 2, left: 26, width: 44, top: '2vw' },
-  { src: 1, left: 60, width: 44, top: '1vw', flip: true },
+  // Second course, set into the gaps above so no sky shows between them.
+  { src: 1, x: 9.7, y: 12.2, width: 34, flip: true, time: 27 },
+  { src: 2, x: 27.1, y: 13.0, width: 27, time: 35 },
+  { src: 1, x: 45.4, y: 11.4, width: 33, flip: true, time: 23 },
+  { src: 2, x: 63.6, y: 10.5, width: 28, time: 32 },
+  { src: 1, x: 78.2, y: 12.2, width: 29, flip: true, time: 20 },
+  { src: 2, x: 94.1, y: 9.0, width: 26, time: 28 },
 
-  { src: 2, left: 6, width: 40, top: '8vw' },
-  { src: 3, left: 40, width: 42, top: '9vw', flip: true },
-  { src: 1, left: 72, width: 42, top: '8vw' },
+  // The lower edge. Hung at three different depths, which is what scallops it.
+  { src: 2, x: 34.9, y: 20.5, width: 22, flip: true, time: 25 },
+  { src: 1, x: 58.2, y: 18.2, width: 24, time: 33 },
+  { src: 2, x: 92.8, y: 15.8, width: 23, flip: true, time: 21 },
 ];
 
-// Four runs carrying the bank down to about two thirds of the screen, where a phone has
-// height to spare and the top-only band of the wide layout would look like a fringe.
-/*
- * Four runs, each a mirrored pair.
+/**
+ * The same eleven clouds, rearranged rather than reduced.
  *
- * `left` positions the *frame*, and none of the three sources has its cloud centred in its
- * own frame — they sit at 45%, 56% and 49% of it. Place by eye and the bank leans: the
- * first attempt covered the left half half again as much as the right, and both a
- * bounding-box correction and a search over measured density profiles tipped it as far the
- * other way, because a run high enough to be half off the top of the screen contributes
- * almost nothing to what is actually seen.
- *
- * So balance is made structural rather than tuned. Each run is one source twice, the second
- * mirrored and offset to `100 − left − width`, which is symmetric about the centre of the
- * screen whatever the artwork does and whatever part of the run is on screen.
- *
- * The clouds are drawn wider than the screen on purpose. A source is transparent around its
- * edges as well as inside its frame, so runs spaced by the frame height leave bands of sky
- * between them; oversized clouds overlap enough to close those, and four runs of two cover
- * what five of two did — which is four fewer decoders on a phone.
- *
- * `seek` is what keeps that from looking like a mirror: the pair share a file, so without it
- * they would drift in perfect symmetry. Starting one half a loop in breaks the reflection
- * while leaving the balance alone.
+ * A phone is a third as wide and twice as tall, so the wide set's four rows would draw a
+ * sliver across the top: `y` is in `svh` here and the bank carries much further down. The
+ * clouds are far wider as a share of the page — a phone only fits two or three across — but
+ * far smaller in pixels, which is what "scale to the screen" comes to on this axis.
  */
 const CLOUDS_NARROW: Cloud[] = [
-  { src: 3, left: -34, width: 118, top: '-16svh' },
-  { src: 3, left: 16, width: 118, top: '-16svh', flip: true, seek: 3.8 },
-  { src: 1, left: -32, width: 116, top: '2svh' },
-  { src: 1, left: 16, width: 116, top: '2svh', flip: true, seek: 3.8 },
-  { src: 2, left: -36, width: 120, top: '20svh' },
-  { src: 2, left: 16, width: 120, top: '20svh', flip: true, seek: 3.8 },
-  // Pushed apart and set at different heights: at the same height in exact reflection they
-  // read as one shape repeated rather than two clouds. The offsets stay mirrored, so the
-  // balance above is untouched.
-  { src: 1, left: -42, width: 124, top: '34svh', flip: true },
-  { src: 1, left: 18, width: 124, top: '42svh', seek: 3.8 },
+  // A looser bank than the wide set's: fewer courses, smaller clouds, more sky between.
+  { src: 1, x: 10.4, y: 4.3, width: 53, time: 17 },
+  { src: 2, x: 35.5, y: 0.2, width: 43, flip: true, time: 26 },
+  { src: 1, x: 74.0, y: 2.5, width: 57, time: 34 },
+
+  { src: 2, x: 23.4, y: 10.6, width: 48, flip: true, time: 22 },
+  { src: 1, x: 63.2, y: 12.3, width: 58, time: 31 },
+  { src: 2, x: 89.3, y: 8.7, width: 38, flip: true, time: 19 },
+
+  // The lower edge, thinning as it goes.
+  { src: 1, x: 16.5, y: 18.3, width: 52, time: 27 },
+  { src: 2, x: 32.3, y: 16.7, width: 40, flip: true, time: 35 },
+  { src: 1, x: 79.8, y: 20.3, width: 55, time: 23 },
+  { src: 2, x: 16.5, y: 27.1, width: 46, flip: true, time: 32 },
+  { src: 1, x: 55.5, y: 22.9, width: 50, time: 20 },
+  { src: 2, x: 77.1, y: 28.8, width: 36, flip: true, time: 28 },
 ];
 
-const clouds = computed(() =>
-  (wide.value ? CLOUDS_WIDE : CLOUDS_NARROW).map((cloud, index) => ({
-    key: `${cloud.src}-${index}`,
-    src: `/images/Cloud${cloud.src}.gif`,
-    seek: cloud.seek,
-    style: {
-      left: `${cloud.left}vw`,
-      top: cloud.top,
-      width: `${cloud.width}vw`,
-      transform: cloud.flip ? 'scaleX(-1)' : undefined,
-    },
-  })),
-);
+/** Where the painted cloud sits inside its frame. Measured: x 9–88.3%, y the full height. */
+const CLOUD_CENTRE_X = 0.486;
+/** Frame height as a share of its width — the files are 1920×800. */
+const FRAME_RATIO = 800 / 1920;
 
-/** Someone who asked for less movement gets the same sky, holding still. */
-const stillness = useMediaQuery('(prefers-reduced-motion: reduce)');
-function onCloudReady(event: Event): void {
-  const video = event.target as HTMLVideoElement;
-  const seek = Number(video.dataset.seek);
-  if (seek > 0 && video.currentTime < 0.1) video.currentTime = seek;
-  if (stillness.value) video.pause();
-}
+const clouds = computed(() => {
+  const wideSet = wide.value;
+  const unit = wideSet ? 'u' : 'svh';
+  return (wideSet ? CLOUDS_WIDE : CLOUDS_NARROW).map((cloud, index) => {
+    // Both axes are anchored on the middle of the cloud, so a size can be changed on its own:
+    // it grows around where it already sat instead of shoving off to the right and upwards.
+    const halfHeight = (cloud.width * FRAME_RATIO) / 2;
+    /*
+     * Sideways travel is what carries the wander, and it is tied to size: the big clouds are
+     * the near ones, so they sweep furthest, and the small ones sit back and barely move.
+     *
+     * The wide bank can afford a longer sweep — it is five or six clouds across, so its
+     * neighbours still overlap at the extremes. A phone fits three, and the same distance
+     * pulls them apart into gaps and throws the left/right weight out by a third of the
+     * screen, so the portrait bank travels less far.
+     */
+    const drift = cloud.width / (wideSet ? 5 : 6);
+    /*
+     * The bob is the second half of it. One `alternate` animation can only slide a cloud back
+     * and forth along a line, which reads as a slideshow the moment two clouds line up; a
+     * second animation on a different axis *and* a different period turns that into a slow
+     * open loop that never visibly repeats. The ratio varies per cloud so no two trace the
+     * same figure, and it is kept clear of 1/2 and 3/4 so a cloud does not fall into step
+     * with itself either.
+     */
+    const bobTime = cloud.time * (0.58 + ((index * 3) % 5) * 0.04);
+    const u = (n: number) => `calc(${n.toFixed(2)} * var(--cloud-u))`;
+    return {
+      key: `${cloud.src}-${index}`,
+      src: `/images/Cloud${cloud.src}.png`,
+      frame: {
+        left: `calc(${cloud.x}% - ${CLOUD_CENTRE_X * cloud.width} * var(--cloud-u))`,
+        top:
+          unit === 'u'
+            ? u(cloud.y - halfHeight)
+            : `calc(${cloud.y}svh - ${halfHeight} * var(--cloud-u))`,
+        width: u(cloud.width),
+        '--drift': u(drift),
+        animationDuration: `${cloud.time}s`,
+        // Negative, so they are already spread through their wander when the page opens.
+        animationDelay: `-${(cloud.time * ((index * 0.37) % 1)).toFixed(1)}s`,
+      },
+      art: {
+        '--flip-x': cloud.flip ? -1 : 1,
+        '--bob': u(cloud.width / 26),
+        animationDuration: `${bobTime.toFixed(1)}s`,
+        // Offset from the sideways one, so a cloud is never at both extremes at once.
+        animationDelay: `-${(bobTime * ((index * 0.61 + 0.23) % 1)).toFixed(1)}s`,
+      },
+    };
+  });
+});
 </script>
 
 <template>
   <div class="birthday-shell birthday-bg font-sukhumvit" :class="{ 'shell-pinned': pinned }">
     <!-- Scenery. Behind everything, and never in the way of a tap. -->
     <div class="sky-clouds" aria-hidden="true">
-      <img
-        v-for="cloud in clouds"
-        :key="cloud.key"
-        class="cloud"
-        :src="cloud.src"
-        :style="cloud.style"
-        :data-seek="cloud.seek"
-        autoplay
-        muted
-        loop
-        playsinline
-        preload="auto"
-        @loadeddata="onCloudReady"
-      />
+      <!--
+        Two elements per cloud, because the wander is two animations: the frame carries it
+        sideways, the picture inside bobs on its own clock. One element could only do one of
+        them — a second `animation` on the same box replaces the first transform.
+      -->
+      <div v-for="cloud in clouds" :key="cloud.key" class="cloud" :style="cloud.frame">
+        <img class="cloud-art" :src="cloud.src" :style="cloud.art" alt="" decoding="async" />
+      </div>
     </div>
 
     <header class="bar" :class="{ 'bar-float': pinned }">
@@ -211,7 +246,12 @@ function onCloudReady(event: Event): void {
  * visible and still.
  */
 .birthday-shell {
-  --bar-h: clamp(84px, 13vw, 132px);
+  /*
+   * The logo is sized off this, and its canvas carries about a third of its height in
+   * transparent margin — the mark itself is only 71% of the file — so the bar has to run
+   * taller than the artwork looks to give the mark the presence it wants.
+   */
+  --bar-h: clamp(100px, 16vw, 164px);
   /* The shared name for "how tall the thing at the top is", which pages still read. */
   --header-h: var(--bar-h);
   /*
@@ -225,6 +265,20 @@ function onCloudReady(event: Event): void {
    */
   --foot-scale: 1.22;
   --foot-h: calc(10.5vw * var(--foot-scale));
+  /*
+   * The unit the whole cloud band is drawn in — sizes, positions and travel alike.
+   *
+   * It wants to be `1vw`, because a cloud measured against the page width stays the same
+   * cloud whatever the window does. The trouble is that the band is then as deep as the page
+   * is wide, which on a short wide monitor runs most of the way down the screen. `min` hands
+   * the decision to whichever axis is tighter: `vw` on ordinary and tall screens, where
+   * nothing changes, and `svh` once the window is wider than about 16:9, where the clouds
+   * shrink together and the band stays inside its share of the height.
+   *
+   * 1.55 is that share divided by the band's depth in units — see the arrangements above,
+   * whose lowest cloud reaches 37 — so the bank stops just under 60% of the screen.
+   */
+  --cloud-u: min(1vw, 1.55svh);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -251,7 +305,7 @@ function onCloudReady(event: Event): void {
 /*
  * The clouds hang off the top of the shell rather than filling a box of their own: their
  * own transparency is the edge of the band, so there is nothing to clip them to. What keeps
- * them from running off the page is the shell's `overflow: hidden`.
+ * them from running off the page is the shell's clipping.
  */
 .sky-clouds {
   position: absolute;
@@ -265,11 +319,60 @@ function onCloudReady(event: Event): void {
   z-index: -1;
   pointer-events: none;
 }
+.cloud,
+.cloud-art {
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  will-change: transform;
+}
+
+/* The frame: placed by the script, and the half of the wander that goes sideways. */
 .cloud {
   position: absolute;
+  animation-name: drift-x;
+}
+
+.cloud-art {
+  display: block;
+  width: 100%;
   height: auto;
   /* The source frames are 1920×800; `auto` height keeps that ratio at any width. */
   aspect-ratio: 1920 / 800;
+  animation-name: bob-y;
+}
+
+@keyframes drift-x {
+  from {
+    transform: translateX(calc(var(--drift) * -1));
+  }
+  to {
+    transform: translateX(var(--drift));
+  }
+}
+
+/*
+ * The flip rides along in the bob's transform — it has to, or it would replace it. Scaling by
+ * ±1 rather than swapping the property in and out keeps that a single rule.
+ */
+@keyframes bob-y {
+  from {
+    transform: translateY(calc(var(--bob) * -1)) scaleX(var(--flip-x));
+  }
+  to {
+    transform: translateY(var(--bob)) scaleX(var(--flip-x));
+  }
+}
+
+/* Someone who asked for less movement gets the sky, holding still. */
+@media (prefers-reduced-motion: reduce) {
+  .cloud {
+    animation: none;
+  }
+  .cloud-art {
+    animation: none;
+    transform: scaleX(var(--flip-x));
+  }
 }
 
 /* No backdrop, no border, no blur: the page's own artwork runs straight up behind it. */
