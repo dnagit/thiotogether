@@ -9,7 +9,7 @@
  *
  * The card itself is the parent's: this only needs to be able to reach its `<svg>`.
  */
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { cardFileName, svgToPng } from './wishCard';
 import { inkColor, isLightColor, lighten, outlineColor } from './balloon';
 
@@ -72,6 +72,57 @@ const viaShareSheet = computed(() => onApple.value && typeof navigator.share ===
 /** Both routes that end in the device's own picture library — the sheet's, and Android's. */
 const toGallery = computed(() => viaShareSheet.value || touch.value);
 
+/**
+ * Whether this is a chat app's own browser rather than a browser.
+ *
+ * It matters because {@link download} does nothing at all in one. A LINE, Facebook or
+ * Instagram WebView ignores the `download` attribute and refuses to navigate to a `blob:`
+ * URL, so the click lands, no file appears, and — the part that makes it hard to spot —
+ * nothing throws. There is no failure to catch and report; the button simply looks broken.
+ *
+ * So these are recognised up front and sent somewhere that cannot fail: see {@link preview}.
+ */
+const inLine = computed(
+  () => typeof navigator !== 'undefined' && /\bLine\//i.test(navigator.userAgent),
+);
+const inAppBrowser = computed(() => {
+  if (typeof navigator === 'undefined') return false;
+  // `wv` is Android's own marker for a WebView; the rest name themselves.
+  return inLine.value || /FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|; wv\)/i.test(navigator.userAgent);
+});
+
+/**
+ * The card as a plain `<img>`, shown when there is no way to hand over a file.
+ *
+ * Holding a picture down and choosing "save" is the one route into the camera roll that
+ * every one of these WebViews still offers, so the picture is put on screen as an ordinary
+ * image and the visitor is told to do exactly that.
+ */
+const preview = ref<string | null>(null);
+function closePreview(): void {
+  if (preview.value) URL.revokeObjectURL(preview.value);
+  preview.value = null;
+}
+onBeforeUnmount(closePreview);
+
+/**
+ * The same page, reopened outside the chat app.
+ *
+ * LINE watches for this parameter on a link it is about to follow and hands the URL to the
+ * system browser instead of opening it in-app — where the ordinary download works. Offered
+ * as a way out, not as the fix: most people will save from the picture above it.
+ */
+const externalLink = computed(() => {
+  if (!inLine.value || !props.link) return '';
+  try {
+    const url = new URL(props.link, window.location.href);
+    url.searchParams.set('openExternalBrowser', '1');
+    return url.toString();
+  } catch {
+    return '';
+  }
+});
+
 function download(file: File): void {
   const url = URL.createObjectURL(file);
   const link = document.createElement('a');
@@ -92,7 +143,9 @@ async function save(): Promise<void> {
     const file = await renderPng();
     if (!file) return;
 
-    if (viaShareSheet.value && navigator.canShare?.({ files: [file] })) {
+    // Worth trying inside a chat app too: where the sheet exists it is the best of these
+    // routes, and it is the only one that hands over an actual file.
+    if ((viaShareSheet.value || inAppBrowser.value) && navigator.canShare?.({ files: [file] })) {
       try {
         // The picture alone, with no accompanying text: this is the save button, and a
         // sheet given something to say tends to offer to say it somewhere.
@@ -102,7 +155,7 @@ async function save(): Promise<void> {
         // Dismissing the sheet is a decision, not a failure — nothing more to do.
         if (err?.name === 'AbortError') return;
         // Anything else (a browser that offers the sheet and then refuses it) falls
-        // through to the download, which at least puts the file somewhere.
+        // through to whichever route below suits where we are.
       }
     }
 
@@ -176,6 +229,21 @@ defineExpose({ saving });
     >
       {{ note }}
     </p>
+
+    <!--
+      The fallback for chat-app browsers. A real `<img>`, because holding one down is the
+      only save these WebViews reliably offer — see `preview` in the script.
+    -->
+    <div v-if="preview" class="sheet" role="dialog" aria-modal="true" @click.self="closePreview">
+      <div class="sheet-body">
+        <p class="sheet-hint">กดค้างที่รูป แล้วเลือก “บันทึกรูปภาพ”</p>
+        <img :src="preview" class="sheet-img" :alt="`คำอวยพรจาก ${name}`" />
+        <div class="sheet-actions">
+          <button type="button" class="act act-primary" @click="closePreview">เสร็จแล้ว</button>
+          <a v-if="externalLink" :href="externalLink" class="act">เปิดในเบราว์เซอร์</a>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -198,5 +266,51 @@ defineExpose({ saving });
 .act-primary:hover:not(:disabled) {
   background: var(--act-fill);
   opacity: 0.9;
+}
+
+/* The save-by-long-press sheet. Only ever mounted inside a chat app's browser. */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(17 24 39 / 0.72);
+}
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-height: 100%;
+  text-align: center;
+}
+.sheet-hint {
+  @apply text-sm font-semibold text-white;
+}
+/*
+ * `touch-callout` is left at its default on purpose: it is what raises the "Save Image"
+ * menu, and the reset elsewhere in the app would otherwise take the one gesture this
+ * whole sheet exists to offer.
+ */
+.sheet-img {
+  max-width: 100%;
+  min-height: 0;
+  flex: 0 1 auto;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  background: #fff;
+  -webkit-touch-callout: default;
+}
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+.sheet-actions .act {
+  background: #fff;
 }
 </style>
