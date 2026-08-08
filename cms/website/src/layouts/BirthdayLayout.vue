@@ -132,7 +132,7 @@ const CLOUDS_NARROW: Cloud[] = [
 const clouds = computed(() =>
   (wide.value ? CLOUDS_WIDE : CLOUDS_NARROW).map((cloud, index) => ({
     key: `${cloud.src}-${index}`,
-    src: `/images/Cloud${cloud.src}.webm`,
+    src: `/images/Cloud${cloud.src}.gif`,
     seek: cloud.seek,
     style: {
       left: `${cloud.left}vw`,
@@ -157,7 +157,7 @@ function onCloudReady(event: Event): void {
   <div class="birthday-shell birthday-bg font-sukhumvit" :class="{ 'shell-pinned': pinned }">
     <!-- Scenery. Behind everything, and never in the way of a tap. -->
     <div class="sky-clouds" aria-hidden="true">
-      <video
+      <img
         v-for="cloud in clouds"
         :key="cloud.key"
         class="cloud"
