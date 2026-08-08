@@ -159,6 +159,13 @@ async function save(): Promise<void> {
       }
     }
 
+    // Never `download()` in a chat app: it fails silently. Show the picture instead.
+    if (inAppBrowser.value) {
+      closePreview();
+      preview.value = URL.createObjectURL(file);
+      return;
+    }
+
     download(file);
     // A download on a phone is silent past a notification shade, so say where it went.
     if (touch.value) note.value = 'บันทึกรูปแล้ว — ดูได้ในแอปรูปภาพ หรือโฟลเดอร์ Download';

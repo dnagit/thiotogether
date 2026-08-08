@@ -192,8 +192,13 @@ const label = computed(() =>
   padding: 0;
   border: 0;
   background: none;
-  /* Every part scales from one number, so a balloon keeps its proportions at any size. */
-  font-size: calc(var(--w) / 12);
+  /*
+   * Every part scales from one number, so a balloon keeps its proportions at any size —
+   * except that the name has to stay readable, and pure proportion stops being readable
+   * first. On a phone `--w / 12` lands around 9px, so the floor takes over there and the
+   * ratio goes back to governing everywhere the balloon is big enough to afford it.
+   */
+  font-size: max(11px, calc(var(--w) / 12));
 }
 .assembly-interactive {
   cursor: pointer;

@@ -171,13 +171,21 @@ const MAX_TILT = 7;
  */
 const MIN_SCALE = 0.76;
 /** Pixels a second. Constant across sizes, so a crowded sky does not also become a fast one. */
-const SPEED = 46;
+const SPEED = 26;
 /** How far the flight path may outgrow the window before shrinking the balloons instead. */
 const MAX_TRAVEL = 3;
-/** Seconds for one lap. The last resort once the balloons are as small as they may go. */
-const MAX_CYCLE = 110;
+/**
+ * Seconds for one lap. The last resort once the balloons are as small as they may go.
+ *
+ * Moves with {@link SPEED}, and has to: the two are only ever multiplied together, as the
+ * longest flight path a balloon may be given. Drop the speed alone and that path shortens
+ * with it, which is not a slower sky but a more crowded one — the spacing has less room to
+ * fit in, so the balloons come out smaller. Their product is what the layout is really made
+ * of, so it is held at roughly 5,000px while the speed changes underneath it.
+ */
+const MAX_CYCLE = 195;
 /** Small enough to fit a crowd, big enough to still read the tag and hit with a thumb. */
-const MIN_BALLOON_W = 64;
+const MIN_BALLOON_W = 80;
 /** Ceiling for the same knob turned the other way, on a wall with room to spare. */
 const MAX_BALLOON_W = 180;
 
@@ -434,9 +442,18 @@ const layout = computed(() => {
   const height = skyHeight.value || (typeof window === 'undefined' ? 720 : window.innerHeight);
   // The responsive size crowding starts from — and, when there is more width than there are
   // wishes to fill it, a balloon grown to take up some of the slack rather than leave it.
+  /*
+   * The 112 is the phone's floor and only ever applies there: anything wider than about
+   * 860px already clears it on `width * 0.13` alone, so a desktop is untouched by it. A
+   * phone is where the balloon has to carry a present and a readable name in a third of
+   * the width, which is the one place proportion has to give way to legibility.
+   */
   const maxW = Math.min(
     MAX_BALLOON_W,
-    Math.max(Math.min(150, Math.max(88, width * 0.13)), Math.min(width / total / GAP_X, height * 0.28)),
+    Math.max(
+      Math.min(150, Math.max(112, width * 0.13)),
+      Math.min(width / total / GAP_X, height * 0.28),
+    ),
   );
 
   let w = maxW;
