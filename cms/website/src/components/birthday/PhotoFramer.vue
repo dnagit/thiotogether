@@ -60,7 +60,12 @@ function commit(next: Partial<PhotoFraming>): void {
   // Recomputed against the *new* zoom: zooming back out has to reel the photo in too, or
   // the offset it was left at would pull a bare edge into the shape.
   const bound = aspect.value ? maxPan(aspect.value, zoom) : { x: 0, y: 0 };
-  const clamp = (value: number, max: number): number => Math.min(max, Math.max(-max, value));
+  // …and never past what the API stores. A very long or very wide picture can pan further
+  // than that, and travelling there would only earn a rejected submission at the end.
+  const clamp = (value: number, max: number): number => {
+    const limit = Math.min(max, FRAMING_LIMITS.maxOffset);
+    return Math.min(limit, Math.max(-limit, value));
+  };
 
   emit('update:framing', {
     zoom,

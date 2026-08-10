@@ -125,6 +125,9 @@ onBeforeUnmount(() => {
   if (photoUrl.value) URL.revokeObjectURL(photoUrl.value);
 });
 
+/** Fields the form draws an error under; anything else has to be reported on the submit line. */
+const INLINE_ERROR_FIELDS = ['name', 'message', 'gift'];
+
 function validate(): boolean {
   for (const key of Object.keys(errors)) delete errors[key];
   if (!draft.name.trim()) errors.name = 'กรุณากรอกชื่อของคุณ';
@@ -172,11 +175,18 @@ async function submit(): Promise<void> {
     sentAt.value = new Date().toISOString();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err: any) {
-    for (const e of err?.response?.data?.errors ?? []) errors[e.field] = e.message;
+    const fields: { field: string; message: string }[] = err?.response?.data?.errors ?? [];
+    for (const e of fields) errors[e.field] = e.message;
+    // Only three fields have somewhere to show an error. A rejection on any of the rest —
+    // the balloon, the photo's framing — would otherwise leave "Validation failed" sitting
+    // under a form where everything visibly *is* filled in, with nothing to act on.
+    const unplaced = fields.filter((e) => !INLINE_ERROR_FIELDS.includes(e.field));
     submitError.value =
       err?.response?.status === 429
         ? 'ส่งคำอวยพรถี่เกินไป กรุณารอสักครู่แล้วลองใหม่'
-        : (err?.response?.data?.message ?? 'ส่งคำอวยพรไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        : unplaced.length
+          ? `ส่งคำอวยพรไม่สำเร็จ (${unplaced.map((e) => `${e.field}: ${e.message}`).join(', ')})`
+          : (err?.response?.data?.message ?? 'ส่งคำอวยพรไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
   } finally {
     submitting.value = false;
   }

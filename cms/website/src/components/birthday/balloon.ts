@@ -196,8 +196,13 @@ export const DEFAULT_FRAMING: Readonly<PhotoFraming> = { zoom: 1, x: 0, y: 0 };
  * `maxOffset` is deliberately loose. A panoramic photo at 3× can legitimately travel
  * several box-widths, so this bounds nonsense rather than framing the picture — the
  * editor's own limit is the one a visitor feels.
+ *
+ * It has to be exactly what `publicBirthday.module.ts` accepts, though. A long screenshot
+ * panned at 2× reaches an offset of 700 on its own, and anything the editor lets a visitor
+ * reach but the API refuses comes back as a bare "Validation failed" against a form where
+ * every field looks filled in — the offset has no field to hang an error on.
  */
-export const FRAMING_LIMITS = { minZoom: 1, maxZoom: 3, maxOffset: 200 } as const;
+export const FRAMING_LIMITS = { minZoom: 1, maxZoom: 3, maxOffset: 500 } as const;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
