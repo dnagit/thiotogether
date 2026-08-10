@@ -30,7 +30,7 @@ export const CARD_HEIGHT = 900;
  * sit inside the leaf.
  */
 export const CARD_LEAF = { x: 40, y: 205, width: 640, height: 590, radius: 26 } as const;
-export const CARD_PICTURE = { x: 288, y: 240, width: 362, height: 490, radius: 18 } as const;
+export const CARD_PICTURE = { x: 272, y: 240, width: 382, height: 490, radius: 18 } as const;
 /**
  * The writing column: the message band, then the signature rows beneath it.
  *
