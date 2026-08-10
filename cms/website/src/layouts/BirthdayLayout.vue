@@ -25,6 +25,9 @@ import { useSiteStore } from '@/stores/site';
 const site = useSiteStore();
 const route = useRoute();
 
+/** The site's own mark from the CMS, worn in the corner. Absent until the settings land. */
+const logo = computed(() => site.theme.logoUrl);
+
 /**
  * Whether this page is one fixed screen with the chrome pinned to it.
  *
@@ -209,9 +212,18 @@ const clouds = computed(() => {
     </div>
 
     <header class="bar" :class="{ 'bar-float': pinned }">
-      <RouterLink to="/" class="home" :title="site.siteName">
+      <!--
+        The site's mark in the corner, taken out of the flow so the party's own wordmark
+        stays centred on the page rather than on what is left beside this. Decorative: the
+        wordmark next to it is already the way back to the site, and two links to the same
+        place read as two choices.
+      -->
+         <RouterLink to="/" class="home" :title="site.siteName">
+      <img v-if="logo" :src="logo" alt="" aria-hidden="true" class="brand-logo" />
+          </RouterLink>
+      
         <img src="/images/logo-birthday.png" :alt="site.siteName" class="home-logo" />
-      </RouterLink>
+     
     </header>
 
     <main class="birthday-main">
@@ -391,6 +403,22 @@ const clouds = computed(() => {
 .bar-float {
   position: absolute;
   inset: 0 0 auto 0;
+}
+
+/*
+ * Top left, and off the flex line: centring the wordmark against the rest of the bar would
+ * shift it right by half this logo's width, and it would go on shifting as the CMS logo
+ * changed shape. Sized off the bar like everything else here.
+ */
+.brand-logo {
+  position: absolute;
+  left: clamp(0.5rem, 2vw, 1.5rem);
+  top: 50%;
+  transform: translateY(-50%);
+  height: calc(var(--bar-h) * 0.82);
+  width: auto;
+  max-width: 32vw;
+  object-fit: contain;
 }
 
 .home {
