@@ -167,6 +167,28 @@ const STRAY_MAX = 0.5;
 /** How far a balloon may hang from upright, in degrees. */
 const MAX_TILT = 7;
 /**
+ * How far a balloon rises and falls on its own, as a fraction of its width.
+ *
+ * The climb itself cannot be given to each balloon separately. A lane shares one speed
+ * because that is what holds the spacing dealt out along it, and a scattered sky shares one
+ * across the whole sky for the same reason — so on a phone, where two or three columns is
+ * all the width affords, the sky has two or three speeds in it and often just the one. That
+ * is what makes it read as a sheet sliding upwards rather than as balloons.
+ *
+ * This is the part that can differ: a slow bob at each balloon's own sway period and phase,
+ * riding on top of the shared climb. Every pair is already a full assembly height apart
+ * along the path (or clear of each other sideways), and two bobs can close at most a sixth
+ * of that between them, so no arrangement this breaks was safe to begin with.
+ */
+const BOB = 0.08;
+/**
+ * What the bob costs the spacing, in assembly heights: two neighbours bobbing towards each
+ * other close twice its amplitude. Every gap along the path is widened by this, so the
+ * arrangements below stay exactly as clear as they were before the balloons could move
+ * independently — the room is bought up front rather than hoped for.
+ */
+const BOB_CLEAR = (2 * BOB) / ASSEMBLY_RATIO;
+/**
  * Balloons are drawn between this and full size inside their slot.
  *
  * Nothing but variety: a sky of one size, evenly spaced, reads as a grid however carefully
@@ -323,7 +345,7 @@ function laneSeats(wishes: Wish[], w: number, width: number, columns: number, tr
   const assembly = w * ASSEMBLY_RATIO;
   const counts = laneCounts(wishes.length, columns);
   const offsets = counts.map((count, col) =>
-    laneOffsets(col, count, travel, assembly * MIN_GAP_Y),
+    laneOffsets(col, count, travel, assembly * (MIN_GAP_Y + BOB_CLEAR)),
   );
 
   // Dealt round the lanes one at a time, so consecutive wishes land far apart and every
@@ -413,7 +435,7 @@ function scatterSeats(
       if (!best || score > best.score) best = { x, phase, score };
     }
 
-    if (!best || best.score < 1) return null;
+    if (!best || best.score < 1 + BOB_CLEAR) return null;
     placed.push({ x: best.x, phase: best.phase, scale, drift, tilt, duration, drawn, height });
   }
 
@@ -567,6 +589,12 @@ function flight(wish: Wish, seat: number): Record<string, string> {
     // leans one way together for the first few seconds.
     '--sway-delay': `-${(hash(wish.id, 11) * 18).toFixed(1)}s`,
     '--sway': `${drift.toFixed(1)}px`,
+    // Rise and fall of its own, on top of the shared climb — see {@link BOB}. Its period is
+    // deliberately not the sway's: on one track the two would compose into a single diagonal
+    // slide, which is a balloon on rails rather than a balloon.
+    '--bob': `${(w * scale * BOB).toFixed(1)}px`,
+    '--bob-duration': `${(6 + hash(wish.id, 12) * 7).toFixed(1)}s`,
+    '--bob-delay': `-${(hash(wish.id, 13) * 13).toFixed(1)}s`,
     '--tilt': `${tilt.toFixed(1)}deg`,
     // Layered by size, so the small ones sit behind: the same cue as drawing them small.
     'z-index': String(10 + Math.round(((scale - MIN_SCALE) / (1 - MIN_SCALE)) * 6)),
@@ -684,7 +712,9 @@ const galleryWidth = computed(() => {
   will-change: auto;
 }
 .sway {
-  animation: sway var(--sway-duration) ease-in-out var(--sway-delay) infinite alternate;
+  animation:
+    sway var(--sway-duration) ease-in-out var(--sway-delay) infinite alternate,
+    bob var(--bob-duration) ease-in-out var(--bob-delay) infinite alternate;
 }
 
 /* Hovering or tabbing to a balloon holds it still, so it can be read and clicked. */
@@ -719,6 +749,18 @@ const galleryWidth = computed(() => {
   }
   to {
     transform: translateX(var(--sway)) rotate(calc(var(--tilt) + 1.5deg));
+  }
+}
+
+/* The `translate` property rather than a `transform`, so this rides on the same element as
+   the swing without the two having to share one keyframe track — each keeps its own period,
+   and `translate` is applied before `transform` either way. */
+@keyframes bob {
+  from {
+    translate: 0 calc(var(--bob) * -1);
+  }
+  to {
+    translate: 0 var(--bob);
   }
 }
 
