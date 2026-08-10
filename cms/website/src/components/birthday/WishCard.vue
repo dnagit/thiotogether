@@ -13,6 +13,7 @@ import { computed, ref } from 'vue';
 import {
   DEFAULT_COLOR,
   inkColor,
+  isLightColor,
   lighten,
   nextBalloonUid,
   outlineColor,
@@ -21,7 +22,16 @@ import {
   type PhotoFraming,
 } from './balloon';
 import { useImageAspect } from './useImageAspect';
-import { CARD_FONT, CARD_WIDTH, layoutCard, measureText } from './wishCard';
+import {
+  CARD_COLUMN,
+  CARD_FONT,
+  CARD_LEAF,
+  CARD_NAME,
+  CARD_PICTURE,
+  CARD_WIDTH,
+  layoutCard,
+  measureText,
+} from './wishCard';
 
 const props = defineProps<{
   name: string;
@@ -30,14 +40,9 @@ const props = defineProps<{
   balloonColor: string;
   photoUrl?: string | null;
   framing?: PhotoFraming | null;
-  /** Artwork behind the whole card; null is the plain tinted paper. */
+  /** The picture chosen with the wish, shown in the frame on the right. */
   backgroundUrl?: string | null;
-  giftName?: string | null;
   giftImage?: string | null;
-  /** Event heading printed above the greeting, e.g. "อวยพรวันเกิดพี่เจี๊ยบ". */
-  eventTitle?: string | null;
-  celebrantName?: string | null;
-  createdAt?: string | null;
 }>();
 
 const svg = ref<SVGSVGElement | null>(null);
@@ -52,22 +57,6 @@ const edge = computed(() => outlineColor(color.value));
 const ink = computed(() => inkColor(color.value));
 const paper = computed(() => lighten(color.value, 0.94));
 
-/**
- * How the card stays readable on artwork nobody vetted.
- *
- * Not a veil over the whole thing: dimming a picture enough for small grey text to survive
- * a *black* upload leaves nothing of the picture. So the artwork runs full strength to the
- * edges and the writing sits on a panel inset from them — the arrangement most printed
- * cards use, and the reason they work with any photograph on the front.
- *
- * The panel keeps the message at 9:1 even over black, and the two muted greys are nudged
- * darker when there is artwork, because they had little contrast to spare on white.
- */
-const PANEL_INSET = 30;
-const PANEL_OPACITY = 0.85;
-const muted = computed(() => (props.backgroundUrl ? '#4b5563' : '#6b7280'));
-const faint = computed(() => (props.backgroundUrl ? '#6b7280' : '#9ca3af'));
-
 const aspect = useImageAspect(() => props.photoUrl);
 const photo = computed(() =>
   props.photoUrl && aspect.value
@@ -78,41 +67,90 @@ const photo = computed(() =>
 const layout = computed(() => layoutCard(props.message));
 const height = computed(() => layout.value.height);
 
-const greeting = computed(() =>
-  props.celebrantName ? `สุขสันต์วันเกิด ${props.celebrantName}` : 'สุขสันต์วันเกิด',
-);
-
-/** Footer rows are anchored to the bottom edge so a short wish does not leave them stranded. */
-const dividerY = computed(() => height.value - 190);
-const giftY = computed(() => height.value - 138);
-const fromY = computed(() => height.value - 82);
-const dateY = computed(() => height.value - 40);
-
-const giftLabel = computed(() => (props.giftName ? `ของขวัญ: ${props.giftName}` : ''));
 /**
- * The gift row is an icon followed by its caption, centred as one unit — so the caption is
- * measured to find where the pair should start.
+ * The leaf and the picture on it, stretched by however much a long wish pushed the card
+ * taller. The rows below the message move down by the same amount.
  */
-const giftRow = computed(() => {
-  const textWidth = measureText(giftLabel.value, 22);
-  const iconWidth = props.giftImage ? 40 : 0;
-  const total = textWidth + iconWidth;
-  const left = (CARD_WIDTH - total) / 2;
-  return { iconX: left, textX: left + iconWidth };
+const leaf = computed(() => ({ ...CARD_LEAF, height: CARD_LEAF.height + layout.value.overflow }));
+const picture = computed(() => ({
+  ...CARD_PICTURE,
+  height: CARD_PICTURE.height + layout.value.overflow,
+}));
+/** Right edge of the writing column: the signature hangs off it. */
+const columnRight = CARD_COLUMN.x + CARD_COLUMN.width;
+
+/**
+ * The whole balloon assembly, in the balloon's own 100-wide box units.
+ *
+ * `WishBalloon.vue` builds this out of flexbox and percentages of one width; here it has to
+ * be drawn, so the same proportions are written out as offsets down a single column. They
+ * are its numbers, not new ones — the string is 22% of the width and 0.3 of it tall, the
+ * present 62%, the tag is set at width/12 — so the card's balloon and the one floating on
+ * the wall are the same object at different sizes.
+ */
+const BOX = 100;
+const BALLOON_H = 104;
+const STRING = { top: BALLOON_H, width: 22, height: 30 };
+const GIFT = { top: STRING.top + STRING.height, width: 62, height: 62 * 0.88 };
+const TAG_FONT = BOX / 12;
+const TAG = { top: GIFT.top + GIFT.height + TAG_FONT * 0.45, height: TAG_FONT * 1.85 };
+const ASSEMBLY_H = TAG.top + TAG.height;
+
+/**
+ * The name on its tag: capped at the balloon's own width, as the wall caps it, and cut with
+ * an ellipsis where the wall would let CSS do it.
+ */
+const tag = computed(() => {
+  const padding = TAG_FONT * 0.7;
+  const room = BOX - padding * 2;
+  let label = props.name;
+  if (measureText(label, TAG_FONT, '700') > room) {
+    while (label.length > 1 && measureText(`${label}…`, TAG_FONT, '700') > room) {
+      label = label.slice(0, -1);
+    }
+    label = `${label}…`;
+  }
+  return { label, width: Math.min(BOX, measureText(label, TAG_FONT, '700') + padding * 2) };
 });
 
-const dateLabel = computed(() => {
-  if (!props.createdAt) return '';
-  const date = new Date(props.createdAt);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+/**
+ * Sized to the frame rather than to a fixed number: the assembly is over twice as tall as
+ * the balloon alone, so what fits is decided by the frame's height nearly every time.
+ */
+const balloonSpot = computed(() => {
+  const scale = Math.min(
+    (picture.value.width - 40) / BOX,
+    (picture.value.height - 60) / ASSEMBLY_H,
+  );
+  return {
+    scale,
+    x: picture.value.x + (picture.value.width - BOX * scale) / 2,
+    y: picture.value.y + (picture.value.height - ASSEMBLY_H * scale) / 2,
+  };
 });
 
-/** Confetti, placed from a fixed table so a card looks identical every time it is drawn. */
-const CONFETTI = [
-  [60, 250, 7], [660, 300, 6], [90, 430, 5], [640, 460, 8],
-  [46, 640, 6], [676, 620, 5], [120, 150, 5], [600, 180, 7],
-] as const;
+const ribbon = computed(() => lighten(color.value, 0.7));
+const tagInk = computed(() => (isLightColor(color.value) ? '#1f2937' : '#ffffff'));
+
+/** The wall's string curve — `M10 0 C3 26 17 58 10 100` in a 20 × 100 box — put in box units. */
+const stringPath = (() => {
+  const at = (x: number, y: number) =>
+    `${((BOX - STRING.width) / 2 + (x * STRING.width) / 20).toFixed(1)} ` +
+    `${(STRING.top + (y * STRING.height) / 100).toFixed(1)}`;
+  return `M${at(10, 0)} C${at(3, 26)} ${at(17, 58)} ${at(10, 100)}`;
+})();
+
+/**
+ * The present is drawn to its own 100 × 88 proportions, however the file is shaped, and
+ * centred over the writing column rather than ranged left with the text — a picture hung on
+ * the same margin as a paragraph reads as a bullet beside it.
+ */
+const giftBox = {
+  x: CARD_COLUMN.x + (CARD_COLUMN.width - CARD_COLUMN.giftSize) / 2,
+  y: CARD_COLUMN.giftY,
+  width: CARD_COLUMN.giftSize,
+  height: Math.round((CARD_COLUMN.giftSize * 88) / 100),
+};
 </script>
 
 <template>
@@ -136,81 +174,67 @@ const CONFETTI = [
       <clipPath :id="`${uid}-clip`">
         <path :d="shape.path" />
       </clipPath>
+      <!-- The picture is cropped to fill its frame; nothing pans across it. -->
+      <clipPath :id="`${uid}-picture`">
+        <rect
+          :x="picture.x"
+          :y="picture.y"
+          :width="picture.width"
+          :height="picture.height"
+          :rx="picture.radius"
+        />
+      </clipPath>
     </defs>
 
-    <rect :width="CARD_WIDTH" :height="height" :fill="`url(#${uid}-paper)`" />
     <!--
-      The artwork, then the panel the card is written on. `slice` is right here where it
-      was wrong on the balloon: nothing pans across this, so the picture is simply cropped
-      to fill the card.
+      The card's own artwork, the same for every wish: it carries the party's title and the
+      border, so nothing here reprints them. It is 4:5 and so is the card, so `slice` only
+      ever crops on the rare wish long enough to have stretched the card taller.
     -->
-    <template v-if="backgroundUrl">
+    <rect :width="CARD_WIDTH" :height="height" fill="#fdf6e6" />
+    <image
+      href="/images/bg-card.png"
+      x="0"
+      y="0"
+      :width="CARD_WIDTH"
+      :height="height"
+      preserveAspectRatio="xMidYMid slice"
+    />
+
+    <!-- The leaf the wish is written on. -->
+    <rect
+      :x="leaf.x"
+      :y="leaf.y"
+      :width="leaf.width"
+      :height="leaf.height"
+      :rx="leaf.radius"
+      fill="#fffdf6"
+      opacity="0.96"
+    />
+
+    <!-- Right: the picture chosen with the wish, or tinted paper when none was. -->
+    <g :clip-path="`url(#${uid}-picture)`">
       <image
+        v-if="backgroundUrl"
         :href="backgroundUrl"
-        x="0"
-        y="0"
-        :width="CARD_WIDTH"
-        :height="height"
+        :x="picture.x"
+        :y="picture.y"
+        :width="picture.width"
+        :height="picture.height"
         preserveAspectRatio="xMidYMid slice"
       />
       <rect
-        :x="PANEL_INSET"
-        :y="PANEL_INSET"
-        :width="CARD_WIDTH - PANEL_INSET * 2"
-        :height="height - PANEL_INSET * 2"
-        rx="22"
-        fill="#ffffff"
-        :opacity="PANEL_OPACITY"
+        v-else
+        :x="picture.x"
+        :y="picture.y"
+        :width="picture.width"
+        :height="picture.height"
+        :fill="`url(#${uid}-paper)`"
       />
-    </template>
-    <rect
-      x="14"
-      y="14"
-      :width="CARD_WIDTH - 28"
-      :height="height - 28"
-      rx="26"
-      fill="none"
-      :stroke="color"
-      stroke-width="3"
-      opacity="0.35"
-    />
+    </g>
 
-    <circle
-      v-for="([cx, cy, r], i) in CONFETTI"
-      :key="i"
-      :cx="cx"
-      :cy="cy"
-      :r="r"
-      :fill="color"
-      opacity="0.22"
-    />
-
-    <!-- Header -->
-    <text
-      v-if="eventTitle"
-      :x="CARD_WIDTH / 2"
-      y="78"
-      text-anchor="middle"
-      :font-family="CARD_FONT"
-      font-size="22"
-      :fill="muted"
-    >
-      {{ eventTitle }}
-    </text>
-    <text
-      :x="CARD_WIDTH / 2"
-      y="134"
-      text-anchor="middle"
-      :font-family="CARD_FONT"
-      font-size="38"
-      font-weight="800"
-      :fill="ink"
-    >
-      {{ greeting }}
-    </text>
-
-    <!-- Balloon: the 100-unit box scaled to 260 and centred. -->
-    <g transform="translate(230 175) scale(2.6)">
+    <!-- The balloon, sitting on the picture. -->
+    <g :transform="`translate(${balloonSpot.x} ${balloonSpot.y}) scale(${balloonSpot.scale})`">
       <path :d="shape.path" :fill="`url(#${uid}-fill)`" />
       <g v-if="photo" :clip-path="`url(#${uid}-clip)`">
         <!-- Sized to cover the box rather than sliced into it, so the framing pans the
@@ -228,17 +252,91 @@ const CONFETTI = [
         <ellipse cx="33" cy="27" rx="9" ry="13" fill="#fff" opacity="0.35" transform="rotate(-22 33 27)" />
       </g>
       <path :d="shape.path" fill="none" :stroke="edge" stroke-width="1.4" opacity="0.55" />
+
+      <!-- Knot, then the string running to the bottom edge of the balloon's own box. -->
       <path
         v-if="shape.knot"
         :d="`M${shape.tie.x - 4} ${shape.tie.y - 1} L${shape.tie.x + 4} ${shape.tie.y - 1} L${shape.tie.x} ${shape.tie.y + 6} Z`"
         :fill="edge"
       />
+      <path
+        :d="`M${shape.tie.x} ${shape.tie.y + (shape.knot ? 5 : 0)} L50 ${BALLOON_H}`"
+        fill="none"
+        :stroke="edge"
+        stroke-width="1.2"
+        opacity="0.7"
+      />
+
+      <!--
+        …and on down to the present. The wall's curve is written into box units rather than
+        scaled from its own 20 × 100 viewport: that scaling is 1.1 across and 0.3 down, and a
+        stroke put through it comes out flattened to a third of its width on the verticals.
+      -->
+      <path
+        :d="stringPath"
+        fill="none"
+        :stroke="edge"
+        stroke-width="1.6"
+        opacity="0.7"
+      />
+
+      <!-- The present, drawn from the catalogue picture or from the plain box. -->
+      <image
+        v-if="giftImage"
+        :href="giftImage"
+        :x="(BOX - GIFT.width) / 2"
+        :y="GIFT.top"
+        :width="GIFT.width"
+        :height="GIFT.height"
+        preserveAspectRatio="xMidYMid meet"
+      />
+      <g
+        v-else
+        :transform="`translate(${(BOX - GIFT.width) / 2} ${GIFT.top}) scale(${GIFT.width / 100})`"
+      >
+        <rect x="10" y="30" width="80" height="56" rx="6" :fill="color" />
+        <rect x="4" y="20" width="92" height="16" rx="5" :fill="edge" />
+        <rect x="43" y="20" width="14" height="66" :fill="ribbon" />
+        <path
+          d="M50 22 C42 22 30 18 30 10 C30 4 38 2 43 6 C47 9 50 15 50 22 C50 15 53 9 57 6 C62 2 70 4 70 10 C70 18 58 22 50 22 Z"
+          :fill="ribbon"
+        />
+      </g>
+
+      <!-- The name tag, hung under the present. -->
+      <g v-if="tag.label">
+        <rect
+          :x="(BOX - tag.width) / 2"
+          :y="TAG.top"
+          :width="tag.width"
+          :height="TAG.height"
+          :rx="TAG.height / 2"
+          :fill="color"
+        />
+        <text
+          :x="BOX / 2"
+          :y="TAG.top + TAG.height * 0.71"
+          text-anchor="middle"
+          :font-family="CARD_FONT"
+          :font-size="TAG_FONT"
+          font-weight="700"
+          :fill="tagInk"
+        >{{ tag.label }}</text>
+      </g>
     </g>
 
-    <!-- Message, one pre-wrapped line at a time. -->
+    <!-- Left: the present at the head of the column, then the wish beneath it. -->
+    <image
+      v-if="giftImage"
+      :href="giftImage"
+      :x="giftBox.x"
+      :y="giftBox.y"
+      :width="giftBox.width"
+      :height="giftBox.height"
+      preserveAspectRatio="xMidYMid meet"
+    />
     <text
-      :x="CARD_WIDTH / 2"
-      text-anchor="middle"
+      :x="CARD_COLUMN.x"
       :font-family="CARD_FONT"
       :font-size="layout.fontSize"
       fill="#1f2937"
@@ -246,64 +344,22 @@ const CONFETTI = [
       <tspan
         v-for="(line, i) in layout.lines"
         :key="i"
-        :x="CARD_WIDTH / 2"
+        :x="CARD_COLUMN.x"
         :y="layout.messageTop + i * layout.lineHeight"
       >{{ line }}</tspan>
     </text>
 
-    <!-- Footer -->
-    <line
-      :x1="120"
-      :y1="dividerY"
-      :x2="CARD_WIDTH - 120"
-      :y2="dividerY"
-      :stroke="color"
-      stroke-width="2"
-      opacity="0.3"
-    />
-
-    <template v-if="giftLabel">
-      <image
-        v-if="giftImage"
-        :href="giftImage"
-        :x="giftRow.iconX"
-        :y="giftY - 24"
-        width="32"
-        height="32"
-        preserveAspectRatio="xMidYMid meet"
-      />
-      <text
-        :x="giftRow.textX"
-        :y="giftY"
-        :font-family="CARD_FONT"
-        font-size="22"
-        :fill="muted"
-      >
-        {{ giftLabel }}
-      </text>
-    </template>
-
+    <!-- Signed off against the column's right edge, on the line after the wish. -->
     <text
-      :x="CARD_WIDTH / 2"
-      :y="fromY"
-      text-anchor="middle"
+      :x="columnRight"
+      :y="layout.nameY"
+      text-anchor="end"
       :font-family="CARD_FONT"
-      font-size="30"
+      :font-size="CARD_NAME.size"
       font-weight="700"
       :fill="ink"
     >
-      จาก {{ name }}
-    </text>
-    <text
-      v-if="dateLabel"
-      :x="CARD_WIDTH / 2"
-      :y="dateY"
-      text-anchor="middle"
-      :font-family="CARD_FONT"
-      font-size="20"
-      :fill="faint"
-    >
-      {{ dateLabel }}
+       {{ name }}
     </text>
   </svg>
 </template>

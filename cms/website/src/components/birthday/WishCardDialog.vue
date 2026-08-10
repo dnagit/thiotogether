@@ -15,14 +15,12 @@ import type { Wish } from '@/api/birthday';
 withDefaults(
   defineProps<{
     wish: Wish | null;
-    eventTitle?: string | null;
-    celebrantName?: string | null;
     /** Absolute link that reopens this exact card; empty hides the copy-link button. */
     shareUrl?: string;
     /** The event's colour, so the buttons belong to the party rather than to the browser. */
     themeColor?: string | null;
   }>(),
-  { eventTitle: null, celebrantName: null, shareUrl: '', themeColor: null },
+  { shareUrl: '', themeColor: null },
 );
 
 defineEmits<{ close: [] }>();
@@ -51,11 +49,7 @@ const busy = computed(() => actions.value?.saving === true);
         :photo-url="wish.photoUrl"
         :framing="wish.photoFraming"
         :background-url="wish.background?.imageUrl"
-        :gift-name="wish.gift?.name"
         :gift-image="wish.gift?.imageUrl"
-        :event-title="eventTitle"
-        :celebrant-name="celebrantName"
-        :created-at="wish.createdAt"
       />
 
       <WishCardActions

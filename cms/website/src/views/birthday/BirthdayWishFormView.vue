@@ -93,11 +93,16 @@ const themeColor = computed(() => event.value?.themeColor ?? '#ea480c');
 const gifts = computed<Gift[]>(() => event.value?.gifts ?? []);
 const selectedGift = computed(() => gifts.value.find((g) => g.id === draft.giftId) ?? null);
 /**
- * Which preview is on show. Picking a background switches to the card by itself: the
- * choice is invisible on the balloon, and a picker that appears to do nothing is worse
- * than a panel that changes under you.
+ * Which preview is on show.
+ *
+ * The card leads: it is the thing a visitor keeps and shares, and it has the balloon drawn
+ * on it anyway, so opening on it shows more of the wish than the balloon alone does. The
+ * balloon stays a tab away for anyone checking how their photo will sit in the shape.
+ *
+ * Picking a background also switches here by itself: the choice is invisible on the balloon,
+ * and a picker that appears to do nothing is worse than a panel that changes under you.
  */
-const previewView = ref<'balloon' | 'card'>('balloon');
+const previewView = ref<'balloon' | 'card'>('card');
 watch(
   () => draft.backgroundId,
   () => (previewView.value = 'card'),
@@ -146,7 +151,6 @@ function validate(): boolean {
  * the same one everybody else will see when they tap that balloon on the wall. It has to be
  * in the document rather than conjured on demand, because saving rasterises a real `<svg>`.
  */
-const sentAt = ref<string | null>(null);
 const sentCard = ref<InstanceType<typeof WishCard> | null>(null);
 
 /**
@@ -172,7 +176,6 @@ async function submit(): Promise<void> {
   try {
     const response = await submitWish(slug, draft);
     result.value = { ...response, message: response.message || 'ส่งคำอวยพรเรียบร้อยแล้ว' };
-    sentAt.value = new Date().toISOString();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err: any) {
     const fields: { field: string; message: string }[] = err?.response?.data?.errors ?? [];
@@ -194,7 +197,6 @@ async function submit(): Promise<void> {
 
 function writeAnother(): void {
   result.value = null;
-  sentAt.value = null;
   draft.name = '';
   draft.message = '';
   setPhoto(null);
@@ -218,21 +220,11 @@ const inputClass =
 
   <!-- Sent -->
   <div v-else-if="result" class="container-site max-w-xl py-16 text-center">
-    <div class="mx-auto mb-6 w-fit" style="--balloon-w: 190px">
-      <WishBalloon
-        :shape="draft.balloonShape"
-        :color="draft.balloonColor"
-        :photo-url="photoUrl"
-        :framing="draft.photoFraming"
-        :gift-image="selectedGift?.imageUrl"
-        :name="previewName"
-      />
-    </div>
-    <h1 class="mb-2 text-2xl font-extrabold">ส่งคำอวยพรแล้ว 🎉</h1>
-    <p class="mb-6 text-gray-600">{{ result.message }}</p>
-
-    <!-- Off screen, and only here so there is something real to rasterise. -->
-    <div class="card-source" aria-hidden="true">
+    <!--
+      The card itself, and the very element `WishCardActions` rasterises — so what is saved
+      is the card being looked at rather than a second copy drawn off screen.
+    -->
+    <div class="mx-auto mb-6 w-full max-w-sm">
       <WishCard
         ref="sentCard"
         :name="previewName"
@@ -242,13 +234,12 @@ const inputClass =
         :photo-url="photoUrl"
         :framing="draft.photoFraming"
         :background-url="selectedBackground?.imageUrl"
-        :gift-name="selectedGift?.name"
         :gift-image="selectedGift?.imageUrl"
-        :event-title="event.title"
-        :celebrant-name="event.celebrantName"
-        :created-at="sentAt"
       />
     </div>
+
+    <h1 class="mb-2 text-2xl font-extrabold">ส่งคำอวยพรแล้ว 🎉</h1>
+    <p class="mb-6 text-gray-600">{{ result.message }}</p>
 
     <WishCardActions
       class="mb-8"
@@ -262,8 +253,8 @@ const inputClass =
     <div class="flex flex-wrap justify-center gap-3">
       <button
         type="button"
-        class="btn-solid"
-        :style="{ background: themeColor }"
+        class="btn-3d btn-solid"
+        :style="{ '--cta': themeColor }"
         @click="router.push({ name: 'birthday-wall', params: { slug } })"
       >
         ดูลูกโป่งคำอวยพร
@@ -277,7 +268,11 @@ const inputClass =
     <div class="mb-3 text-5xl" aria-hidden="true">🎈</div>
     <h1 class="mb-2 text-xl font-bold">ปิดรับคำอวยพรแล้ว</h1>
     <p class="mb-6 text-gray-600">ขอบคุณทุกคนที่ร่วมส่งคำอวยพรนะคะ</p>
-    <RouterLink :to="{ name: 'birthday-wall', params: { slug } }" class="btn-solid" :style="{ background: themeColor }">
+    <RouterLink
+      :to="{ name: 'birthday-wall', params: { slug } }"
+      class="btn-3d btn-solid"
+      :style="{ '--cta': themeColor }"
+    >
       ดูลูกโป่งคำอวยพร
     </RouterLink>
   </div>
@@ -297,7 +292,7 @@ const inputClass =
         <div class="preview-inner">
           <div class="mb-3 flex justify-center gap-1" role="tablist" aria-label="เลือกมุมมองตัวอย่าง">
             <button
-              v-for="view in ['balloon', 'card'] as const"
+              v-for="view in ['card', 'balloon'] as const"
               :key="view"
               type="button"
               role="tab"
@@ -335,10 +330,7 @@ const inputClass =
               :photo-url="photoUrl"
               :framing="draft.photoFraming"
               :background-url="selectedBackground?.imageUrl"
-              :gift-name="selectedGift?.name"
               :gift-image="selectedGift?.imageUrl"
-              :event-title="event.title"
-              :celebrant-name="event.celebrantName"
             />
           </div>
 
@@ -424,8 +416,8 @@ const inputClass =
 
         <button
           type="submit"
-          class="btn-solid w-full"
-          :style="{ background: themeColor }"
+          class="btn-3d btn-solid w-full"
+          :style="{ '--cta': themeColor }"
           :disabled="submitting || catalogueMissing"
         >
           {{ submitting ? 'กำลังส่ง…' : 'ส่งคำอวยพร 🎈' }}
@@ -493,27 +485,11 @@ const inputClass =
   gap: 1.5rem;
 }
 
+/* Shape and size only; the moulding and the hover come from `.btn-3d` in `main.css`. */
 .btn-solid {
   @apply inline-block rounded-lg px-6 py-3 text-center font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50;
 }
-.btn-solid:hover:not(:disabled) {
-  opacity: 0.9;
-}
 .btn-outline {
   @apply rounded-lg border border-gray-300 px-6 py-3 font-medium transition hover:bg-gray-50;
-}
-
-/*
- * Rendered but out of sight. Not `display: none`, which would leave the card without the
- * layout that rasterising it depends on, and not `visibility: hidden`, which still takes up
- * the page.
- */
-.card-source {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  pointer-events: none;
 }
 </style>

@@ -270,23 +270,45 @@ const panHint = computed(() => {
 </template>
 
 <style scoped>
+/*
+ * A moulded cream panel: a lit band near the top, a long slow fall through the middle and a
+ * grey lip along the bottom edge. The stops are steep at the bottom and almost flat above
+ * it — that ratio is what reads as a thick panel catching light from above rather than as a
+ * plain gradient.
+ *
+ * No dashed outline any more, so the drag target is carried by the wording inside and by the
+ * states below rather than by a border.
+ */
 .dropzone {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
   padding: 1.75rem 1rem;
-  border: 2px dashed #d1d5db;
-  border-radius: 16px;
-  background: #f9fafb;
+  border: 0;
+  border-radius: 22px;
+  background: linear-gradient(
+    180deg,
+    #f2f0e4 0%,
+    #f9f6ea 8%,
+    #f1eee2 30%,
+    #efece1 55%,
+    #ebe8dd 80%,
+    #cdcbc1 92%,
+    #a09f97 97%,
+    #9c9a92 100%
+  );
   cursor: pointer;
   text-align: center;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
-.dropzone:hover,
+.dropzone:hover {
+  filter: brightness(1.02);
+}
+/* Mid-drag the panel has to answer, and it is the one moment a border earns its place. */
 .dropzone-over {
-  border-color: #111827;
-  background: #f3f4f6;
+  filter: brightness(1.04);
+  box-shadow: inset 0 0 0 2px rgb(17 24 39 / 65%);
 }
 .dropzone:focus-within {
   outline: 3px solid #1d4ed8;

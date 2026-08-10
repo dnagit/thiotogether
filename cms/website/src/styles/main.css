@@ -88,6 +88,91 @@ body {
   background: var(--color-primary);
   @apply inline-block text-white font-semibold px-6 py-3 rounded-lg transition hover:opacity-90;
 }
+
+/*
+ * An inflated button rather than a flat one: lit from above, shaded towards both ends and
+ * along the bottom, with a soft sheen across the top.
+ *
+ * Shape and size are left to whoever wears it — this only paints. Set `--cta` on the element
+ * (the birthday pages pass the event's own colour from the CMS): every shade is mixed from
+ * it, since gradients cannot be written out as fixed hexes when the colour is not known
+ * until runtime. The flat `background-color` above the shorthand is the fallback that
+ * survives if `color-mix` is not understood — an invalid shorthand is dropped whole, leaving
+ * the plain colour behind.
+ */
+.btn-3d {
+  --cta: var(--color-primary);
+  position: relative;
+  /* Holds the highlights' negative z-index inside the button instead of letting them fall
+     behind the page. */
+  isolation: isolate;
+  background-color: var(--cta);
+  background:
+    radial-gradient(80% 130% at 50% 40%, rgb(0 0 0 / 0%) 48%, rgb(0 0 0 / 26%) 100%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--cta) 76%, white) 0%,
+      var(--cta) 58%,
+      color-mix(in srgb, var(--cta) 74%, black) 100%
+    );
+  box-shadow:
+    /* the thickness: a dark lip inside the bottom edge and a lit one along the top */
+    inset 0 -14px 20px -9px rgb(0 0 0 / 45%),
+    inset 0 3px 4px rgb(255 255 255 / 38%),
+    0 12px 20px rgb(0 0 0 / 28%);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 28%);
+}
+/* The sheen, blurred rather than edged — a crisp band reads as glass, and this is rubber. */
+.btn-3d::before {
+  content: '';
+  position: absolute;
+  inset: 8% 6% auto;
+  height: 48%;
+  z-index: -1;
+  border-radius: 999px;
+  background: radial-gradient(58% 100% at 58% 0%, rgb(255 255 255 / 55%), rgb(255 255 255 / 0) 70%);
+  filter: blur(7px);
+}
+/* The one bright spot, off towards the far end, that says the light has a direction. */
+.btn-3d::after {
+  content: '';
+  position: absolute;
+  top: 12%;
+  right: 7%;
+  width: 16%;
+  height: 34%;
+  z-index: -1;
+  border-radius: 999px;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 55%), rgb(255 255 255 / 0));
+  filter: blur(3px);
+}
+.btn-3d:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+/* Pressed: down onto the surface, with the shadow it was floating on shortened to match. */
+.btn-3d:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 -8px 14px -8px rgb(0 0 0 / 45%),
+    inset 0 2px 3px rgb(255 255 255 / 30%),
+    0 6px 12px rgb(0 0 0 / 26%);
+}
+/*
+ * Flat while it cannot be pressed: a button that still looks raised invites the press.
+ *
+ * The flat colour has to be restated rather than the gradient just being switched off. The
+ * shorthand above resets `background-color` to transparent as it sets the layers, so a bare
+ * `background-image: none` here would leave the button with nothing behind its text at all.
+ */
+.btn-3d:disabled {
+  background: var(--cta);
+  box-shadow: none;
+  text-shadow: none;
+}
+.btn-3d:disabled::before,
+.btn-3d:disabled::after {
+  display: none;
+}
 .container-site {
   @apply mx-auto max-w-[96rem] px-4;
 }

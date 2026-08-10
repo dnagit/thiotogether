@@ -18,22 +18,55 @@
  */
 
 export const CARD_WIDTH = 720;
-/** Header, balloon and the gap before the message — everything above the wish text. */
-const HEADER_HEIGHT = 500;
-/** Signature, gift chip and date below the message. */
-const FOOTER_HEIGHT = 190;
-const MESSAGE_MAX_WIDTH = 560;
-const MIN_CARD_HEIGHT = 900;
+/** 4:5 — the aspect of `images/bg-card.png`, so the artwork is never stretched to fit. */
+export const CARD_HEIGHT = 900;
+
+/**
+ * The card, in card units: a white leaf laid on the artwork, with the wish written down its
+ * left side and the chosen picture filling the right.
+ *
+ * These are one table rather than numbers spread through the template, because they only
+ * make sense against each other — the writing column ends where the picture begins, and both
+ * sit inside the leaf.
+ */
+export const CARD_LEAF = { x: 40, y: 205, width: 640, height: 590, radius: 26 } as const;
+export const CARD_PICTURE = { x: 288, y: 240, width: 362, height: 490, radius: 18 } as const;
+/**
+ * The writing column: the message band, then the signature rows beneath it.
+ *
+ * Deliberately the narrower half — the picture is what the card is looked at for, and the
+ * wish reads down the side of it. What that costs is type size: the message is set to
+ * whatever fits this width (see {@link MESSAGE_SIZES}), so widening the picture further
+ * would start shrinking the writing rather than the column.
+ */
+export const CARD_COLUMN = {
+  x: 70,
+  width: 178,
+  /** The present, sitting at the head of the column. */
+  giftSize: 150,
+  giftY: 232,
+  top: 395,
+  bottom: 730,
+} as const;
+
+/**
+ * The signature, which follows the last line of the wish rather than sitting on the bottom
+ * of the column — it is who wrote the words above, and a gap between them reads as a
+ * caption for the card instead. The pair is centred in the band as one block.
+ */
+export const CARD_NAME = { size: 26, gap: 18 } as const;
+
+/**
+ * Sizes to try for the message, largest first.
+ *
+ * The column is a third of the card wide, so the size has to be found rather than picked
+ * from the length: the same 200 characters that fit at 22 on one card wrap to two more
+ * lines on the next. Only if even the smallest overflows does the card grow taller.
+ */
+const MESSAGE_SIZES = [22, 20, 18, 16, 14] as const;
 
 export const CARD_FONT =
   "'Sukhumvit Set', 'SukhumvitSet-Text', Sukhumvit, 'Noto Sans Thai', system-ui, sans-serif";
-
-/** Longer wishes are set smaller, so a card never grows out of all proportion. */
-function messageFontSize(length: number): number {
-  if (length <= 80) return 34;
-  if (length <= 180) return 28;
-  return 24;
-}
 
 // One canvas, reused: creating one per measurement is the slow part of laying out text.
 let measurer: CanvasRenderingContext2D | null = null;
@@ -44,7 +77,7 @@ function measure(text: string, font: string): number {
   return measurer.measureText(text).width;
 }
 
-/** Width of a run of card text, for placing things next to it rather than guessing. */
+/** Width of a run of card text, for sizing things around it rather than guessing. */
 export function measureText(text: string, fontSize: number, weight = ''): number {
   return measure(text, `${weight} ${fontSize}px ${CARD_FONT}`.trim());
 }
@@ -73,21 +106,26 @@ export interface CardLayout {
   lines: string[];
   /** Baseline y of the first message line. */
   messageTop: number;
+  /** Baseline y of the signature, one line below the last of them. */
+  nameY: number;
+  /**
+   * How far past the bottom of the writing column the message ran, and so how much taller
+   * the card is than {@link CARD_HEIGHT}. Everything anchored low — the leaf, the picture,
+   * the signature — moves down by this, which is what keeps the parts in step on the rare
+   * card that has to grow.
+   */
+  overflow: number;
 }
 
-/** Wrap the message and work out how tall the card has to be to hold it. */
-export function layoutCard(message: string): CardLayout {
-  const fontSize = messageFontSize(message.length);
-  const font = `${fontSize}px ${CARD_FONT}`;
-  const lineHeight = Math.round(fontSize * 1.55);
-
+/** Break one paragraph's worth of text into lines that fit `width`. */
+function wrap(text: string, font: string, width: number): string[] {
   const lines: string[] = [];
   // Explicit newlines are the author's own breaks and are always honoured.
-  for (const paragraph of message.split('\n')) {
+  for (const paragraph of text.split('\n')) {
     let line = '';
     for (const piece of segments(paragraph)) {
       const candidate = line + piece;
-      if (line && measure(candidate.trimEnd(), font) > MESSAGE_MAX_WIDTH) {
+      if (line && measure(candidate.trimEnd(), font) > width) {
         lines.push(line.trimEnd());
         // A break opportunity that is itself a space would otherwise start the next
         // line with a stray indent.
@@ -98,14 +136,38 @@ export function layoutCard(message: string): CardLayout {
     }
     lines.push(line.trimEnd());
   }
+  return lines;
+}
 
-  const blockHeight = lines.length * lineHeight;
+/** Set the message in the writing column, as large as it will go. */
+export function layoutCard(message: string): CardLayout {
+  const band = CARD_COLUMN.bottom - CARD_COLUMN.top;
+  /** What the signature adds under the last line: its own line, plus air above it. */
+  const signature = CARD_NAME.gap + CARD_NAME.size;
+
+  let fontSize = MESSAGE_SIZES[MESSAGE_SIZES.length - 1];
+  let lineHeight = Math.round(fontSize * 1.5);
+  let lines: string[] = [];
+  for (const size of MESSAGE_SIZES) {
+    fontSize = size;
+    lineHeight = Math.round(size * 1.5);
+    lines = wrap(message, `${size}px ${CARD_FONT}`, CARD_COLUMN.width);
+    if (lines.length * lineHeight + signature <= band) break;
+  }
+
+  const block = lines.length * lineHeight + signature;
+  const overflow = Math.max(0, block - band);
+  // Centred in the band rather than hung from the top of it: most wishes are a line or two,
+  // and those would otherwise sit up by the fold with the rest of the column empty.
+  const messageTop = CARD_COLUMN.top + fontSize + Math.max(0, band - block) / 2;
   return {
-    height: Math.max(MIN_CARD_HEIGHT, HEADER_HEIGHT + blockHeight + FOOTER_HEIGHT),
+    height: CARD_HEIGHT + overflow,
     fontSize,
     lineHeight,
     lines,
-    messageTop: HEADER_HEIGHT + fontSize,
+    messageTop,
+    nameY: messageTop + (lines.length - 1) * lineHeight + CARD_NAME.gap + CARD_NAME.size,
+    overflow,
   };
 }
 
@@ -143,9 +205,11 @@ async function inlineImage(url: string): Promise<string | null> {
 export async function svgToPng(svg: SVGSVGElement, scale = 2): Promise<Blob> {
   const clone = svg.cloneNode(true) as SVGSVGElement;
 
-  const viewBox = (svg.getAttribute('viewBox') ?? '0 0 720 900').split(/\s+/).map(Number);
+  const viewBox = (svg.getAttribute('viewBox') ?? `0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`)
+    .split(/\s+/)
+    .map(Number);
   const width = viewBox[2] || CARD_WIDTH;
-  const height = viewBox[3] || MIN_CARD_HEIGHT;
+  const height = viewBox[3] || CARD_HEIGHT;
   clone.setAttribute('width', String(width));
   clone.setAttribute('height', String(height));
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');

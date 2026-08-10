@@ -73,8 +73,8 @@ watch(event, (e) => {
       <p class="mb-6 text-gray-600">มาเป็นคนแรกที่ปล่อยลูกโป่งอวยพรกันเถอะ</p>
       <RouterLink
         :to="{ name: 'birthday-wish', params: { slug } }"
-        class="cta-btn"
-        :style="{ background: themeColor }"
+        class="btn-3d cta-btn"
+        :style="{ '--cta': themeColor }"
       >
         เขียนคำอวยพร
       </RouterLink>
@@ -86,18 +86,17 @@ watch(event, (e) => {
       height="auto"
       :wishes="wishes"
       :slug="slug"
-      :event-title="event?.title"
-      :celebrant-name="event?.celebrantName"
       :theme-color="themeColor"
       @update:reading="reading = $event"
       @update:crowded="crowded = $event"
     />
 
     <div v-if="wishes.length" class="cta">
+      <p class="cta-count">ลูกโป่งอวยพรทั้งหมด  {{ wishes.length }} ใบ</p>
       <RouterLink
         :to="{ name: 'birthday-wish', params: { slug } }"
-        class="cta-btn shadow-lg"
-        :style="{ background: themeColor }"
+        class="btn-3d cta-btn"
+        :style="{ '--cta': themeColor }"
       >
         เขียนคำอวยพร 🎈
       </RouterLink>
@@ -154,6 +153,11 @@ watch(event, (e) => {
   bottom: calc(max(0.85rem, var(--foot-h) * 0.12) + env(safe-area-inset-bottom, 0px));
   display: flex;
   justify-content: center;
+  /* The count rides beside the button; on a narrow phone it takes the line above instead. */
+  align-items: center;
+  flex-wrap: wrap;
+  gap: clamp(0.4rem, 1.2vw, 0.9rem);
+  padding-inline: 0.75rem;
   /* Above the balloons, which climb to z-index 16. */
   z-index: 30;
   pointer-events: none;
@@ -161,14 +165,34 @@ watch(event, (e) => {
 .cta > * {
   pointer-events: auto;
 }
-/* Sized off the viewport like everything else down here, so it keeps its place among the
-   flowers instead of turning into a postage stamp on a projector or a slab on a phone. */
+/*
+ * Shape and size only — the moulding comes from `.btn-3d` in `main.css`, which the form
+ * shares.
+ *
+ * Sized off the viewport like everything else down here, so it keeps its place among the
+ * flowers instead of turning into a postage stamp on a projector or a slab on a phone.
+ */
 .cta-btn {
   @apply inline-block rounded-full text-center font-semibold text-white transition;
   padding: clamp(0.55rem, 1.1vw, 1.1rem) clamp(1.35rem, 2.8vw, 2.75rem);
   font-size: clamp(0.9rem, 1.35vw, 1.35rem);
 }
-.cta-btn:hover {
-  opacity: 0.9;
+
+/*
+ * The tally, sized off the viewport like the button so the pair keeps its proportions, and
+ * one step down from it in weight — the button is what the visitor is here to press.
+ *
+ * Its own backing: this sits over the flower artwork, which is busy enough to swallow plain
+ * text. `pointer-events` stays off, so a balloon drifting behind it can still be tapped.
+ */
+.cta-count {
+  @apply rounded-full font-semibold text-gray-700;
+  padding: clamp(0.5rem, 1vw, 1rem) clamp(0.9rem, 1.9vw, 1.8rem);
+  font-size: clamp(0.8rem, 1.15vw, 1.15rem);
+  white-space: nowrap;
+  background: rgb(255 255 255 / 82%);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 12%);
+  pointer-events: none;
 }
 </style>

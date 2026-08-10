@@ -46,8 +46,6 @@ const themeColor = computed(() => event.value?.themeColor ?? '#ea480c');
       :wishes="wishes"
       :height="height"
       :slug="slug"
-      :event-title="event?.title"
-      :celebrant-name="event?.celebrantName"
       :theme-color="themeColor"
       @update:reading="reading = $event"
     />

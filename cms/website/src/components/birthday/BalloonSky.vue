@@ -35,18 +35,14 @@ const props = withDefaults(
     wishes: Wish[];
     /** CSS height for the flight window. Full screen on the wall page, shorter in a block. */
     height?: string;
-    /** Printed on the card, and used to build the link a shared card points at. */
+    /** Used to build the link a shared card points at. */
     slug?: string;
-    eventTitle?: string | null;
-    celebrantName?: string | null;
     /** Passed straight through to the card popup, whose buttons wear it. */
     themeColor?: string | null;
   }>(),
   {
     height: 'calc(100svh - var(--header-h))',
     slug: '',
-    eventTitle: null,
-    celebrantName: null,
     themeColor: null,
   },
 );
@@ -673,8 +669,6 @@ const galleryWidth = computed(() => {
     <!-- The card behind a balloon -->
     <WishCardDialog
       :wish="opened"
-      :event-title="eventTitle"
-      :celebrant-name="celebrantName"
       :theme-color="themeColor"
       :share-url="shareUrl"
       @close="close"
