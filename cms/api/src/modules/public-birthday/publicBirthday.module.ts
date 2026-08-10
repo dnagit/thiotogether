@@ -24,17 +24,17 @@ import type { FeatureModule } from '../../core/modules.js';
 const router = Router();
 
 /** Shapes the website can draw. An unknown value would render as a blank balloon. */
-const BALLOON_SHAPES = ['round', 'long', 'heart', 'star', 'gem'] as const;
+const BALLOON_SHAPES = ['round', 'long', 'heart', 'star', 'gem', 'sunflower', 'dog', 'cat'] as const;
 
 const wishSchema = z.object({
   name: z.string().trim().min(1).max(60),
   message: z.string().trim().min(1).max(300),
   balloonShape: z.enum(BALLOON_SHAPES).default('round'),
-  /** Hex only: the value goes straight into an SVG `fill`. */
+  /** Hex only: the value goes straight into an SVG `fill`. The default matches the website's. */
   balloonColor: z
     .string()
-    .regex(/^#[0-9a-fA-F]{6}$/, 'balloonColor must be a hex colour like #0ea5e9')
-    .default('#0ea5e9'),
+    .regex(/^#[0-9a-fA-F]{6}$/, 'balloonColor must be a hex colour like #e11d48')
+    .default('#e11d48'),
   giftId: z.coerce.number().int().positive().optional(),
   /** Card artwork. Absent is a legitimate choice: the plain card. */
   backgroundId: z.coerce.number().int().positive().optional(),

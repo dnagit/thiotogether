@@ -11,6 +11,7 @@
  */
 import { computed, ref } from 'vue';
 import {
+  DEFAULT_COLOR,
   inkColor,
   lighten,
   nextBalloonUid,
@@ -44,7 +45,7 @@ defineExpose({ svg });
 
 const uid = nextBalloonUid();
 const shape = computed(() => shapeById(props.balloonShape));
-const color = computed(() => props.balloonColor || '#0ea5e9');
+const color = computed(() => props.balloonColor || DEFAULT_COLOR);
 const crown = computed(() => lighten(color.value, 0.45));
 const edge = computed(() => outlineColor(color.value));
 /** Text, which needs more contrast than an outline does — the paper is tinted from the same colour. */

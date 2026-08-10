@@ -5,7 +5,7 @@
  * answer each other instead of being read separately.
  *
  * Native radios under the swatches: arrow keys move through the group and the browser
- * announces "2 of 5" without any of it being reimplemented here.
+ * announces "2 of 8" without any of it being reimplemented here.
  */
 import { BALLOON_SHAPES, DEFAULT_COLOR, outlineColor, type BalloonShapeId } from './balloon';
 

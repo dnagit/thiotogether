@@ -7,7 +7,15 @@
  * while writing a wish is exactly what floats up afterwards.
  */
 
-export type BalloonShapeId = 'round' | 'long' | 'heart' | 'star' | 'gem';
+export type BalloonShapeId =
+  | 'round'
+  | 'long'
+  | 'heart'
+  | 'star'
+  | 'gem'
+  | 'sunflower'
+  | 'dog'
+  | 'cat';
 
 export interface BalloonShape {
   id: BalloonShapeId;
@@ -71,6 +79,64 @@ export const BALLOON_SHAPES: readonly BalloonShape[] = [
     tie: { x: 50, y: 98 },
     knot: true,
   },
+  {
+    id: 'sunflower',
+    label: 'ทานตะวัน',
+    /*
+     * Twelve round petals around (50, 50): tips at radius 48, the notches between them at
+     * 35, each petal a pair of quadratics whose controls sit level with the tip — that is
+     * what gives a lobe rather than a spike, and a spiked one only repeats the star above.
+     *
+     * Twelve is even, so a petal lands at the very bottom and the string leaves from a tip
+     * instead of a notch. The notches stop well short of the middle, so a photo clipped
+     * into this still has a round face-sized area at the centre; the petals only scallop
+     * its edge.
+     */
+    path: 'M40.9 16.2 Q40 3 50 2 Q60 3 59.1 16.2 Q64.8 4.3 74 8.4 Q82.1 14.3 74.7 25.3 Q85.7 17.9 91.6 26 Q95.7 35.2 83.8 40.9 Q97 40 98 50 Q97 60 83.8 59.1 Q95.7 64.8 91.6 74 Q85.7 82.1 74.7 74.7 Q82.1 85.7 74 91.6 Q64.8 95.7 59.1 83.8 Q60 97 50 98 Q40 97 40.9 83.8 Q35.2 95.7 26 91.6 Q17.9 85.7 25.3 74.7 Q14.3 82.1 8.4 74 Q4.3 64.8 16.2 59.1 Q3 60 2 50 Q3 40 16.2 40.9 Q4.3 35.2 8.4 26 Q14.3 17.9 25.3 25.3 Q17.9 14.3 26 8.4 Q35.2 4.3 40.9 16.2 Z',
+    tie: { x: 50, y: 97 },
+    knot: true,
+  },
+  {
+    id: 'dog',
+    label: 'น้องหมา',
+    /*
+     * A dog's head seen face-on: a round head with a drop ear hanging down each side, and
+     * nothing below it — the head runs straight round to the chin.
+     *
+     * The head is deliberately narrower than the box. An ear can only read as an ear if it
+     * hangs *outside* the head, and at full width there was no room left for one to hang in:
+     * every earlier attempt merged into the skull and the whole thing read as a mushroom.
+     * The other half of it is the notch. Each ear rejoins the cheek low, around y 66, so
+     * between the ear's inner edge and the cheek there is a deep V; a shallow one reads as a
+     * dent in the outline rather than as an ear in front of a head.
+     *
+     * The right half is written out and the left is its exact mirror, so the face cannot
+     * come out lopsided.
+     */
+    path: 'M50 13 C60 13 67 16 71 22 C85 26 98 54 93 80 C89 91 78 92 76 82 C77 77 79 71 80 66 C79 82 64 93 50 93 C36 93 21 82 20 66 C21 71 23 77 24 82 C22 92 11 91 7 80 C2 54 15 26 29 22 C33 16 40 13 50 13 Z',
+    tie: { x: 50, y: 92 },
+    knot: true,
+  },
+  {
+    id: 'cat',
+    label: 'น้องแมว',
+    /*
+     * The cat is the dog's opposite where the two could be confused: both are a round head
+     * and the ears are the entire difference. These stand up at the top corners, where the
+     * dog's hang down the sides.
+     *
+     * The face is a real circle — centre (50, 55), radius 43 — and every arc of it is cut
+     * from that circle with exact endpoints and tangents, so nothing here can quietly
+     * flatten it into an egg. Only the ear is drawn by hand: it leaves the circle at a cusp
+     * (the notch), curves up to a rounded tip, and comes back down an outer edge that meets
+     * the cheek along the circle's own tangent, so the ear grows out of the head instead of
+     * being stuck onto it. A straight-sided ear read as a horn; the curve is most of what
+     * makes the face read as friendly rather than sharp.
+     */
+    path: 'M50 12 C56.5 12 63 13.5 68.8 16.4 C70.8 5.4 79 2 86 3 C91 4 87.4 27.1 91.7 44.6 C92.6 48 93 51.5 93 55 C93 78.7 73.7 98 50 98 C26.3 98 7 78.7 7 55 C7 51.5 7.4 48 8.3 44.6 C12.6 27.1 9 4 14 3 C21 2 29.2 5.4 31.2 16.4 C37 13.5 43.5 12 50 12 Z',
+    tie: { x: 50, y: 97 },
+    knot: true,
+  },
 ];
 
 export function shapeById(id: string | null | undefined): BalloonShape {
@@ -108,7 +174,8 @@ export const BALLOON_COLORS: readonly BalloonColor[] = [
   { label: 'ขาว', hex: '#ffffff' },
 ];
 
-export const DEFAULT_COLOR = BALLOON_COLORS[4].hex;
+/** Red — the first swatch, and what a visitor gets if they never open the colour picker. */
+export const DEFAULT_COLOR = BALLOON_COLORS[0].hex;
 
 /**
  * How the uploaded picture sits inside the balloon.
