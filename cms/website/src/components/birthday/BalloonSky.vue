@@ -138,8 +138,13 @@ const seated = computed(() => {
 const sky = ref<HTMLElement | null>(null);
 const { width: skyWidth, height: skyHeight } = useElementSize(sky);
 
-/** Assembly height ÷ balloon width: the balloon, its string, the present and the name tag. */
-const ASSEMBLY_RATIO = 1.9;
+/**
+ * Assembly height ÷ balloon width: the balloon (1.04), its string (0.3), the present
+ * (0.62 × 0.88) and the name tag (~0.19). Read off `WishBalloon.vue`'s own proportions —
+ * resizing any part of it there leaves this number stale, and the wall would space itself
+ * for a balloon that is no longer the size it draws.
+ */
+const ASSEMBLY_RATIO = 2.08;
 /**
  * The tightest a lane may be packed, as a multiple of the full balloon width — which is
  * also the least room a balloon is ever left to move about in: 9% of its width to either
@@ -228,21 +233,29 @@ interface Seat {
   duration: number;
 }
 
+/** Half the balloon's own height, in widths — its `aspect-ratio` is 100/104. */
+const BALLOON_HALF = 0.52;
+/**
+ * How far the balloon sits above what it swings around. `transform-origin` is left at the
+ * default, so the tilt pivots about the middle of the whole assembly; a bigger present
+ * lowers that pivot and swings the balloon further for the same angle.
+ */
+const PIVOT_DROP = ASSEMBLY_RATIO / 2 - BALLOON_HALF;
+
 /**
  * The parts of a balloon that come from the wish rather than from where it was put.
  *
  * Drawing every balloon at the size of its slot is what makes a wall look printed rather
  * than floating, so each takes a hashed share of it and hangs at its own angle. A tilt
- * pivots about the middle of the assembly — roughly 0.43 of a width below the balloon
- * itself — so it carries the balloon sideways too, and that has to be paid for out of the
- * same room the drift comes from.
+ * carries the balloon sideways as well as turning it, and that has to be paid for out of
+ * the same room the drift comes from.
  */
 function profile(wish: Wish, w: number): { scale: number; drawn: number; tilt: number; lean: number } {
   const scale = MIN_SCALE + hash(wish.id, 8) * (1 - MIN_SCALE);
   const drawn = w * scale;
   const tilt = MAX_TILT * (hash(wish.id, 10) * 2 - 1);
   // The sway's own ±1.5° is in the sum: this is the widest the balloon ever leans.
-  const lean = 0.43 * drawn * Math.sin(((Math.abs(tilt) + 1.5) * Math.PI) / 180);
+  const lean = PIVOT_DROP * drawn * Math.sin(((Math.abs(tilt) + 1.5) * Math.PI) / 180);
   return { scale, drawn, tilt, lean };
 }
 

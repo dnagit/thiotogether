@@ -226,8 +226,11 @@ const label = computed(() =>
   height: calc(var(--w) * 0.3);
 }
 
+/* Share of the balloon's width. Raising this makes the whole assembly taller, so
+   `ASSEMBLY_RATIO` in BalloonSky.vue — which spaces the wall by that height — has to move
+   with it. */
 .gift {
-  width: 46%;
+  width: 62%;
   display: flex;
   justify-content: center;
 }
