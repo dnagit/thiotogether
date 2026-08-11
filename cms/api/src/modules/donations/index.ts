@@ -39,10 +39,20 @@ router.get(
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Donations');
+    /*
+     * A column per key `exportRows` produces. ExcelJS matches rows to columns by key and
+     * silently drops anything it has no column for, which is how the donor's address and
+     * nickname came to be missing from the file while being read from the database on every
+     * export.
+     */
     sheet.columns = [
       { header: 'Code', key: 'code', width: 14 },
       { header: 'Project', key: 'project', width: 30 },
+      { header: 'Nickname', key: 'nickname', width: 18 },
       { header: 'Account Name', key: 'accountName', width: 25 },
+      // One free-text field on the form ("ชื่อ-ที่อยู่-เบอร์โทร"), and the address the
+      // thank-you item is posted to — which is what this export is used for.
+      { header: 'Name / Address / Phone', key: 'contactInfo', width: 46 },
       { header: 'Amount', key: 'amount', width: 12 },
       { header: 'Currency', key: 'currency', width: 10 },
       { header: 'Transfer Date', key: 'transferDate', width: 14 },
@@ -53,6 +63,9 @@ router.get(
     ];
     sheet.addRows(rows);
     sheet.getRow(1).font = { bold: true };
+    // The donor types this as three lines; without wrapping the spreadsheet shows the first
+    // one and hides the rest behind the next column.
+    sheet.getColumn('contactInfo').alignment = { wrapText: true, vertical: 'top' };
 
     const stamp = new Date().toISOString().slice(0, 10);
     if (format === 'csv') {
