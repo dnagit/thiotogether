@@ -711,11 +711,27 @@ const galleryWidth = computed(() => {
     bob var(--bob-duration) ease-in-out var(--bob-delay) infinite alternate;
 }
 
-/* Hovering or tabbing to a balloon holds it still, so it can be read and clicked. */
+/* Hovering a balloon holds it still, so it can be read and clicked. */
 .lane:hover,
-.lane:focus-within,
-.lane:hover .sway,
-.lane:focus-within .sway {
+.lane:hover .sway {
+  animation-play-state: paused;
+}
+/*
+ * Tabbing to one does the same — but `:focus-visible`, not `:focus-within`, and in a rule of
+ * its own.
+ *
+ * Closing the card returns focus to the balloon that opened it, as it should. Under
+ * `:focus-within` that balloon then stayed frozen for good while the rest of the sky carried
+ * on: it was still focused, and nothing was ever going to take that focus away. Restored
+ * focus after a click is not `:focus-visible`, so only a visitor who arrived by keyboard —
+ * the one who needs the balloon to hold still — holds it now.
+ *
+ * Separate rule because `:has()` is the only way to ask this of the lane, and a browser that
+ * does not know it drops the whole selector list: kept together, the hover pause above would
+ * have gone with it.
+ */
+.lane:has(:focus-visible),
+.lane:has(:focus-visible) .sway {
   animation-play-state: paused;
 }
 /* Everything stops while a message is open — a balloon must not drift away mid-read. */
