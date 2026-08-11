@@ -112,6 +112,31 @@ async function resolveContent(path: string): Promise<ContentSeo | null> {
       };
     }
 
+    /*
+     * The birthday pages belong to the SPA, not to the page tree, so without this they fell
+     * through to the site-wide defaults — which is why a wish wall shared into LINE came up
+     * with the site's name and logo instead of the party's own cover.
+     *
+     * All three of its screens (the wall, the form, the card list) share one event, and the
+     * slug is optional on every one of them: a site running a single birthday links to
+     * `/birthday` and never names it.
+     */
+    const birthday = /^\/birthday(?:\/(?:wish|cards))?(?:\/([^/]+))?$/.exec(path);
+    if (birthday) {
+      const event = await prisma.birthdayEvent.findFirst({
+        where: { slug: decodeURIComponent(birthday[1] ?? 'birthday'), isActive: true },
+        select: { title: true, celebrantName: true, description: true, coverImage: true },
+      });
+      if (!event) return null;
+      return {
+        title: event.celebrantName ? `${event.title} ${event.celebrantName}` : event.title,
+        description: event.description,
+        // The party's own artwork rather than the site's logo when no cover has been set:
+        // this is a link to a birthday, and the logo is what every other link already shows.
+        image: event.coverImage || `${trimSlash(config.WEBSITE_URL)}/images/bg-card.png`,
+      };
+    }
+
     const page = await pageService.getPublishedByPath(path);
     return {
       title: page.title,
