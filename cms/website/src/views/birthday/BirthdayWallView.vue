@@ -92,7 +92,6 @@ watch(event, (e) => {
     />
 
     <div v-if="wishes.length" class="cta">
-      <p class="cta-count">ลูกโป่งอวยพรทั้งหมด  {{ wishes.length }} ใบ</p>
       <RouterLink
         :to="{ name: 'birthday-wish', params: { slug } }"
         class="btn-3d cta-btn"
@@ -100,6 +99,18 @@ watch(event, (e) => {
       >
         เขียนคำอวยพร 🎈
       </RouterLink>
+
+      <!-- Underneath, as a pair: how many there are, and the way to read them as cards. -->
+      <div class="cta-row">
+        <p class="cta-count">ลูกโป่งอวยพรทั้งหมด  {{ wishes.length }} ใบ</p>
+        <RouterLink
+          :to="{ name: 'birthday-cards', params: { slug } }"
+          class="cta-link"
+          :style="{ '--cta': themeColor }"
+        >
+          ดูคำอวยพรทั้งหมด <span aria-hidden="true">→</span>
+        </RouterLink>
+      </div>
     </div>
   </div>
 </template>
@@ -151,18 +162,26 @@ watch(event, (e) => {
    * indicator, which is otherwise exactly where a button this near the edge would land.
    */
   bottom: calc(max(0.85rem, var(--foot-h) * 0.12) + env(safe-area-inset-bottom, 0px));
+  /* Two rows: the button, and the tally beside the card list under it. */
   display: flex;
-  justify-content: center;
-  /* The count rides beside the button; on a narrow phone it takes the line above instead. */
+  flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
   gap: clamp(0.4rem, 1.2vw, 0.9rem);
   padding-inline: 0.75rem;
   /* Above the balloons, which climb to z-index 16. */
   z-index: 30;
   pointer-events: none;
 }
-.cta > * {
+/* The pair under the button; on a phone too narrow for both, they take a line each. */
+.cta-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: clamp(0.35rem, 1vw, 0.7rem);
+}
+.cta > *,
+.cta-row > * {
   pointer-events: auto;
 }
 /*
@@ -187,12 +206,46 @@ watch(event, (e) => {
  */
 .cta-count {
   @apply rounded-full font-semibold text-gray-700;
-  padding: clamp(0.5rem, 1vw, 1rem) clamp(0.9rem, 1.9vw, 1.8rem);
-  font-size: clamp(0.8rem, 1.15vw, 1.15rem);
+  /* Cut to the card link's size, now that the two stand side by side. */
+  padding: 0.3rem 0.85rem;
+  font-size: clamp(0.7rem, 0.85vw, 0.9rem);
   white-space: nowrap;
   background: rgb(255 255 255 / 82%);
   backdrop-filter: blur(6px);
   box-shadow: 0 2px 10px rgb(0 0 0 / 12%);
   pointer-events: none;
+}
+
+/*
+ * A button, but the quietest thing down here: writing a wish is what this screen is for,
+ * reading the rest is the second thing.
+ *
+ * It is a pill like the tally beside the main button, and deliberately a smaller and fainter
+ * one than either — less padding, less white behind it, barely a shadow. That ranking is the
+ * whole design of this corner: the moulded colour first, the tally next, this last.
+ */
+.cta-link {
+  @apply rounded-full font-semibold transition;
+  /* Smaller than the tally above it, being the quietest thing in the corner. */
+  padding: 0.3rem 0.85rem;
+  font-size: clamp(0.7rem, 0.85vw, 0.9rem);
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 5px rgb(0 0 0 / 10%);
+  /*
+   * Tinted from the party's own colour rather than white, so it is not mistaken for a second
+   * tally: the pill beside the button is plain white with grey type, this one is a wash of
+   * `--cta` with the same colour taken down for the type. Still far short of the button
+   * itself, which wears the colour at full strength and moulded.
+   *
+   * The flat pair first, as the fallback that survives where `color-mix` is not understood.
+   */
+  color: #374151;
+  background: rgb(255 255 255 / 72%);
+  color: color-mix(in srgb, var(--cta) 72%, black);
+  background: color-mix(in srgb, var(--cta) 18%, rgb(255 255 255 / 88%));
+}
+.cta-link:hover {
+  background: color-mix(in srgb, var(--cta) 28%, rgb(255 255 255 / 95%));
 }
 </style>

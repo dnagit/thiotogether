@@ -69,6 +69,13 @@ export const router = createRouter({
       meta: { layout: 'birthday' },
     },
     {
+      // Also before the wall, and for the same reason as the form above.
+      path: '/birthday/cards/:slug?',
+      name: 'birthday-cards',
+      component: () => import('@/views/birthday/BirthdayCardsView.vue'),
+      meta: { layout: 'birthday' },
+    },
+    {
       path: '/birthday/:slug?',
       name: 'birthday-wall',
       component: () => import('@/views/birthday/BirthdayWallView.vue'),
