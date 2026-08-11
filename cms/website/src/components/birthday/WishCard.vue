@@ -26,9 +26,9 @@ import {
   CARD_COLUMN,
   CARD_FONT,
   CARD_LEAF,
-  CARD_NAME,
   CARD_PICTURE,
   CARD_WIDTH,
+  fitName,
   layoutCard,
   measureText,
 } from './wishCard';
@@ -78,6 +78,8 @@ const picture = computed(() => ({
 }));
 /** Right edge of the writing column: the signature hangs off it. */
 const columnRight = CARD_COLUMN.x + CARD_COLUMN.width;
+/** Set smaller, and cut, rather than allowed to run off the leaf. */
+const signature = computed(() => fitName(props.name));
 
 /**
  * The whole balloon assembly, in the balloon's own 100-wide box units.
@@ -355,12 +357,10 @@ const giftBox = {
       :y="layout.nameY"
       text-anchor="end"
       :font-family="CARD_FONT"
-      :font-size="CARD_NAME.size"
+      :font-size="signature.size"
       font-weight="700"
       :fill="ink"
-    >
-       {{ name }}
-    </text>
+    >{{ signature.text }}</text>
   </svg>
 </template>
 

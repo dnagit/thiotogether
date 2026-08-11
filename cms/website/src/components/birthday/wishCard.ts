@@ -54,7 +54,7 @@ export const CARD_COLUMN = {
  * of the column — it is who wrote the words above, and a gap between them reads as a
  * caption for the card instead. The pair is centred in the band as one block.
  */
-export const CARD_NAME = { size: 26, gap: 18 } as const;
+export const CARD_NAME = { size: 26, min: 15, gap: 18 } as const;
 
 /**
  * Sizes to try for the message, largest first.
@@ -80,6 +80,29 @@ function measure(text: string, font: string): number {
 /** Width of a run of card text, for sizing things around it rather than guessing. */
 export function measureText(text: string, fontSize: number, weight = ''): number {
   return measure(text, `${weight} ${fontSize}px ${CARD_FONT}`.trim());
+}
+
+/**
+ * The signature, sized to fit the writing column.
+ *
+ * SVG text neither wraps nor clips: a name too long for the column simply runs on, and since
+ * this one is anchored to the column's right edge it runs *leftwards*, off the leaf and over
+ * the artwork. A name may be sixty characters, so it is set smaller until it fits, and only
+ * cut once it is as small as it is allowed to get.
+ */
+export function fitName(name: string): { text: string; size: number } {
+  const room = CARD_COLUMN.width;
+  let size = CARD_NAME.size;
+  while (size > CARD_NAME.min && measureText(name, size, '700') > room) size -= 1;
+
+  let text = name;
+  if (measureText(text, size, '700') > room) {
+    while (text.length > 1 && measureText(`${text}…`, size, '700') > room) {
+      text = text.slice(0, -1);
+    }
+    text = `${text}…`;
+  }
+  return { text, size };
 }
 
 /**
