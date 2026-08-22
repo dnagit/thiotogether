@@ -126,8 +126,8 @@ function linkProps(button: CtaButton): Record<string, unknown> {
     <!-- Fluid rather than a fixed step: viewport-proportional, with clamp ends for readability.
          3vw is only ~12px on a phone, so the lower end is what every mobile viewport actually
          gets — it is raised on its own to keep the desktop ramp unchanged. -->
-    <!-- <h2 class="font-bold leading-tight text-[clamp(2rem,3vw,3.5rem)] mb-[clamp(0.5rem,1vw,1rem)]">{{ title }}</h2>
-    <p -->
+    <!-- <h2 class="font-bold leading-tight text-[clamp(2rem,3vw,3.5rem)] mb-[clamp(0.5rem,1vw,1rem)]">{{ title }}</h2> -->
+    <p
       v-if="text"
       class="opacity-90 max-w-xl mx-auto px-4 text-[clamp(0.8rem,1.2vw,1.25rem)] mb-[clamp(0.75rem,1.6vw,1.5rem)]"
     >
