@@ -310,6 +310,30 @@ router.delete(
   }),
 );
 
+/**
+ * Clears one event's wall in a single action, for when moderating row by row is not worth it.
+ *
+ * Scoped to the event in the path — there is deliberately no route that spans events. It goes
+ * through the extended client like every other wish delete, so the rows are soft-deleted and a
+ * mistake stays recoverable in the database rather than being final.
+ */
+router.delete(
+  '/:id(\\d+)/wishes',
+  authorize(PERMISSIONS.BIRTHDAY_MODERATE),
+  asyncHandler(async (req, res) => {
+    const eventId = Number(req.params.id);
+    if (!(await prisma.birthdayEvent.findFirst({ where: { id: eventId } }))) {
+      throw new NotFoundError('Birthday event');
+    }
+    // Excluding rows already deleted keeps the reported count honest and leaves their original
+    // deletion timestamp alone, which is what a restore would go looking for.
+    const { count } = await prisma.birthdayWish.deleteMany({
+      where: { eventId, deletedAt: null },
+    });
+    ok(res, { count }, `Deleted ${count} wishes`);
+  }),
+);
+
 export const birthdayModule: FeatureModule = {
   name: 'birthday',
   basePath: '/birthday',

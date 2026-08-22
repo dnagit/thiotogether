@@ -53,6 +53,34 @@ async function setStatus(row: any, status: 'APPROVED' | 'REJECTED'): Promise<voi
   }
 }
 
+const purging = ref(false);
+
+/**
+ * Clears the whole wall for this event.
+ *
+ * The confirm spells out that the toolbar filters do not narrow it: the request always takes every
+ * wish in the event, including the ones the current search or status filter is hiding, which is not
+ * what the table in front of the editor implies.
+ */
+async function removeAll(): Promise<void> {
+  const confirmed = await confirmDelete('คำอวยพรทั้งหมด', {
+    title: 'ลบคำอวยพรทั้งหมด',
+    note:
+      'ต้องการลบคำอวยพร "ทั้งหมด" ของงานนี้ใช่หรือไม่? ตัวกรองในหน้านี้ไม่มีผล — ระบบจะลบทุกรายการในงาน ' +
+      'รวมทั้งที่รออนุมัติและที่ซ่อนไว้ ผู้ดูแลระบบสามารถกู้คืนได้ภายหลัง',
+    confirmText: 'ลบทั้งหมด',
+  });
+  if (!confirmed) return;
+  purging.value = true;
+  try {
+    const { data } = await http.delete<ApiResponse<{ count: number }>>(`/birthday/${id}/wishes`);
+    ElMessage.success(`ลบแล้ว ${data.data?.count ?? 0} รายการ`);
+    await crud.fetchList();
+  } finally {
+    purging.value = false;
+  }
+}
+
 async function remove(row: any): Promise<void> {
   const confirmed = await confirmDelete(`คำอวยพรจาก ${row.name}`, {
     note: `ต้องการลบคำอวยพรจาก "${row.name}" ใช่หรือไม่? ผู้ดูแลระบบสามารถกู้คืนได้ภายหลัง`,
@@ -82,6 +110,16 @@ async function remove(row: any): Promise<void> {
         <ElSelect v-model="crud.query.filters.status" placeholder="สถานะ" clearable style="width: 180px">
           <ElOption v-for="s in ['PENDING', 'APPROVED', 'REJECTED']" :key="s" :value="s" :label="statusLabel[s]" />
         </ElSelect>
+        <ElButton
+          v-permission="PERMISSIONS.BIRTHDAY_MODERATE"
+          class="purge"
+          type="danger"
+          plain
+          :loading="purging"
+          @click="removeAll"
+        >
+          ลบคำอวยพรทั้งหมด
+        </ElButton>
       </div>
 
       <ElTable v-loading="crud.loading.value" :data="crud.items.value">
@@ -182,6 +220,8 @@ async function remove(row: any): Promise<void> {
 </template>
 
 <style scoped>
+/* Pushed away from the filters: it acts on the whole event, not on what they narrowed to. */
+.purge { margin-left: auto; }
 .mb { margin-bottom: 16px; }
 .mt { margin-top: 12px; }
 .thumb { width: 56px; height: 56px; border-radius: 8px; }
