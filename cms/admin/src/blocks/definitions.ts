@@ -213,10 +213,34 @@ export const blockDefinitions: BlockDefinition[] = [
     label: 'Call to Action',
     icon: '📢',
     category: 'content',
-    defaultProps: { title: 'Ready?', text: '', buttons: [{ label: 'Get started', url: '#', image: '' }] },
+    defaultProps: {
+      title: 'Ready?',
+      text: '',
+      perRow: '1',
+      marginTop: '',
+      marginBottom: '2rem',
+      buttons: [{ label: 'Get started', url: '#', image: '', hoverImage: '' }],
+    },
     fields: [
       { key: 'title', label: 'Title', type: 'text' },
       { key: 'text', label: 'Text', type: 'textarea' },
+      {
+        key: 'marginTop',
+        label: 'Margin Top (blank = responsive overlap with the block above; a bare number means px)',
+        type: 'text',
+      },
+      { key: 'marginBottom', label: 'Margin Bottom (blank = 2rem; a bare number means px)', type: 'text' },
+      {
+        key: 'perRow',
+        label: 'Buttons per row (desktop — phones always swipe)',
+        type: 'select',
+        options: [
+          { label: '1 per row', value: '1' },
+          { label: '2 per row', value: '2' },
+          { label: '3 per row', value: '3' },
+          { label: '4 per row', value: '4' },
+        ],
+      },
       {
         key: 'buttons',
         label: 'Button',
@@ -225,6 +249,7 @@ export const blockDefinitions: BlockDefinition[] = [
           { key: 'label', label: 'Button Label', type: 'text' },
           { key: 'url', label: 'Button URL', type: 'url' },
           { key: 'image', label: 'Button Image (optional — replaces the text button)', type: 'image' },
+          { key: 'hoverImage', label: 'Button Image on Hover (optional — needs the image above)', type: 'image' },
         ],
       },
     ],

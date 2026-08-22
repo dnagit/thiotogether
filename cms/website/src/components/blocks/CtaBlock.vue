@@ -1,27 +1,111 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 
 interface CtaButton {
   label?: string;
   url?: string;
   image?: string;
+  /** Swapped in while the pointer is over the button; falls back to `image` when unset. */
+  hoverImage?: string;
 }
 
 const props = defineProps<{
   title?: string;
   text?: string;
   buttons?: CtaButton[];
+  /** Desktop columns. Arrives as a string from the select field in the page builder. */
+  perRow?: number | string;
+  /** Space above and below the block. Blank keeps the 2rem this block has always carried. */
+  marginTop?: string | number;
+  marginBottom?: string | number;
   /** Pre-list props: pages saved before this block took multiple buttons still carry these. */
   buttonLabel?: string;
   buttonUrl?: string;
 }>();
+
+/**
+ * A bare number is treated as px; anything else passes through as authored CSS — the same rule the
+ * page builder's section-level offsets use, so one habit covers both.
+ */
+function cssLength(raw: string | number | undefined, fallback: string): string {
+  const value = String(raw ?? '').trim();
+  if (!value) return fallback;
+  return /^-?\d*\.?\d+$/.test(value) ? `${value}px` : value;
+}
+
+/**
+ * Default pull-up, drawn as -14rem against a 1920px viewport and carried to every other width as the
+ * same fraction of it: 224 / 1920 = 11.6667vw. The section this overlaps is width-driven — its
+ * height is its own width over a fixed aspect ratio — so an overlap in vw holds its place in the
+ * composition, where a fixed rem would eat a growing share of it as the viewport narrows.
+ *
+ * The clamp ends are the guard rails: never deeper than the authored -14rem once past 1920px, and
+ * never past -3rem on phones, where the section above is short enough that a deep pull would
+ * swallow it rather than overlap it.
+ */
+const DEFAULT_MARGIN_TOP = 'clamp(-8rem, -11.6667vw, -3rem)';
+
+/**
+ * Authored margin, replacing a hardcoded `my-8`. Worth knowing where it lands: nothing between this
+ * div and the section establishes a block formatting context, so the margin collapses out through
+ * both and spaces the section itself — which is what an editor asking for "margin" expects to see,
+ * a gap outside this block's background rather than inside it.
+ */
+const spacing = computed(() => ({
+  marginTop: cssLength(props.marginTop, DEFAULT_MARGIN_TOP),
+  marginBottom: cssLength(props.marginBottom, '2rem'),
+}));
 
 const buttons = computed<CtaButton[]>(() => {
   const list = (props.buttons ?? []).filter((b) => b?.url && (b.label || b.image));
   if (list.length) return list;
   return props.buttonLabel && props.buttonUrl ? [{ label: props.buttonLabel, url: props.buttonUrl }] : [];
 });
+
+/**
+ * Clamped rather than trusted: the value is interpolated straight into a grid template, and one
+ * bad number would drop the whole declaration instead of failing on its own.
+ */
+const columns = computed<number>(() => {
+  const n = Math.round(Number(props.perRow));
+  return Number.isFinite(n) ? Math.min(4, Math.max(1, n)) : 1;
+});
+
+/** Inert on mobile, where the track is a flex row rather than a grid. */
+const gridStyle = computed(() => ({ gridTemplateColumns: `repeat(${columns.value}, minmax(0, 1fr))` }));
+
+const track = ref<HTMLElement | null>(null);
+const active = ref(0);
+
+/**
+ * Which card sits nearest the track's centre — i.e. the one scroll-snap has settled on. Read from
+ * the scroll position rather than tracked as slide state, so a finger swipe and a dot press stay in
+ * agreement without either driving the other.
+ */
+function onScroll(): void {
+  const el = track.value;
+  if (!el) return;
+  const centre = el.scrollLeft + el.clientWidth / 2;
+  let nearest = 0;
+  let shortest = Infinity;
+  for (let i = 0; i < el.children.length; i += 1) {
+    const card = el.children[i] as HTMLElement;
+    const distance = Math.abs(card.offsetLeft + card.offsetWidth / 2 - centre);
+    if (distance < shortest) {
+      shortest = distance;
+      nearest = i;
+    }
+  }
+  active.value = nearest;
+}
+
+function goTo(index: number): void {
+  const el = track.value;
+  const card = el?.children[index] as HTMLElement | undefined;
+  if (!el || !card) return;
+  el.scrollTo({ left: card.offsetLeft - (el.clientWidth - card.offsetWidth) / 2, behavior: 'smooth' });
+}
 
 /** Router links keep in-app navigation; anything absolute has to leave through a plain anchor. */
 function isInternal(url?: string): boolean {
@@ -38,7 +122,7 @@ function linkProps(button: CtaButton): Record<string, unknown> {
 </script>
 
 <template>
-  <div class="py-16 text-center rounded-2xl my-8 text-black font-sukhumvit">
+  <div :style="spacing" class="py-16 text-center rounded-2xl text-black font-sukhumvit">
     <!-- Fluid rather than a fixed step: viewport-proportional, with clamp ends for readability.
          3vw is only ~12px on a phone, so the lower end is what every mobile viewport actually
          gets — it is raised on its own to keep the desktop ramp unchanged. -->
@@ -50,21 +134,96 @@ function linkProps(button: CtaButton): Record<string, unknown> {
       {{ text }}
     </p>
 
-    <!-- One button per row: a column instead of a wrapping row. -->
-    <div v-if="buttons.length" class="flex flex-col items-center gap-4">
-      <component
-        :is="linkTag(button)"
-        v-for="(button, i) in buttons"
-        :key="i"
-        v-bind="linkProps(button)"
-        class="inline-block transition hover:opacity-90"
-        :class="button.image ? '' : 'bg-white font-semibold px-8 py-3 rounded-lg'"
-        :style="button.image ? {} : { color: 'var(--color-primary)' }"
+    <div v-if="buttons.length">
+      <!-- One track, two layouts. On phones it is a scroll-snap row, which buys real momentum
+           swiping from the browser instead of a drag handler; from `md` up it becomes the grid the
+           author configured, and the snap/scroll rules switch off with it. -->
+      <div
+        ref="track"
+        :style="gridStyle"
+        class="cta-track flex snap-x snap-mandatory overflow-x-auto gap-6 px-[10%] items-center
+               md:grid md:snap-none md:overflow-visible md:gap-16 md:px-4 md:justify-items-center"
+        @scroll.passive="onScroll"
       >
-        <!-- An uploaded image stands in for the whole button; the label becomes its alt text. -->
-        <img v-if="button.image" :src="button.image" :alt="button.label ?? ''" class="h-auto w-full" />
-        <template v-else>{{ button.label }}</template>
-      </component>
+        <!-- The hover dim is skipped where a hover image already owns the hover: two opacity
+             animations running over the same pixels read as a stutter rather than one move. -->
+        <component
+          :is="linkTag(button)"
+          v-for="(button, i) in buttons"
+          :key="i"
+          v-bind="linkProps(button)"
+          class="group relative block shrink-0 snap-center w-4/5"
+          :class="[
+            button.image ? 'md:w-full md:shrink' : 'bg-white font-semibold px-8 py-3 rounded-lg md:w-auto md:shrink',
+            button.hoverImage ? '' : 'transition hover:opacity-90',
+          ]"
+          :style="button.image ? {} : { color: 'var(--color-primary)' }"
+        >
+          <!-- An uploaded image stands in for the button face, with the label captioned beneath it. -->
+          <template v-if="button.image">
+            <!-- The artwork gets its own positioning box. Anchoring the hover layer to the link
+                 instead would stretch it over the caption as well, since that is the box the
+                 caption shares. -->
+            <span class="relative block">
+              <!-- Both layers animate. Leaving this one opaque under the hover image would be the
+                   steadier swap, but only for artwork that actually covers what it replaces: these
+                   buttons are a shape on a mostly transparent canvas, so an un-faded base shows
+                   straight through its replacement. -->
+              <img
+                :src="button.image"
+                alt=""
+                class="h-auto w-full transition-opacity duration-500 ease-out motion-reduce:transition-none"
+                :class="button.hoverImage ? 'group-hover:opacity-0' : ''"
+              />
+              <!-- Rendered rather than swapped into `src` on hover: both files are then already
+                   decoded, so the first hover fades in instead of flashing an empty box. Touch
+                   screens have no hover state and simply keep the first image. -->
+              <img
+                v-if="button.hoverImage"
+                :src="button.hoverImage"
+                alt=""
+                aria-hidden="true"
+                class="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity
+                       duration-500 ease-out group-hover:opacity-100 motion-reduce:transition-none"
+              />
+            </span>
+            <!-- The caption is the button's accessible name, so the artwork above it is marked
+                 decorative rather than repeating the same words to a screen reader. -->
+            <span
+              v-if="button.label"
+              class="mt-2 block rounded-full border-2 border-[#ea480c] bg-white px-5 py-3
+                     font-semibold leading-snug text-[clamp(0.9rem,1.1vw,1.15rem)]
+                     transition-colors duration-500 ease-out motion-reduce:transition-none
+                     group-hover:bg-[#ea480c] group-hover:text-white"
+            >
+              {{ button.label }}
+            </span>
+          </template>
+          <template v-else>{{ button.label }}</template>
+        </component>
+      </div>
+
+      <!-- Position readout for the swipe track; the grid needs none. -->
+      <div v-if="buttons.length > 1" class="flex justify-center gap-2 mt-4 md:hidden">
+        <button
+          v-for="(_, i) in buttons"
+          :key="i"
+          class="w-2.5 h-2.5 rounded-full transition-colors"
+          :style="{ background: i === active ? 'var(--color-primary)' : '#d1d5db' }"
+          :aria-label="`Button ${i + 1}`"
+          @click="goTo(i)"
+        />
+      </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* The dots are the position indicator; a scrollbar under the buttons only adds noise. */
+.cta-track {
+  scrollbar-width: none;
+}
+.cta-track::-webkit-scrollbar {
+  display: none;
+}
+</style>
