@@ -136,11 +136,16 @@ const { width: skyWidth, height: skyHeight } = useElementSize(sky);
 
 /**
  * Assembly height ÷ balloon width: the balloon (1.04), its string (0.3), the present
- * (0.62 × 0.88) and the name tag (~0.19). Read off `WishBalloon.vue`'s own proportions —
+ * (0.62 × 0.88) and the name tag (~0.3). Read off `WishBalloon.vue`'s own proportions —
  * resizing any part of it there leaves this number stale, and the wall would space itself
  * for a balloon that is no longer the size it draws.
+ *
+ * The tag is the one part whose height depends on the wish: a name long enough to wrap
+ * takes two lines. This reserves that taller tag for every balloon rather than measuring
+ * each one — a short name then sits in a little more sky than it needs, which costs
+ * nothing anyone can see, where the other way round two balloons touch.
  */
-const ASSEMBLY_RATIO = 2.08;
+const ASSEMBLY_RATIO = 2.19;
 /**
  * The tightest a lane may be packed, as a multiple of the full balloon width — which is
  * also the least room a balloon is ever left to move about in: 9% of its width to either

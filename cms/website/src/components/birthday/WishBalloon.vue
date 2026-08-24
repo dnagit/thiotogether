@@ -78,6 +78,18 @@ const tagText = computed(() => (isLightColor(color.value) ? '#1f2937' : '#ffffff
 const label = computed(() =>
   props.name ? `คำอวยพรจาก ${props.name} — กดเพื่ออ่าน` : 'กดเพื่ออ่านคำอวยพร',
 );
+
+/**
+ * How much the tag's own text shrinks, on top of the assembly's font size.
+ *
+ * A tag one balloon wide holds about twenty characters a line at full size, so a name past
+ * that used to lose its tail to an ellipsis. It gets two lines here (see the stylesheet)
+ * and, past the length two full-size lines hold, a smaller face — which buys roughly a
+ * third more characters per line and covers the 60 the form allows. It stops at 0.85
+ * rather than following the length down: below that the name stops being readable across
+ * the sky, which is the only reason it is on the balloon at all.
+ */
+const tagScale = computed(() => ((props.name ?? '').trim().length > 22 ? 0.85 : 1));
 </script>
 
 <template>
@@ -177,7 +189,7 @@ const label = computed(() =>
     <span
       v-if="showGift && name"
       class="gift-tag"
-      :style="{ background: color, color: tagText }"
+      :style="{ background: color, color: tagText, '--tag-scale': tagScale }"
     >{{ name }}</span>
   </component>
 </template>
@@ -241,18 +253,36 @@ const label = computed(() =>
   filter: drop-shadow(0 4px 6px rgb(0 0 0 / 20%));
 }
 
-/* Sits under the present, in flow — the assembly simply grows by the height of the tag. */
+/*
+ * Sits under the present, in flow — the assembly simply grows by the height of the tag.
+ *
+ * Two lines, wrapped and centred, rather than one line cut short: a name is the one piece
+ * of the balloon that is nobody else's, and half of one is worse than a smaller whole. The
+ * radius is half a single line's height, so a short name is still the pill it always was
+ * and a wrapped one rounds off instead of turning into a lozenge. Anything past two lines
+ * at the reduced size — far longer than the form's limit in practice — is left to the card.
+ *
+ * Raising the line count or the leading here makes the whole assembly taller, so
+ * `ASSEMBLY_RATIO` in BalloonSky.vue has to move with it.
+ */
 .gift-tag {
   margin-top: 0.45em;
   max-width: 100%;
   padding: 0.25em 0.7em;
-  border-radius: 999px;
-  font-size: 1em;
+  border-radius: 0.95em;
+  /* Never below the floor `.assembly` sets for itself: a shrunk tag still has to be read. */
+  font-size: max(11px, calc(1em * var(--tag-scale, 1)));
   font-weight: 700;
   line-height: 1.35;
-  white-space: nowrap;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  /* Thai runs without spaces, so a long name has to be allowed to break mid-word. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
   box-shadow: 0 2px 5px rgb(0 0 0 / 22%);
 }
 
