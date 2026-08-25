@@ -36,7 +36,7 @@ const busy = computed(() => actions.value?.saving === true);
     :open="!!wish"
     size="lg"
     :busy="busy"
-    :title="wish ? `การ์ดอวยพรจาก ${wish.name}` : ''"
+    :title="wish ? `Birthday card from ${wish.name}` : ''"
     @close="$emit('close')"
   >
     <template v-if="wish">
@@ -61,7 +61,7 @@ const busy = computed(() => actions.value?.saving === true);
         :theme-color="themeColor"
       />
 
-      <button type="button" class="close-btn mt-3 w-full" @click="$emit('close')">ปิด</button>
+      <button type="button" class="close-btn mt-3 w-full" @click="$emit('close')">Close</button>
     </template>
   </AppModal>
 </template>

@@ -23,23 +23,28 @@ const { event, wishes, loading, loadError, notFound } = useBirthdayWall(slug, {
 
 const themeColor = computed(() => event.value?.themeColor ?? '#ea480c');
 
+/** Counted in English, so the one-balloon wall does not read as "1 balloons". */
+const countLabel = computed(() =>
+  wishes.value.length === 1 ? '1 balloon' : `${wishes.value.length} balloons`,
+);
+
 watch(event, (e) => {
   if (!e) return;
   applySeo({
     title: e.celebrantName ? `${e.title} — ${e.celebrantName}` : e.title,
-    metaDescription: e.description ?? 'รวมคำอวยพรวันเกิดจากทุกคน',
+    metaDescription: e.description ?? 'Birthday wishes from everyone',
     ogImage: e.coverImage ?? undefined,
   });
 });
 </script>
 
 <template>
-  <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse">กำลังโหลดคำอวยพร…</div>
+  <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse">Loading wishes…</div>
 
   <!-- Wrong slug, or an event the admin switched off: a dead end, not a retry. -->
   <div v-else-if="notFound" class="container-site max-w-lg py-24 text-center">
     <div class="mb-3 text-5xl" aria-hidden="true">🔍</div>
-    <h1 class="mb-2 text-xl font-bold">ไม่พบงานวันเกิดนี้</h1>
+    <h1 class="mb-2 text-xl font-bold">Birthday not found</h1>
     <p class="text-gray-600">{{ loadError }}</p>
   </div>
 
@@ -52,14 +57,14 @@ watch(event, (e) => {
     <!-- <header class="container-site pt-4 text-center">
       <h1 class="text-2xl font-extrabold sm:text-4xl">{{ event?.title }}</h1>
       <p v-if="event?.celebrantName" class="mt-1 text-lg font-semibold" :style="{ color: themeColor }">
-        สุขสันต์วันเกิด {{ event.celebrantName }}
+        Happy birthday, {{ event.celebrantName }}
       </p>
       <p v-if="wishes.length" class="mt-2 text-sm text-gray-600">
-        คำอวยพรทั้งหมด {{ wishes.length }} ใบ · กดที่ลูกโป่งเพื่ออ่าน
+        {{ countLabel }} · tap one to read
       </p>
     
       <p v-if="crowded" class="mt-1 text-xs text-gray-500">
-        ลูกโป่งจะทยอยลอยขึ้นเรื่อย ๆ รอสักครู่เพื่อดูใบอื่น ๆ
+        More balloons keep drifting up — wait a moment to see the rest.
       </p>
     </header> -->
 
@@ -69,14 +74,14 @@ watch(event, (e) => {
 
     <div v-else-if="!wishes.length" class="container-site max-w-lg py-20 text-center">
       <div class="mb-3 text-5xl" aria-hidden="true">🎈</div>
-      <h2 class="mb-2 text-xl font-bold">ยังไม่มีคำอวยพร</h2>
-      <p class="mb-6 text-gray-600">มาเป็นคนแรกที่ปล่อยลูกโป่งอวยพรกันเถอะ</p>
+      <h2 class="mb-2 text-xl font-bold">No wishes yet</h2>
+      <p class="mb-6 text-gray-600">Be the first to send one up.</p>
       <RouterLink
         :to="{ name: 'birthday-wish', params: { slug } }"
         class="btn-3d cta-btn"
         :style="{ '--cta': themeColor }"
       >
-        เขียนคำอวยพร
+        Write a wish
       </RouterLink>
     </div>
 
@@ -97,18 +102,18 @@ watch(event, (e) => {
         class="btn-3d cta-btn"
         :style="{ '--cta': themeColor }"
       >
-        เขียนคำอวยพร 🎈
+        Write a wish 🎈
       </RouterLink>
 
       <!-- Underneath, as a pair: how many there are, and the way to read them as cards. -->
       <div class="cta-row">
-        <p class="cta-count">ลูกโป่งอวยพรทั้งหมด  {{ wishes.length }} ใบ</p>
+        <p class="cta-count">{{ countLabel }} on the wall</p>
         <RouterLink
           :to="{ name: 'birthday-cards', params: { slug } }"
           class="cta-link"
           :style="{ '--cta': themeColor }"
         >
-          ดูคำอวยพรทั้งหมด <span aria-hidden="true">→</span>
+          Read them all <span aria-hidden="true">→</span>
         </RouterLink>
       </div>
     </div>

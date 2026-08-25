@@ -78,10 +78,10 @@ export interface WishDraft {
  * at, not choices to submit.
  */
 export const FALLBACK_GIFTS: Gift[] = [
-  { id: 'cake', name: 'เค้กวันเกิด', imageUrl: null },
-  { id: 'flower', name: 'ช่อดอกไม้', imageUrl: null },
-  { id: 'teddy', name: 'ตุ๊กตาหมี', imageUrl: null },
-  { id: 'box', name: 'กล่องของขวัญ', imageUrl: null },
+  { id: 'cake', name: 'Birthday cake', imageUrl: null },
+  { id: 'flower', name: 'Flower bouquet', imageUrl: null },
+  { id: 'teddy', name: 'Teddy bear', imageUrl: null },
+  { id: 'box', name: 'Gift box', imageUrl: null },
 ];
 
 /** True while the catalogue is a placeholder, so the form can hold the submit button. */

@@ -31,8 +31,8 @@ export function useBirthdayWall(
       const status = (eventResult.reason as any)?.response?.status;
       notFound.value = status === 404;
       loadError.value = notFound.value
-        ? 'ไม่พบงานวันเกิดนี้ อาจถูกปิดไปแล้วหรือลิงก์ไม่ถูกต้อง'
-        : 'โหลดคำอวยพรไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+        ? 'We could not find this birthday. It may have been closed, or the link is wrong.'
+        : 'Could not load the wishes. Please try again.';
     }
 
     if (wishResult.status === 'fulfilled') {
@@ -41,7 +41,7 @@ export function useBirthdayWall(
     } else if (loading.value && !loadError.value) {
       // Only the first attempt reports a failure. A dropped poll leaves the balloons already
       // on screen alone rather than replacing a live wall with an error.
-      loadError.value = 'โหลดคำอวยพรไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+      loadError.value = 'Could not load the wishes. Please try again.';
     }
     loading.value = false;
   }

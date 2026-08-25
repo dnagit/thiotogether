@@ -22,13 +22,13 @@ const groupName = `bg-${Math.random().toString(36).slice(2, 8)}`;
 
 <template>
   <fieldset v-if="backgrounds.length">
-    <legend class="mb-2 font-semibold text-gray-800">พื้นหลังการ์ด</legend>
+    <legend class="mb-2 font-semibold text-gray-800">Card background</legend>
     <p class="mb-2 text-xs text-gray-500">
-      การ์ดใบนี้คือรูปที่บันทึกเก็บไว้ได้ตอนกดที่ลูกโป่ง
+      The card is the picture people can save when they tap your balloon.
     </p>
 
     <div class="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-5">
-      <label class="bg-card" :title="'ไม่ใช้พื้นหลัง'">
+      <label class="bg-card" :title="'No background'">
         <input
           type="radio"
           class="sr-only"
@@ -38,7 +38,7 @@ const groupName = `bg-${Math.random().toString(36).slice(2, 8)}`;
         />
         <span class="bg-body">
           <span class="bg-img bg-plain" aria-hidden="true">✦</span>
-          <span class="bg-name">พื้นเรียบ</span>
+          <span class="bg-name">Plain</span>
         </span>
       </label>
 

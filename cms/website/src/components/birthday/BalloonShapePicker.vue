@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Shape choice, drawn rather than named — "หัวใจ" and "ดาว" are quicker to recognise as
+ * Shape choice, drawn rather than named — "Heart" and "Star" are quicker to recognise as
  * silhouettes. Each swatch is painted in the colour already chosen, so the two pickers
  * answer each other instead of being read separately.
  *
@@ -17,7 +17,7 @@ const groupName = `balloon-shape-${Math.random().toString(36).slice(2, 8)}`;
 
 <template>
   <fieldset>
-    <legend class="mb-2 font-semibold text-gray-800">รูปร่างลูกโป่ง</legend>
+    <legend class="mb-2 font-semibold text-gray-800">Balloon shape</legend>
     <div class="swatches">
       <label v-for="shape in BALLOON_SHAPES" :key="shape.id" class="swatch">
         <input

@@ -67,7 +67,7 @@ void (async () => {
     event.value = e;
     applySeo({
       title: e.celebrantName ? `${e.title} — ${e.celebrantName}` : e.title,
-      metaDescription: e.description ?? 'ส่งคำอวยพรวันเกิดพร้อมลูกโป่งและของขวัญ',
+      metaDescription: e.description ?? 'Send a birthday wish with your own balloon and gift',
       ogImage: e.coverImage ?? undefined,
     });
     draft.giftId ??= e.gifts[0]?.id ?? null;
@@ -76,8 +76,8 @@ void (async () => {
     // fill in and have rejected on submit.
     notFound.value = err?.response?.status === 404;
     submitError.value = notFound.value
-      ? 'ไม่พบงานวันเกิดนี้ อาจถูกปิดไปแล้วหรือลิงก์ไม่ถูกต้อง'
-      : 'โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+      ? 'We could not find this birthday. It may have been closed, or the link is wrong.'
+      : 'Could not load this page. Please try again.';
   } finally {
     loading.value = false;
   }
@@ -114,7 +114,7 @@ const selectedBackground = computed(
   () => backgrounds.value.find((b) => b.id === draft.backgroundId) ?? null,
 );
 /** The tag shows the sender's name; a placeholder keeps the preview from collapsing while empty. */
-const previewName = computed(() => draft.name.trim() || 'ชื่อของคุณ');
+const previewName = computed(() => draft.name.trim() || 'Your name');
 
 /**
  * The chosen photo's object URL, owned here because both the framer and the whole-wish
@@ -135,12 +135,13 @@ const INLINE_ERROR_FIELDS = ['name', 'message', 'gift'];
 
 function validate(): boolean {
   for (const key of Object.keys(errors)) delete errors[key];
-  if (!draft.name.trim()) errors.name = 'กรุณากรอกชื่อของคุณ';
-  else if (draft.name.trim().length > NAME_MAX) errors.name = `ชื่อยาวไม่เกิน ${NAME_MAX} ตัวอักษร`;
-  if (!draft.message.trim()) errors.message = 'กรุณาเขียนคำอวยพร';
+  if (!draft.name.trim()) errors.name = 'Please enter your name';
+  else if (draft.name.trim().length > NAME_MAX)
+    errors.name = `Your name can be up to ${NAME_MAX} characters`;
+  if (!draft.message.trim()) errors.message = 'Please write your wish';
   else if (draft.message.trim().length > MESSAGE_MAX)
-    errors.message = `คำอวยพรยาวไม่เกิน ${MESSAGE_MAX} ตัวอักษร`;
-  if (gifts.value.length && draft.giftId === null) errors.gift = 'กรุณาเลือกของขวัญ';
+    errors.message = `Your wish can be up to ${MESSAGE_MAX} characters`;
+  if (gifts.value.length && draft.giftId === null) errors.gift = 'Please choose a gift';
   return Object.keys(errors).length === 0;
 }
 
@@ -175,7 +176,18 @@ async function submit(): Promise<void> {
   submitError.value = null;
   try {
     const response = await submitWish(slug, draft);
-    result.value = { ...response, message: response.message || 'ส่งคำอวยพรเรียบร้อยแล้ว' };
+    /*
+     * The API writes its own message in Thai, so it is dropped rather than shown: the only
+     * thing it says that this screen cannot work out for itself is whether the wish is up
+     * yet, and `status` already carries that.
+     */
+    result.value = {
+      ...response,
+      message:
+        response.status === 'APPROVED'
+          ? 'Your balloon is on the wall now — go and find it.'
+          : 'It will float up once an organiser has looked it over.',
+    };
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err: any) {
     const fields: { field: string; message: string }[] = err?.response?.data?.errors ?? [];
@@ -184,12 +196,16 @@ async function submit(): Promise<void> {
     // the balloon, the photo's framing — would otherwise leave "Validation failed" sitting
     // under a form where everything visibly *is* filled in, with nothing to act on.
     const unplaced = fields.filter((e) => !INLINE_ERROR_FIELDS.includes(e.field));
+    // The server's own message is Thai, so it is never shown; the statuses worth telling
+    // apart are named here instead.
     submitError.value =
       err?.response?.status === 429
-        ? 'ส่งคำอวยพรถี่เกินไป กรุณารอสักครู่แล้วลองใหม่'
-        : unplaced.length
-          ? `ส่งคำอวยพรไม่สำเร็จ (${unplaced.map((e) => `${e.field}: ${e.message}`).join(', ')})`
-          : (err?.response?.data?.message ?? 'ส่งคำอวยพรไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        ? 'Too many wishes too quickly. Wait a moment, then try again.'
+        : err?.response?.status === 409
+          ? 'This birthday has stopped taking new wishes.'
+          : unplaced.length
+            ? `Could not send your wish (${unplaced.map((e) => `${e.field}: ${e.message}`).join(', ')})`
+            : 'Could not send your wish. Please try again.';
   } finally {
     submitting.value = false;
   }
@@ -209,12 +225,12 @@ const inputClass =
 </script>
 
 <template>
-  <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse">กำลังโหลด…</div>
+  <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse">Loading…</div>
 
   <!-- No such event: nothing to write on -->
   <div v-else-if="!event" class="container-site max-w-lg py-24 text-center">
     <div class="mb-3 text-5xl" aria-hidden="true">🔍</div>
-    <h1 class="mb-2 text-xl font-bold">{{ notFound ? 'ไม่พบงานวันเกิดนี้' : 'โหลดข้อมูลไม่สำเร็จ' }}</h1>
+    <h1 class="mb-2 text-xl font-bold">{{ notFound ? 'Birthday not found' : 'Could not load this page' }}</h1>
     <p class="text-gray-600">{{ submitError }}</p>
   </div>
 
@@ -238,7 +254,7 @@ const inputClass =
       />
     </div>
 
-    <h1 class="mb-2 text-2xl font-extrabold">ส่งคำอวยพรแล้ว 🎉</h1>
+    <h1 class="mb-2 text-2xl font-extrabold">Wish sent 🎉</h1>
     <p class="mb-6 text-gray-600">{{ result.message }}</p>
 
     <WishCardActions
@@ -257,23 +273,23 @@ const inputClass =
         :style="{ '--cta': themeColor }"
         @click="router.push({ name: 'birthday-wall', params: { slug } })"
       >
-        ดูลูกโป่งคำอวยพร
+        See the balloon wall
       </button>
-      <button type="button" class="btn-outline" @click="writeAnother">เขียนอีกใบ</button>
+      <button type="button" class="btn-outline" @click="writeAnother">Write another</button>
     </div>
   </div>
 
   <!-- Closed by the admin -->
   <div v-else-if="event && !event.isOpen" class="container-site max-w-xl py-20 text-center">
     <div class="mb-3 text-5xl" aria-hidden="true">🎈</div>
-    <h1 class="mb-2 text-xl font-bold">ปิดรับคำอวยพรแล้ว</h1>
-    <p class="mb-6 text-gray-600">ขอบคุณทุกคนที่ร่วมส่งคำอวยพรนะคะ</p>
+    <h1 class="mb-2 text-xl font-bold">Wishes are closed</h1>
+    <p class="mb-6 text-gray-600">Thank you to everyone who sent one.</p>
     <RouterLink
       :to="{ name: 'birthday-wall', params: { slug } }"
       class="btn-3d btn-solid"
       :style="{ '--cta': themeColor }"
     >
-      ดูลูกโป่งคำอวยพร
+      See the balloon wall
     </RouterLink>
   </div>
 
@@ -281,7 +297,7 @@ const inputClass =
     <header class="mb-8 text-center">
       <h1 class="text-2xl font-extrabold sm:text-4xl">{{ event.title }}</h1>
       <p v-if="event.celebrantName" class="mt-1 text-lg font-semibold" :style="{ color: themeColor }">
-        สุขสันต์วันเกิด {{ event.celebrantName }}
+        Happy birthday, {{ event.celebrantName }}
       </p>
       <p v-if="event.description" class="mx-auto mt-2 max-w-xl text-gray-600">{{ event.description }}</p>
     </header>
@@ -290,7 +306,7 @@ const inputClass =
       <!-- Preview: first in the DOM so it lands above the form on a phone. -->
       <aside class="preview">
         <div class="preview-inner">
-          <div class="mb-3 flex justify-center gap-1" role="tablist" aria-label="เลือกมุมมองตัวอย่าง">
+          <div class="mb-3 flex justify-center gap-1" role="tablist" aria-label="Choose a preview">
             <button
               v-for="view in ['card', 'balloon'] as const"
               :key="view"
@@ -302,7 +318,7 @@ const inputClass =
               :style="previewView === view ? { background: themeColor } : undefined"
               @click="previewView = view"
             >
-              {{ view === 'balloon' ? 'ลูกโป่ง' : 'การ์ด' }}
+              {{ view === 'balloon' ? 'Balloon' : 'Card' }}
             </button>
           </div>
 
@@ -324,7 +340,7 @@ const inputClass =
           <div v-show="previewView === 'card'" class="preview-card">
             <WishCard
               :name="previewName"
-              :message="draft.message || 'ข้อความอวยพรของคุณจะอยู่ตรงนี้'"
+              :message="draft.message || 'Your wish will appear here'"
               :balloon-shape="draft.balloonShape"
               :balloon-color="draft.balloonColor"
               :photo-url="photoUrl"
@@ -337,8 +353,8 @@ const inputClass =
           <p class="mt-4 text-xs text-gray-500">
             {{
               previewView === 'balloon'
-                ? 'ลูกโป่งใบนี้จะลอยขึ้นบนหน้ารวมคำอวยพร กดที่ลูกโป่งเพื่ออ่านข้อความ'
-                : 'การ์ดใบนี้คือรูปที่คุณและเพื่อน ๆ บันทึกเก็บไว้ได้'
+                ? 'This balloon will float on the wish wall. Tap a balloon to read its message.'
+                : 'This card is the picture you and your friends can save.'
             }}
           </p>
         </div>
@@ -346,34 +362,34 @@ const inputClass =
 
       <form class="form" novalidate @submit.prevent="submit">
         <div>
-          <label for="wish-name" class="mb-2 block font-semibold text-gray-800">ชื่อของคุณ</label>
+          <label for="wish-name" class="mb-2 block font-semibold text-gray-800">Your name</label>
           <input
             id="wish-name"
             v-model="draft.name"
             type="text"
             :maxlength="NAME_MAX"
             autocomplete="name"
-            placeholder="เช่น น้องมิ้นท์"
+            placeholder="e.g. Mint"
             :class="inputClass"
             :style="{ '--tw-ring-color': themeColor }"
             :aria-invalid="!!errors.name"
             :data-error="!!errors.name"
             aria-describedby="wish-name-error"
           />
-          <p class="mt-1 text-xs text-gray-500">ชื่อนี้จะแสดงบนป้ายที่ผูกกับของขวัญ</p>
+          <p class="mt-1 text-xs text-gray-500">Shown on the tag tied to your gift</p>
           <p v-if="errors.name" id="wish-name-error" class="mt-1 text-sm text-red-600" role="alert">
             {{ errors.name }}
           </p>
         </div>
 
         <div>
-          <label for="wish-message" class="mb-2 block font-semibold text-gray-800">คำอวยพร</label>
+          <label for="wish-message" class="mb-2 block font-semibold text-gray-800">Your wish</label>
           <textarea
             id="wish-message"
             v-model="draft.message"
             rows="4"
             :maxlength="MESSAGE_MAX"
-            placeholder="เขียนคำอวยพรวันเกิด…"
+            placeholder="Write your birthday wish…"
             :class="inputClass"
             :style="{ '--tw-ring-color': themeColor }"
             :aria-invalid="!!errors.message"
@@ -381,7 +397,7 @@ const inputClass =
             aria-describedby="wish-message-error"
           />
           <div class="mt-1 flex justify-between text-xs text-gray-500">
-            <span>ข้อความจะแสดงเมื่อมีคนกดที่ลูกโป่ง</span>
+            <span>Shown when someone taps your balloon</span>
             <span>{{ draft.message.length }}/{{ MESSAGE_MAX }}</span>
           </div>
           <p v-if="errors.message" id="wish-message-error" class="mt-1 text-sm text-red-600" role="alert">
@@ -407,7 +423,7 @@ const inputClass =
         <div>
           <GiftPicker v-model="draft.giftId" :gifts="gifts" />
           <p v-if="catalogueMissing" class="mt-2 text-sm text-amber-700" role="status">
-            ผู้จัดงานยังไม่ได้เพิ่มของขวัญ — ตัวเลือกด้านบนเป็นเพียงตัวอย่าง ยังส่งคำอวยพรไม่ได้
+            The organiser has not added any gifts yet — the ones above are only examples, so wishes cannot be sent.
           </p>
           <p v-if="errors.gift" class="mt-1 text-sm text-red-600" role="alert">{{ errors.gift }}</p>
         </div>
@@ -420,7 +436,7 @@ const inputClass =
           :style="{ '--cta': themeColor }"
           :disabled="submitting || catalogueMissing"
         >
-          {{ submitting ? 'กำลังส่ง…' : 'ส่งคำอวยพร 🎈' }}
+          {{ submitting ? 'Sending…' : 'Send my wish 🎈' }}
         </button>
       </form>
     </div>

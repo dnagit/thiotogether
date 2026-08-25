@@ -21,7 +21,7 @@ const customValue = computed(() => (isPreset.value ? '#ffffff' : props.modelValu
 
 <template>
   <fieldset>
-    <legend class="mb-2 font-semibold text-gray-800">สีลูกโป่ง</legend>
+    <legend class="mb-2 font-semibold text-gray-800">Balloon colour</legend>
     <div class="swatches">
       <label v-for="color in BALLOON_COLORS" :key="color.hex" class="dot-wrap" :title="color.label">
         <input
@@ -44,7 +44,7 @@ const customValue = computed(() => (isPreset.value ? '#ffffff' : props.modelValu
         A colour input cannot be a radio, so the label carries the "custom" state and the
         input inside it both reports and sets the value.
       -->
-      <label class="dot-wrap" :class="{ 'is-custom-on': !isPreset }" title="เลือกสีเอง">
+      <label class="dot-wrap" :class="{ 'is-custom-on': !isPreset }" title="Pick your own colour">
         <input
           type="color"
           class="custom-input"
@@ -54,7 +54,7 @@ const customValue = computed(() => (isPreset.value ? '#ffffff' : props.modelValu
         <span class="dot dot-custom" aria-hidden="true">
           <span v-if="!isPreset" class="dot-fill" :style="{ background: modelValue }" />
         </span>
-        <span class="sr-only">เลือกสีเอง</span>
+        <span class="sr-only">Pick your own colour</span>
       </label>
     </div>
   </fieldset>

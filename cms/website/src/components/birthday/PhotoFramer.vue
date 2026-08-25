@@ -77,7 +77,7 @@ function commit(next: Partial<PhotoFraming>): void {
 async function accept(picked: File | null | undefined): Promise<void> {
   if (!picked) return;
   if (!isImageFile(picked)) {
-    error.value = 'กรุณาเลือกไฟล์รูปภาพ';
+    error.value = 'Please choose an image file.';
     return;
   }
 
@@ -87,7 +87,7 @@ async function accept(picked: File | null | undefined): Promise<void> {
     const file = await prepareImage(picked);
     // Checked after conversion, since that is the size actually uploaded.
     if (file.size > MAX_BYTES) {
-      error.value = 'ไฟล์ใหญ่เกิน 10 MB กรุณาเลือกรูปอื่น';
+      error.value = 'That file is over 10 MB. Please choose a smaller one.';
       return;
     }
     emit('select', file);
@@ -179,18 +179,18 @@ const zoomPercent = computed(() => Math.round(props.framing.zoom * 100));
  * is zoomed in — and that is worth saying rather than leaving a drag to do nothing.
  */
 const panHint = computed(() => {
-  if (!canPan.value) return 'ขยายรูปก่อน จึงจะเลื่อนเลือกส่วนที่จะแสดงได้';
-  if (canPanX.value && canPanY.value) return 'ลากรูปได้ทุกทิศเพื่อเลือกส่วนที่จะแสดง';
-  if (canPanX.value) return 'ลากซ้าย–ขวาเพื่อเลือกส่วนที่จะแสดง · ขยายรูปเพื่อเลื่อนขึ้น–ลงด้วย';
-  return 'ลากขึ้น–ลงเพื่อเลือกส่วนที่จะแสดง · ขยายรูปเพื่อเลื่อนซ้าย–ขวาด้วย';
+  if (!canPan.value) return 'Zoom in first, then drag to choose what shows';
+  if (canPanX.value && canPanY.value) return 'Drag the photo any way to choose what shows';
+  if (canPanX.value) return 'Drag left and right to choose what shows · zoom in to move it up and down too';
+  return 'Drag up and down to choose what shows · zoom in to move it left and right too';
 });
 </script>
 
 <template>
   <div>
     <div class="mb-2 flex items-baseline justify-between gap-2">
-      <span class="font-semibold text-gray-800">รูปบนลูกโป่ง</span>
-      <span class="text-xs text-gray-500">ไม่ใส่ก็ได้</span>
+      <span class="font-semibold text-gray-800">Photo on the balloon</span>
+      <span class="text-xs text-gray-500">optional</span>
     </div>
 
     <!-- Empty: drop zone -->
@@ -204,8 +204,8 @@ const panHint = computed(() => {
     >
       <input type="file" accept="image/*,.heic,.heif" class="sr-only" @change="onPick" />
       <span class="text-3xl" aria-hidden="true">🖼️</span>
-      <span class="font-semibold">{{ busy ? 'กำลังเตรียมรูป…' : 'เลือกรูป หรือลากรูปมาวางที่นี่' }}</span>
-      <span class="text-xs text-gray-500">JPG, PNG หรือ HEIC ขนาดไม่เกิน 10 MB</span>
+      <span class="font-semibold">{{ busy ? 'Preparing photo…' : 'Choose a photo, or drag one here' }}</span>
+      <span class="text-xs text-gray-500">JPG, PNG or HEIC, up to 10 MB</span>
     </label>
 
     <!-- Chosen: frame it on the balloon itself -->
@@ -216,7 +216,7 @@ const panHint = computed(() => {
         :class="{ 'stage-pannable': canPan }"
         tabindex="0"
         role="group"
-        aria-label="ปรับตำแหน่งรูปในลูกโป่ง ลากเพื่อเลื่อน หรือใช้ปุ่มลูกศร"
+        aria-label="Position the photo in the balloon — drag it, or use the arrow keys"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="endDrag"
@@ -236,7 +236,7 @@ const panHint = computed(() => {
 
       <div class="controls">
         <label class="block">
-          <span class="text-sm font-medium text-gray-700">ย่อ / ขยาย · {{ zoomPercent }}%</span>
+          <span class="text-sm font-medium text-gray-700">Zoom · {{ zoomPercent }}%</span>
           <input
             type="range"
             class="w-full accent-gray-900"
@@ -251,9 +251,9 @@ const panHint = computed(() => {
         <p class="text-xs text-gray-500">{{ panHint }}</p>
 
         <div class="flex flex-wrap gap-2">
-          <button type="button" class="mini-btn" @click="resetFraming">รีเซ็ตตำแหน่ง</button>
-          <button type="button" class="mini-btn" @click="replaceInput?.click()">เปลี่ยนรูป</button>
-          <button type="button" class="mini-btn mini-btn-danger" @click="remove">ลบรูป</button>
+          <button type="button" class="mini-btn" @click="resetFraming">Reset position</button>
+          <button type="button" class="mini-btn" @click="replaceInput?.click()">Change photo</button>
+          <button type="button" class="mini-btn mini-btn-danger" @click="remove">Remove photo</button>
           <input
             ref="replaceInput"
             type="file"

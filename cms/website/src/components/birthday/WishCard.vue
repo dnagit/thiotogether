@@ -161,7 +161,7 @@ const giftBox = {
     class="card"
     :viewBox="`0 0 ${CARD_WIDTH} ${height}`"
     role="img"
-    :aria-label="`การ์ดอวยพรจาก ${name}: ${message}`"
+    :aria-label="`Birthday card from ${name}: ${message}`"
   >
     <defs>
       <linearGradient :id="`${uid}-paper`" x1="0" y1="0" x2="0" y2="1">

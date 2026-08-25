@@ -149,7 +149,7 @@ async function save(): Promise<void> {
       try {
         // The picture alone, with no accompanying text: this is the save button, and a
         // sheet given something to say tends to offer to say it somewhere.
-        await navigator.share({ files: [file], title: `คำอวยพรจาก ${props.name}` });
+        await navigator.share({ files: [file], title: `Wish from ${props.name}` });
         return;
       } catch (err: any) {
         // Dismissing the sheet is a decision, not a failure — nothing more to do.
@@ -168,9 +168,9 @@ async function save(): Promise<void> {
 
     download(file);
     // A download on a phone is silent past a notification shade, so say where it went.
-    if (touch.value) note.value = 'บันทึกรูปแล้ว — ดูได้ในแอปรูปภาพ หรือโฟลเดอร์ Download';
+    if (touch.value) note.value = 'Saved — look in your Photos app or Downloads folder';
   } catch {
-    note.value = 'บันทึกรูปไม่สำเร็จ ลองกดค้างที่การ์ดเพื่อบันทึกแทนได้';
+    note.value = 'Could not save it. Press and hold the card to save it instead.';
   } finally {
     saving.value = false;
   }
@@ -180,9 +180,9 @@ async function copyLink(): Promise<void> {
   if (!props.link) return;
   try {
     await navigator.clipboard.writeText(props.link);
-    note.value = 'คัดลอกลิงก์แล้ว';
+    note.value = 'Link copied';
   } catch {
-    note.value = 'คัดลอกไม่สำเร็จ กรุณาคัดลอกจากแถบที่อยู่';
+    note.value = 'Could not copy. Please copy the link from the address bar.';
   }
 }
 
@@ -217,14 +217,14 @@ defineExpose({ saving });
   <div :style="buttonTheme">
     <div class="flex flex-wrap gap-2" :class="center ? 'justify-center' : ''">
       <button type="button" class="act act-primary" :disabled="saving" @click="save">
-        {{ saving ? 'กำลังบันทึก…' : toGallery ? '💾 บันทึกลงคลังรูป' : '💾 บันทึกรูป' }}
+        {{ saving ? 'Saving…' : toGallery ? '💾 Save to Photos' : '💾 Save image' }}
       </button>
-      <button v-if="link" type="button" class="act" @click="copyLink">🔗 คัดลอกลิงก์</button>
+      <button v-if="link" type="button" class="act" @click="copyLink">🔗 Copy link</button>
     </div>
 
     <!-- Only iOS asks anything of the visitor, so only iOS is told what to answer. -->
     <p v-if="viaShareSheet" class="mt-2 text-xs text-gray-500" :class="center ? 'text-center' : ''">
-      เลือก “บันทึกรูปภาพ” ในเมนูที่ขึ้นมา เพื่อเก็บการ์ดไว้ในคลังรูป
+      Choose “Save Image” in the menu that appears, to keep the card in your photos
     </p>
 
     <p
@@ -243,11 +243,11 @@ defineExpose({ saving });
     -->
     <div v-if="preview" class="sheet" role="dialog" aria-modal="true" @click.self="closePreview">
       <div class="sheet-body">
-        <p class="sheet-hint">กดค้างที่รูป แล้วเลือก “บันทึกรูปภาพ”</p>
-        <img :src="preview" class="sheet-img" :alt="`คำอวยพรจาก ${name}`" />
+        <p class="sheet-hint">Press and hold the picture, then choose “Save Image”</p>
+        <img :src="preview" class="sheet-img" :alt="`Wish from ${name}`" />
         <div class="sheet-actions">
-          <button type="button" class="act act-primary" @click="closePreview">เสร็จแล้ว</button>
-          <a v-if="externalLink" :href="externalLink" class="act">เปิดในเบราว์เซอร์</a>
+          <button type="button" class="act act-primary" @click="closePreview">Done</button>
+          <a v-if="externalLink" :href="externalLink" class="act">Open in browser</a>
         </div>
       </div>
     </div>

@@ -76,7 +76,7 @@ const ribbon = computed(() => lighten(color.value, 0.7));
 const tagText = computed(() => (isLightColor(color.value) ? '#1f2937' : '#ffffff'));
 
 const label = computed(() =>
-  props.name ? `คำอวยพรจาก ${props.name} — กดเพื่ออ่าน` : 'กดเพื่ออ่านคำอวยพร',
+  props.name ? `Wish from ${props.name} — tap to read` : 'Tap to read this wish',
 );
 
 /**
@@ -101,7 +101,7 @@ const tagScale = computed(() => ((props.name ?? '').trim().length > 22 ? 0.85 : 
     :aria-label="interactive ? label : undefined"
     @click="interactive && $emit('open')"
   >
-    <svg class="balloon" viewBox="0 0 100 104" role="img" :aria-label="`ลูกโป่งรูปทรง${shape.label}`">
+    <svg class="balloon" viewBox="0 0 100 104" role="img" :aria-label="`${shape.label} balloon`">
       <defs>
         <!-- Light falls from the upper left, so the crown sits off-centre. -->
         <radialGradient :id="`${uid}-fill`" cx="35%" cy="26%" r="78%">

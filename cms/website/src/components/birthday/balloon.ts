@@ -35,28 +35,28 @@ export interface BalloonShape {
 export const BALLOON_SHAPES: readonly BalloonShape[] = [
   {
     id: 'round',
-    label: 'กลม',
+    label: 'Round',
     path: 'M50 2 C22 2 6 24 6 46 C6 68 26 88 50 98 C74 88 94 68 94 46 C94 24 78 2 50 2 Z',
     tie: { x: 50, y: 97 },
     knot: true,
   },
   {
     id: 'long',
-    label: 'รี',
+    label: 'Oval',
     path: 'M50 2 C29 2 17 22 17 48 C17 74 33 92 50 98 C67 92 83 74 83 48 C83 22 71 2 50 2 Z',
     tie: { x: 50, y: 97 },
     knot: true,
   },
   {
     id: 'heart',
-    label: 'หัวใจ',
+    label: 'Heart',
     path: 'M50 98 C50 98 6 66 6 36 C6 18 20 6 34 6 C42 6 48 10 50 16 C52 10 58 6 66 6 C80 6 94 18 94 36 C94 66 50 98 50 98 Z',
     tie: { x: 50, y: 96 },
     knot: true,
   },
   {
     id: 'star',
-    label: 'ดาว',
+    label: 'Star',
     /*
      * Five points, outer radius 46 and inner 27, centred on (50, 52), with the tips eased
      * by 3.5 and the notches by 9.
@@ -74,14 +74,14 @@ export const BALLOON_SHAPES: readonly BalloonShape[] = [
   },
   {
     id: 'gem',
-    label: 'เพชร',
+    label: 'Gem',
     path: 'M50 3 L95 42 L50 99 L5 42 Z',
     tie: { x: 50, y: 98 },
     knot: true,
   },
   {
     id: 'sunflower',
-    label: 'ทานตะวัน',
+    label: 'Sunflower',
     /*
      * Twelve round petals around (50, 50): tips at radius 48, the notches between them at
      * 35, each petal a pair of quadratics whose controls sit level with the tip — that is
@@ -98,7 +98,7 @@ export const BALLOON_SHAPES: readonly BalloonShape[] = [
   },
   {
     id: 'dog',
-    label: 'น้องหมา',
+    label: 'Puppy',
     /*
      * A dog's head seen face-on: a round head with a drop ear hanging down each side, and
      * nothing below it — the head runs straight round to the chin.
@@ -119,7 +119,7 @@ export const BALLOON_SHAPES: readonly BalloonShape[] = [
   },
   {
     id: 'cat',
-    label: 'น้องแมว',
+    label: 'Kitty',
     /*
      * The cat is the dog's opposite where the two could be confused: both are a round head
      * and the ears are the entire difference. These stand up at the top corners, where the
@@ -163,15 +163,15 @@ export interface BalloonColor {
  * firmer outline to read against the page.
  */
 export const BALLOON_COLORS: readonly BalloonColor[] = [
-  { label: 'แดง', hex: '#e11d48' },
-  { label: 'ส้ม', hex: '#ea580c' },
-  { label: 'เหลือง', hex: '#f4a300' },
-  { label: 'เขียว', hex: '#16a34a' },
-  { label: 'ฟ้า', hex: '#0ea5e9' },
-  { label: 'น้ำเงิน', hex: '#4f46e5' },
-  { label: 'ม่วง', hex: '#9333ea' },
-  { label: 'ชมพู', hex: '#ec4899' },
-  { label: 'ขาว', hex: '#ffffff' },
+  { label: 'Red', hex: '#e11d48' },
+  { label: 'Orange', hex: '#ea580c' },
+  { label: 'Yellow', hex: '#f4a300' },
+  { label: 'Green', hex: '#16a34a' },
+  { label: 'Sky', hex: '#0ea5e9' },
+  { label: 'Blue', hex: '#4f46e5' },
+  { label: 'Purple', hex: '#9333ea' },
+  { label: 'Pink', hex: '#ec4899' },
+  { label: 'White', hex: '#ffffff' },
 ];
 
 /** Red — the first swatch, and what a visitor gets if they never open the colour picker. */

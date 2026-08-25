@@ -22,7 +22,7 @@ const props = withDefaults(
     height?: string;
     ctaLabel?: string;
   }>(),
-  { slug: 'birthday', title: '', height: '70svh', ctaLabel: 'เขียนคำอวยพร' },
+  { slug: 'birthday', title: '', height: '70svh', ctaLabel: 'Write a wish' },
 );
 
 const reading = ref(false);
@@ -35,10 +35,10 @@ const themeColor = computed(() => event.value?.themeColor ?? '#ea480c');
   <div class="py-8 font-sukhumvit">
     <h2 v-if="title" class="mb-4 text-center text-2xl font-extrabold sm:text-3xl">{{ title }}</h2>
 
-    <div v-if="loading" class="py-16 text-center text-gray-400 animate-pulse">กำลังโหลดคำอวยพร…</div>
+    <div v-if="loading" class="py-16 text-center text-gray-400 animate-pulse">Loading wishes…</div>
 
     <p v-else-if="!wishes.length" class="py-12 text-center text-gray-500">
-      ยังไม่มีคำอวยพร — มาเป็นคนแรกกันเถอะ 🎈
+      No wishes yet — be the first 🎈
     </p>
 
     <BalloonSky

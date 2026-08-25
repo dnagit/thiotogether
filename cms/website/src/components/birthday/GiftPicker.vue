@@ -17,9 +17,9 @@ const groupName = `gift-${Math.random().toString(36).slice(2, 8)}`;
 
 <template>
   <fieldset>
-    <legend class="mb-2 font-semibold text-gray-800">ของขวัญที่จะผูกกับลูกโป่ง</legend>
+    <legend class="mb-2 font-semibold text-gray-800">Gift tied to your balloon</legend>
 
-    <p v-if="!gifts.length" class="text-sm text-gray-500">ยังไม่มีของขวัญให้เลือกในกิจกรรมนี้</p>
+    <p v-if="!gifts.length" class="text-sm text-gray-500">No gifts have been added to this birthday yet.</p>
 
     <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
       <label v-for="gift in gifts" :key="gift.id" class="gift-card">

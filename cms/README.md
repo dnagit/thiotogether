@@ -9,6 +9,10 @@ Production-ready **Headless CMS + Dynamic Website Platform**.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for design details.
 
+End-user manuals (Thai) live in **docs/**:
+[birthday-wish-guide.md](./docs/birthday-wish-guide.md) for people sending a birthday wish,
+[birthday-admin-guide.md](./docs/birthday-admin-guide.md) for whoever runs the wall.
+
 ---
 
 ## Quick start (development)

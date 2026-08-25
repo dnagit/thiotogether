@@ -31,6 +31,11 @@ const shown = ref(PAGE);
 const cards = computed(() => wishes.value.slice(0, shown.value));
 const remaining = computed(() => Math.max(0, wishes.value.length - shown.value));
 
+/** Counted in English, so a single wish does not read as "1 wishes". */
+const countLabel = computed(() =>
+  wishes.value.length === 1 ? '1 wish' : `${wishes.value.length} wishes`,
+);
+
 /**
  * How deep each length of line dips, as a share of the deepest one.
  *
@@ -59,32 +64,32 @@ function wirePath(index: number): string {
 watch(event, (e) => {
   if (!e) return;
   applySeo({
-    title: e.celebrantName ? `คำอวยพรทั้งหมด — ${e.celebrantName}` : `คำอวยพรทั้งหมด — ${e.title}`,
-    metaDescription: e.description ?? 'รวมคำอวยพรวันเกิดจากทุกคน',
+    title: e.celebrantName ? `All wishes — ${e.celebrantName}` : `All wishes — ${e.title}`,
+    metaDescription: e.description ?? 'Birthday wishes from everyone',
     ogImage: e.coverImage ?? undefined,
   });
 });
 </script>
 
 <template>
-  <div v-if="loading" class="py-24 text-center text-gray-500 animate-pulse">กำลังโหลดคำอวยพร…</div>
+  <div v-if="loading" class="py-24 text-center text-gray-500 animate-pulse">Loading wishes…</div>
 
   <div v-else-if="notFound" class="container-site max-w-lg py-24 text-center">
     <div class="mb-3 text-5xl" aria-hidden="true">🔍</div>
-    <h1 class="mb-2 text-xl font-bold">ไม่พบงานวันเกิดนี้</h1>
+    <h1 class="mb-2 text-xl font-bold">Birthday not found</h1>
     <p class="text-gray-600">{{ loadError }}</p>
   </div>
 
   <div v-else class="container-site max-w-6xl py-8 sm:py-12">
     <header class="mb-8 text-center">
-      <h1 class="text-2xl font-extrabold sm:text-4xl">คำอวยพรทั้งหมด</h1>
+      <h1 class="text-2xl font-extrabold sm:text-4xl">All wishes</h1>
       <p v-if="event?.celebrantName" class="mt-1 text-lg font-semibold" :style="{ color: themeColor }">
-        ถึง {{ event.celebrantName }}
+        For {{ event.celebrantName }}
       </p>
-      <p v-if="wishes.length" class="mt-2 text-gray-700">ทั้งหมด {{ wishes.length }} ใบ</p>
+      <p v-if="wishes.length" class="mt-2 text-gray-700">{{ countLabel }} in total</p>
 
       <RouterLink :to="{ name: 'birthday-wall', params: { slug } }" class="back-link mt-4">
-        <span aria-hidden="true">←</span> กลับไปหน้าลูกโป่งลอย
+        <span aria-hidden="true">←</span> Back to the balloon wall
       </RouterLink>
     </header>
 
@@ -92,14 +97,14 @@ watch(event, (e) => {
 
     <div v-if="!wishes.length" class="mx-auto max-w-lg py-16 text-center">
       <div class="mb-3 text-5xl" aria-hidden="true">🎈</div>
-      <h2 class="mb-2 text-xl font-bold">ยังไม่มีคำอวยพร</h2>
-      <p class="mb-6 text-gray-600">มาเป็นคนแรกที่ปล่อยลูกโป่งอวยพรกันเถอะ</p>
+      <h2 class="mb-2 text-xl font-bold">No wishes yet</h2>
+      <p class="mb-6 text-gray-600">Be the first to send one up.</p>
       <RouterLink
         :to="{ name: 'birthday-wish', params: { slug } }"
         class="btn-3d write-btn"
         :style="{ '--cta': themeColor }"
       >
-        เขียนคำอวยพร
+        Write a wish
       </RouterLink>
     </div>
 
@@ -179,14 +184,14 @@ watch(event, (e) => {
           :style="{ '--cta': themeColor }"
           @click="shown += PAGE"
         >
-          ดูเพิ่มอีก {{ Math.min(PAGE, remaining) }} ใบ
+          Show {{ Math.min(PAGE, remaining) }} more
         </button>
-        <p class="mt-2 text-sm text-gray-600">เหลืออีก {{ remaining }} ใบ</p>
+        <p class="mt-2 text-sm text-gray-600">{{ remaining }} still to read</p>
       </div>
 
       <div class="mt-12 text-center">
         <RouterLink :to="{ name: 'birthday-wall', params: { slug } }" class="back-link">
-          <span aria-hidden="true">←</span> กลับไปหน้าลูกโป่งลอย
+          <span aria-hidden="true">←</span> Back to the balloon wall
         </RouterLink>
       </div>
     </template>
