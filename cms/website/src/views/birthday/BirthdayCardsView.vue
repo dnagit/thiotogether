@@ -104,7 +104,7 @@ watch(event, (e) => {
         class="btn-3d write-btn"
         :style="{ '--cta': themeColor }"
       >
-        Write a wish
+        Float a wish
       </RouterLink>
     </div>
 

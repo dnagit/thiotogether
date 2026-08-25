@@ -81,7 +81,7 @@ watch(event, (e) => {
         class="btn-3d cta-btn"
         :style="{ '--cta': themeColor }"
       >
-        Write a wish
+        Float a wish
       </RouterLink>
     </div>
 
@@ -102,7 +102,7 @@ watch(event, (e) => {
         class="btn-3d cta-btn"
         :style="{ '--cta': themeColor }"
       >
-        Write a wish 🎈
+        Float a wish 🎈
       </RouterLink>
 
       <!-- Underneath, as a pair: how many there are, and the way to read them as cards. -->

@@ -22,7 +22,7 @@ const props = withDefaults(
     height?: string;
     ctaLabel?: string;
   }>(),
-  { slug: 'birthday', title: '', height: '70svh', ctaLabel: 'Write a wish' },
+  { slug: 'birthday', title: '', height: '70svh', ctaLabel: 'Float a wish' },
 );
 
 const reading = ref(false);
