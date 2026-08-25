@@ -436,7 +436,7 @@ const inputClass =
           :style="{ '--cta': themeColor }"
           :disabled="submitting || catalogueMissing"
         >
-          {{ submitting ? 'Sending…' : 'Send my wish 🎈' }}
+          {{ submitting ? 'Sending…' : 'Float my wish 🎈' }}
         </button>
       </form>
     </div>
