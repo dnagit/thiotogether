@@ -83,6 +83,16 @@ const closeBtn = ref<HTMLButtonElement | null>(null);
  * all than a dialog the visitor has to close to get at a page that looks broken.
  */
 const broken = ref(false);
+/** Width ÷ height of the banner file; null until it has loaded. See {@link onImageLoad}. */
+const ratio = ref<number | null>(null);
+
+/**
+ * The panel's width, as the tallest this shape may be drawn at. Left unset until the picture
+ * has loaded, where the panel falls back to the artwork's natural size for that one frame.
+ */
+const panelStyle = computed(() =>
+  ratio.value ? { '--w': `calc(var(--cap-h) * ${ratio.value.toFixed(4)})` } : {},
+);
 let lastFocused: HTMLElement | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -146,6 +156,23 @@ function onImageError(): void {
   open.value = false;
 }
 
+/**
+ * The banner's own proportions, read off the file once it lands.
+ *
+ * This is what lets the popup fill the window rather than stop at whatever pixel width the
+ * artwork happens to have been exported at. The panel is given a width of "as wide as this
+ * shape can be before it is taller than the screen", and the picture then simply fills the
+ * panel — so it grows to the space available and the element stays exactly the size of the
+ * picture. Stretching the image to the panel instead would do the growing but leave
+ * transparent margins inside the link, which are dead pixels that still take a click.
+ */
+function onImageLoad(e: Event): void {
+  const img = e.target as HTMLImageElement;
+  if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+    ratio.value = img.naturalWidth / img.naturalHeight;
+  }
+}
+
 /** A click on the banner: follow the link, and treat it as having been seen. */
 function follow(e: MouseEvent): void {
   if (!link.value) return;
@@ -204,12 +231,19 @@ onBeforeUnmount(() => {
     <Transition name="popup">
       <div
         v-if="open"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-8"
+        class="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4"
         @keydown="onKeydown"
       >
         <div class="absolute inset-0 bg-black/60" aria-hidden="true" @click="close" />
 
-        <div ref="panel" role="dialog" aria-modal="true" :aria-label="label" class="panel">
+        <div
+          ref="panel"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="label"
+          class="panel"
+          :style="panelStyle"
+        >
           <!-- A banner with nowhere to go is a picture, not a link, and is not focusable. -->
           <a
             v-if="link"
@@ -224,6 +258,7 @@ onBeforeUnmount(() => {
               :src="image"
               :alt="cfg.popupTitle || ''"
               class="banner"
+              @load="onImageLoad"
               @error="onImageError"
             />
           </a>
@@ -232,6 +267,7 @@ onBeforeUnmount(() => {
               :src="image"
               :alt="cfg.popupTitle || ''"
               class="banner"
+              @load="onImageLoad"
               @error="onImageError"
             />
           </div>
@@ -247,17 +283,25 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /*
- * The panel is the picture's own size, capped by the window rather than by a column width:
- * a banner is drawn to be looked at whole, and one scaled into a fixed panel would sit in
- * a box of its own leftover space.
+ * As big as the window will take. `--cap-h` is the height going spare — the viewport less the
+ * gutter the popup sits in — and `--w`, set from the picture's own proportions once it loads,
+ * is how wide this shape can be drawn before it is that tall. Whichever runs out first, the
+ * window's width or its height, is the one that decides the size.
  *
- * 920 is a ceiling for the desktop, not a target — a banner narrower than that is drawn at
- * its own width rather than blown up past it, where the picture would only go soft.
+ * `dvh` rather than `vh`: on a phone `vh` counts the strip behind the address bar, which is
+ * exactly the part a popup would then be hidden under.
  */
 .panel {
   position: relative;
-  max-width: min(920px, 100%);
   display: flex;
+  --cap-h: calc(100dvh - 1.5rem);
+  width: var(--w, auto);
+  max-width: min(1400px, 100%);
+}
+@media (min-width: 640px) {
+  .panel {
+    --cap-h: calc(100dvh - 2rem);
+  }
 }
 /*
  * No frame of any kind: no rounded corners, no white behind the picture, no shadow. The
@@ -266,6 +310,7 @@ onBeforeUnmount(() => {
  */
 .sheet {
   display: block;
+  width: 100%;
   background: none;
   line-height: 0;
 }
@@ -296,31 +341,22 @@ a.sheet:focus-visible {
   outline-offset: 4px;
 }
 /*
- * Sized by the picture itself: width follows the artwork up to the panel's ceiling, and the
- * height cap is the window less the gutter around it, so a tall banner shrinks to fit rather
- * than running off the screen. `width: auto` rather than `100%` is what keeps the element
- * the size of the picture — stretched to the panel it would letterbox, and with no sheet
- * behind it that empty space is a dead click zone beside the banner.
+ * Fills the panel, which was cut to the picture's own shape — so this both grows the artwork
+ * into the space available and leaves the element exactly the size of what is drawn, with no
+ * transparent margin inside the link for a click to fall into.
  *
- * `dvh` is what makes this right on a phone: `vh` counts the space under the address bar,
- * which is exactly the strip a popup would otherwise hide beneath.
+ * The `max-height` is the safety net for the frame before the shape is known, and for a
+ * browser that does not understand `dvh` and leaves the panel at `auto`.
  */
 .banner {
   display: block;
-  width: auto;
+  width: 100%;
   height: auto;
   /* The picture draws no line of its own — the click target's edge is the artwork's. */
   border: 0;
   outline: none;
   max-width: 100%;
-  max-height: calc(100vh - 1.5rem);
-  max-height: calc(100dvh - 1.5rem);
-}
-@media (min-width: 640px) {
-  .banner {
-    max-height: calc(100vh - 4rem);
-    max-height: calc(100dvh - 4rem);
-  }
+  max-height: var(--cap-h);
 }
 
 /*
