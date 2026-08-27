@@ -78,33 +78,61 @@ const gridStyle = computed(() => ({ gridTemplateColumns: `repeat(${columns.value
 const track = ref<HTMLElement | null>(null);
 const active = ref(0);
 
+/** Cards across the swipe track on a phone. The grid above `md` is the author's `perRow` instead. */
+const PER_VIEW = 2;
+/** One dot per swipe, so a track of three cards is two dots rather than three. */
+const pages = computed(() => Math.ceil(buttons.value.length / PER_VIEW));
+
 /**
- * Which card sits nearest the track's centre — i.e. the one scroll-snap has settled on. Read from
- * the scroll position rather than tracked as slide state, so a finger swipe and a dot press stay in
- * agreement without either driving the other.
+ * How wide a card is on the swipe track — the whole of the mobile layout, in one value.
+ *
+ * Three cases, and each is the honest answer to what is actually on the track. A lone button
+ * has nothing to swipe to and takes the width it always had. An exact pair fills the track,
+ * since there is nothing beyond it to hint at. Anything longer is cut narrower than half, and
+ * the difference is what the next card shows through — the only thing on screen that says the
+ * track goes on.
+ */
+const cardWidth = computed(() => {
+  if (buttons.value.length === 1) return 'w-4/5';
+  return buttons.value.length > PER_VIEW ? 'w-[calc(50%-1.5rem)]' : 'w-[calc(50%-0.5rem)]';
+});
+
+/**
+ * Where the first card sits once the track's own padding is counted — the offset every card is
+ * measured against, so a scroll position of 0 reads as page 0 rather than as one padding short.
+ */
+function origin(el: HTMLElement): number {
+  return (el.children[0] as HTMLElement | undefined)?.offsetLeft ?? 0;
+}
+
+/**
+ * Which pair the track has settled on. Read from the scroll position rather than tracked as slide
+ * state, so a finger swipe and a dot press stay in agreement without either driving the other.
  */
 function onScroll(): void {
   const el = track.value;
   if (!el) return;
-  const centre = el.scrollLeft + el.clientWidth / 2;
+  const start = origin(el);
   let nearest = 0;
   let shortest = Infinity;
-  for (let i = 0; i < el.children.length; i += 1) {
+  // Only the leading card of each pair can be snapped to, so only those are measured.
+  for (let i = 0; i < el.children.length; i += PER_VIEW) {
     const card = el.children[i] as HTMLElement;
-    const distance = Math.abs(card.offsetLeft + card.offsetWidth / 2 - centre);
+    const distance = Math.abs(card.offsetLeft - start - el.scrollLeft);
     if (distance < shortest) {
       shortest = distance;
-      nearest = i;
+      nearest = i / PER_VIEW;
     }
   }
   active.value = nearest;
 }
 
-function goTo(index: number): void {
+function goTo(page: number): void {
   const el = track.value;
-  const card = el?.children[index] as HTMLElement | undefined;
+  const card = el?.children[page * PER_VIEW] as HTMLElement | undefined;
   if (!el || !card) return;
-  el.scrollTo({ left: card.offsetLeft - (el.clientWidth - card.offsetWidth) / 2, behavior: 'smooth' });
+  // To the left edge, not the centre: a pair centred would sit half off both sides of the track.
+  el.scrollTo({ left: card.offsetLeft - origin(el), behavior: 'smooth' });
 }
 
 /** Router links keep in-app navigation; anything absolute has to leave through a plain anchor. */
@@ -135,14 +163,17 @@ function linkProps(button: CtaButton): Record<string, unknown> {
     </p>
 
     <div v-if="buttons.length">
-      <!-- One track, two layouts. On phones it is a scroll-snap row, which buys real momentum
-           swiping from the browser instead of a drag handler; from `md` up it becomes the grid the
-           author configured, and the snap/scroll rules switch off with it. -->
+      <!-- One track, two layouts. On phones it is a scroll-snap row two cards wide, which buys
+           real momentum swiping from the browser instead of a drag handler; from `md` up it becomes
+           the grid the author configured, and the snap/scroll rules switch off with it.
+           `scroll-px-4` matches the padding, so a snapped card lands level with the track's edge
+           rather than under it. -->
       <div
         ref="track"
         :style="gridStyle"
-        class="cta-track flex snap-x snap-mandatory overflow-x-auto gap-6 px-[10%] items-center
+        class="cta-track flex snap-x snap-mandatory overflow-x-auto gap-4 px-4 scroll-px-4 items-center
                md:grid md:snap-none md:overflow-visible md:gap-16 md:px-4 md:justify-items-center"
+        :class="buttons.length === 1 ? 'justify-center md:justify-normal' : ''"
         @scroll.passive="onScroll"
       >
         <!-- The hover dim is skipped where a hover image already owns the hover: two opacity
@@ -152,8 +183,9 @@ function linkProps(button: CtaButton): Record<string, unknown> {
           v-for="(button, i) in buttons"
           :key="i"
           v-bind="linkProps(button)"
-          class="group relative block shrink-0 snap-center w-4/5"
+          class="group relative block shrink-0 snap-start"
           :class="[
+            cardWidth,
             button.image ? 'md:w-full md:shrink' : 'bg-white font-semibold px-8 py-3 rounded-lg md:w-auto md:shrink',
             button.hoverImage ? '' : 'transition hover:opacity-90',
           ]"
@@ -204,13 +236,13 @@ function linkProps(button: CtaButton): Record<string, unknown> {
       </div>
 
       <!-- Position readout for the swipe track; the grid needs none. -->
-      <div v-if="buttons.length > 1" class="flex justify-center gap-2 mt-4 md:hidden">
+      <div v-if="pages > 1" class="flex justify-center gap-2 mt-4 md:hidden">
         <button
-          v-for="(_, i) in buttons"
+          v-for="(_, i) in pages"
           :key="i"
           class="w-2.5 h-2.5 rounded-full transition-colors"
           :style="{ background: i === active ? 'var(--color-primary)' : '#d1d5db' }"
-          :aria-label="`Button ${i + 1}`"
+          :aria-label="`Page ${i + 1}`"
           @click="goTo(i)"
         />
       </div>

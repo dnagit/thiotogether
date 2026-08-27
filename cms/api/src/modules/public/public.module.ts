@@ -76,15 +76,18 @@ router.get(
   '/settings',
   asyncHandler(async (_req, res) => {
     // Only groups safe for public exposure.
-    const [general, theme, seo, social, contact] = await Promise.all([
+    const [general, theme, seo, social, contact, popup] = await Promise.all([
       getSettingsMap('general'),
       getSettingsMap('theme'),
       getSettingsMap('seo'),
       getSettingsMap('social'),
       getSettingsMap('contact'),
+      getSettingsMap('popup'),
     ]);
     publicCache(res, 120);
-    ok(res, { ...general, ...contact, theme, seoDefaults: seo, socialLinks: social });
+    // The popup stays nested: the website reads it as one object, and a flat `popupEnabled`
+    // sitting beside `siteName` would read as a site-wide flag rather than one feature's.
+    ok(res, { ...general, ...contact, theme, seoDefaults: seo, socialLinks: social, popup });
   }),
 );
 

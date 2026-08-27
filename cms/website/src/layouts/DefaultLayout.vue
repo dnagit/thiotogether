@@ -10,6 +10,7 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import SiteHeader from '@/components/layout/SiteHeader.vue';
 import SiteFooter from '@/components/layout/SiteFooter.vue';
+import SitePopup from '@/components/SitePopup.vue';
 
 const route = useRoute();
 /**
@@ -26,4 +27,7 @@ const underHeader = computed(() => route.path === '/' || route.meta.underHeader 
     <slot />
   </main>
   <SiteFooter />
+  <!-- Teleports itself to the body; mounted here so it rides on the site's own chrome and
+       leaves the birthday pages alone. -->
+  <SitePopup />
 </template>

@@ -25,7 +25,7 @@ const themeColor = computed(() => event.value?.themeColor ?? '#ea480c');
 
 /** Counted in English, so the one-balloon wall does not read as "1 balloons". */
 const countLabel = computed(() =>
-  wishes.value.length === 1 ? '1 balloon' : `${wishes.value.length} balloons`,
+  wishes.value.length === 1 ? '1 floating balloon' : `${wishes.value.length} floating balloons`,
 );
 
 watch(event, (e) => {
@@ -107,13 +107,13 @@ watch(event, (e) => {
 
       <!-- Underneath, as a pair: how many there are, and the way to read them as cards. -->
       <div class="cta-row">
-        <p class="cta-count">{{ countLabel }} on the wall</p>
+        <p class="cta-count">{{ countLabel }}</p>
         <RouterLink
           :to="{ name: 'birthday-cards', params: { slug } }"
           class="cta-link"
           :style="{ '--cta': themeColor }"
         >
-          Read them all <span aria-hidden="true">→</span>
+          Read all Birthday wishes <span aria-hidden="true">→</span>
         </RouterLink>
       </div>
     </div>

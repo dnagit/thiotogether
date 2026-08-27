@@ -17,8 +17,10 @@ interface SettingDef {
   key: string;
   label: string;
   group: string;
-  type: 'text' | 'textarea' | 'image' | 'color' | 'select';
+  type: 'text' | 'textarea' | 'image' | 'color' | 'select' | 'switch';
   options?: string[];
+  /** Shown under the field — for settings whose effect is not obvious from the label. */
+  hint?: string;
 }
 
 const defs: SettingDef[] = [
@@ -43,6 +45,50 @@ const defs: SettingDef[] = [
   { key: 'fontFamily', label: 'Font Family (CSS)', group: 'theme', type: 'text' },
   { key: 'headerStyle', label: 'Header Style', group: 'theme', type: 'select', options: ['default', 'transparent', 'compact'] },
   { key: 'footerText', label: 'Footer Text', group: 'theme', type: 'textarea' },
+  {
+    key: 'popupEnabled',
+    label: 'Show popup',
+    group: 'popup',
+    type: 'switch',
+    hint: 'Off hides it everywhere at once. A popup with no banner image never shows, whatever this says.',
+  },
+  { key: 'popupImage', label: 'Banner image', group: 'popup', type: 'image' },
+  {
+    key: 'popupTitle',
+    label: 'Banner description',
+    group: 'popup',
+    type: 'text',
+    hint: 'Read out by screen readers and shown if the image fails to load. Describe what the banner says.',
+  },
+  {
+    key: 'popupLink',
+    label: 'Link',
+    group: 'popup',
+    type: 'text',
+    hint: 'Where the banner goes when clicked, e.g. https://example.com or /donate. Leave empty for a banner that is not clickable.',
+  },
+  {
+    key: 'popupLinkNewTab',
+    label: 'Open the link in a new tab',
+    group: 'popup',
+    type: 'switch',
+  },
+  {
+    key: 'popupPages',
+    label: 'Show on',
+    group: 'popup',
+    type: 'select',
+    options: ['home', 'all'],
+    hint: '"home" shows it on the front page only; "all" on every page of the site.',
+  },
+  {
+    key: 'popupFrequency',
+    label: 'Show again',
+    group: 'popup',
+    type: 'select',
+    options: ['session', 'day', 'always'],
+    hint: 'How soon a visitor who closed it sees it again: "session" not until they return, "day" after 24 hours, "always" on every page they open.',
+  },
 ];
 
 const tabs = [
@@ -51,6 +97,7 @@ const tabs = [
   { name: 'social', label: 'Social Media' },
   { name: 'seo', label: 'SEO Defaults' },
   { name: 'theme', label: 'Theme' },
+  { name: 'popup', label: 'Popup' },
 ];
 
 const values = reactive<Record<string, any>>({});
@@ -61,7 +108,9 @@ async function load(): Promise<void> {
   loading.value = true;
   try {
     const { data } = await http.get<ApiResponse<Record<string, unknown>>>('/settings');
-    for (const def of defs) values[def.key] = data.data[def.key] ?? '';
+    for (const def of defs) {
+      values[def.key] = data.data[def.key] ?? (def.type === 'switch' ? false : '');
+    }
   } finally {
     loading.value = false;
   }
@@ -72,7 +121,11 @@ async function save(): Promise<void> {
   saving.value = true;
   try {
     await http.put('/settings', {
-      settings: defs.map((d) => ({ key: d.key, value: values[d.key] ?? '', group: d.group })),
+      settings: defs.map((d) => ({
+        key: d.key,
+        value: d.type === 'switch' ? !!values[d.key] : (values[d.key] ?? ''),
+        group: d.group,
+      })),
     });
     ElMessage.success('Settings saved — website theme updates automatically');
   } finally {
@@ -94,13 +147,15 @@ async function save(): Promise<void> {
           <ElForm label-position="top" :disabled="!canManage" style="max-width: 560px">
             <template v-for="def in defs.filter((d) => d.group === tab.name)" :key="def.key">
               <ElFormItem :label="def.label">
-                <MediaPicker v-if="def.type === 'image'" v-model="values[def.key]" />
+                <ElSwitch v-if="def.type === 'switch'" v-model="values[def.key]" />
+                <MediaPicker v-else-if="def.type === 'image'" v-model="values[def.key]" />
                 <ElColorPicker v-else-if="def.type === 'color'" v-model="values[def.key]" />
                 <ElSelect v-else-if="def.type === 'select'" v-model="values[def.key]" style="width: 100%">
                   <ElOption v-for="o in def.options" :key="o" :value="o" :label="o" />
                 </ElSelect>
                 <ElInput v-else-if="def.type === 'textarea'" v-model="values[def.key]" type="textarea" :rows="2" />
                 <ElInput v-else v-model="values[def.key]" />
+                <div v-if="def.hint" class="hint">{{ def.hint }}</div>
               </ElFormItem>
             </template>
           </ElForm>
@@ -109,3 +164,14 @@ async function save(): Promise<void> {
     </ElCard>
   </div>
 </template>
+
+<style scoped>
+.hint {
+  /* Full width, so Element Plus's flex row drops it under the control instead of beside it. */
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+</style>
