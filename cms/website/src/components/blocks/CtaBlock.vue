@@ -35,16 +35,20 @@ function cssLength(raw: string | number | undefined, fallback: string): string {
 }
 
 /**
- * Default pull-up, drawn as -14rem against a 1920px viewport and carried to every other width as the
- * same fraction of it: 224 / 1920 = 11.6667vw. The section this overlaps is width-driven — its
- * height is its own width over a fixed aspect ratio — so an overlap in vw holds its place in the
- * composition, where a fixed rem would eat a growing share of it as the viewport narrows.
+ * Default pull-up: how far this section climbs over the banner above it.
  *
- * The clamp ends are the guard rails: never deeper than the authored -14rem once past 1920px, and
- * never past -3rem on phones, where the section above is short enough that a deep pull would
- * swallow it rather than overlap it.
+ * The figure is `vw` because the section it overlaps is width-driven — a banner's height is its
+ * own width over a fixed aspect ratio (2.1, see `ComponentRenderer`) — so an overlap stated as a
+ * share of the width is also a fixed share of that banner's height. 7.6vw works out at about a
+ * sixth of the banner, at every width.
+ *
+ * That is the whole point of the number, and the old guard rails defeated it: at -8rem the pull
+ * stopped growing around 1100px while the banner kept getting taller, so the overlap ran from a
+ * quarter of the banner at 978px down to a seventh at 1920px — the same two blocks meeting
+ * differently on every screen. The rails are still here, but pushed out past the sizes anyone
+ * browses at, so within that range the proportion holds and only the extremes clamp.
  */
-const DEFAULT_MARGIN_TOP = 'clamp(-8rem, -11.6667vw, -3rem)';
+const DEFAULT_MARGIN_TOP = 'clamp(-11rem, -7.6vw, -2.5rem)';
 
 /**
  * Authored margin, replacing a hardcoded `my-8`. Worth knowing where it lands: nothing between this
