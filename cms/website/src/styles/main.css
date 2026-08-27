@@ -8,7 +8,13 @@
   --color-primary-rgb: 37 99 235;
   --color-secondary: #0d9488;
   --color-secondary-rgb: 13 148 136;
-  --font-family: 'Inter', system-ui, sans-serif;
+  /*
+   * The site's face. Bebas Neue leads; Inter and the system stack behind it are not decoration
+   * — Bebas has no lowercase and no Thai, so every Thai word and every fallback glyph comes
+   * from the faces after it. Overwritten at runtime by the CMS theme's Font Family setting,
+   * which has to name Bebas first as well or this line never applies.
+   */
+  --font-family: 'Bebas Neue', 'Inter', system-ui, sans-serif;
   /*
    * Header bar height — drives the logo size, the nav panel offset and the page top padding.
    * Scales with the viewport: 210px on wide screens, shrinking to 72px on phones.
@@ -73,6 +79,42 @@ body {
   /* Held back so the cards and copy in front stay the focus. */
   /* opacity: 0.35; */
 }
+/*
+ * Arabica — the display face on the profile poster's pills.
+ *
+ * Served from `public/fonts/`. The browser takes the first format it understands, so woff2
+ * leads — it is a third the size of the otf sitting beside it. `font-display: swap` shows the
+ * fallback face until the file lands rather than holding the text back.
+ */
+@font-face {
+  font-family: 'Arabica';
+  src:
+    url('/fonts/arabica.woff2') format('woff2'),
+    url('/fonts/arabica.woff') format('woff'),
+    url('/fonts/arabica.ttf') format('truetype'),
+    url('/fonts/arabica.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+ * Moon Time — the handwritten line on the profile poster's card.
+ *
+ * Same arrangement as Arabica above: served from `public/fonts/`, smallest format first.
+ */
+@font-face {
+  font-family: 'Moon Time';
+  src:
+    url('/fonts/moontime.woff2') format('woff2'),
+    url('/fonts/moontime.woff') format('woff'),
+    url('/fonts/moontime.ttf') format('truetype'),
+    url('/fonts/moontime.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Sukhumvit Set ships with macOS/iOS; elsewhere this falls back to the CMS theme font. */
 .font-sukhumvit {
   font-family: 'Sukhumvit Set', 'SukhumvitSet-Text', Sukhumvit, var(--font-family);

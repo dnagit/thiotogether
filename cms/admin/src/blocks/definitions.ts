@@ -382,11 +382,23 @@ export const blockDefinitions: BlockDefinition[] = [
     icon: '🌻',
     category: 'content',
     defaultProps: {
-      ratio: 0.56,
+      ratio: '',
       maxWidth: 560,
       background: '#fffdf6',
+      personHeight: 74,
+      personX: 2,
+      columnLeft: 27,
+      columnRight: 5,
+      columnTop: 3,
+      columnBottom: 5,
+      listIndent: 13,
       accent: '#ea480c',
-      pillColor: '#f4a300',
+      socialColor: '#d81906',
+      cardRadius: 2.5,
+      nameplateWidth: 52,
+      pillColor: '#ffd341',
+      pillTextColor: '#000000',
+      pillShadowColor: '#e87627',
       textColor: '#3b2a12',
       cardColor: '#fff6ef',
       nameplateColor: '#f4a300',
@@ -402,8 +414,15 @@ export const blockDefinitions: BlockDefinition[] = [
       // ── The sheet ────────────────────────────────────────────────────────
       { key: 'frameImage', label: 'Frame + background (one image)', type: 'image' },
       { key: 'personImage', label: 'Cut-out photo (left)', type: 'image' },
+      { key: 'personHeight', label: 'Cut-out height (% of the poster, e.g. 74)', type: 'number' },
+      { key: 'personX', label: 'Cut-out distance from the left (%)', type: 'number' },
       { key: 'background', label: 'Paper colour behind the frame', type: 'color' },
-      { key: 'ratio', label: 'Poster shape (width ÷ height, e.g. 0.56)', type: 'number' },
+      { key: 'ratio', label: 'Poster shape (leave empty to follow the frame image)', type: 'text' },
+      { key: 'columnLeft', label: 'Text column — gap on the left (%)', type: 'number' },
+      { key: 'columnRight', label: 'Text column — gap on the right (%)', type: 'number' },
+      { key: 'columnTop', label: 'Text column — gap at the top (%)', type: 'number' },
+      { key: 'columnBottom', label: 'Text column — gap at the bottom (%)', type: 'number' },
+      { key: 'listIndent', label: 'Pills & badges — step in from the card (%)', type: 'number' },
       { key: 'maxWidth', label: 'Widest on desktop (px)', type: 'number' },
 
       // ── Details card ─────────────────────────────────────────────────────
@@ -420,11 +439,15 @@ export const blockDefinitions: BlockDefinition[] = [
         ],
       },
       { key: 'cardNote', label: 'Signature line under the card', type: 'text' },
+      { key: 'cardLabelColor', label: 'Card label colour (NAME, FANCLUB…)', type: 'color' },
+      { key: 'socialColor', label: 'Card frame & links bar colour', type: 'color' },
+      { key: 'cardRadius', label: 'Card & bar corner rounding (% of the poster width)', type: 'number' },
 
       // ── Name plate ───────────────────────────────────────────────────────
       { key: 'nameplateImage', label: 'Name plate artwork', type: 'image' },
       { key: 'nameplateText', label: 'Name plate text (used if there is no artwork)', type: 'text' },
       { key: 'nameplateColor', label: 'Name plate colour', type: 'color' },
+      { key: 'nameplateWidth', label: 'Name plate width (% of the text column)', type: 'number' },
 
       // ── Lists ────────────────────────────────────────────────────────────
       {
@@ -492,6 +515,8 @@ export const blockDefinitions: BlockDefinition[] = [
       // ── Colours ──────────────────────────────────────────────────────────
       { key: 'accent', label: 'Accent (borders, captions)', type: 'color' },
       { key: 'pillColor', label: 'Pill colour', type: 'color' },
+      { key: 'pillTextColor', label: 'Pill text colour', type: 'color' },
+      { key: 'pillShadowColor', label: 'Pill shadow colour', type: 'color' },
       { key: 'textColor', label: 'Text colour', type: 'color' },
     ],
   },

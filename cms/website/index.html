@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!--
+      Bebas Neue — the display face on the profile poster's pills. Linked here rather than
+      @import-ed from the stylesheet so the browser can start fetching it while the CSS is
+      still parsing, and preconnected so the handshake with Google's font host does not wait
+      for the stylesheet to arrive first.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap"
+      rel="stylesheet"
+    />
+
+    <!--
       Fallback metadata for clients that do not run JavaScript. Live values come
       from the CMS and are written by applySeo() once the app boots; link-preview
       scrapers are served the real per-page tags by the API instead (see
