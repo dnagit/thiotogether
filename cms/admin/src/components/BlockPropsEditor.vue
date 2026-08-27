@@ -71,7 +71,17 @@ function setItem(field: BlockField, index: number, key: string, value: unknown):
       <ElFormItem v-else :label="field.label">
         <MediaPicker v-if="field.type === 'image'" :model-value="modelValue[field.key]" @update:model-value="set(field.key, $event)" />
         <ElSwitch v-else-if="field.type === 'switch'" :model-value="!!modelValue[field.key]" @update:model-value="set(field.key, $event)" />
-        <ElInputNumber v-else-if="field.type === 'number'" :model-value="Number(modelValue[field.key] ?? 0)" @update:model-value="set(field.key, $event)" />
+        <!--
+          Empty stays empty. `Number(undefined ?? 0)` is 0, and a block whose author never
+          touched a number field would have 0 written into it the first time anything on the
+          block was saved — which is not "no value" to the component reading it, it is a real
+          zero. That is how a poster ends up with every margin collapsed.
+        -->
+        <ElInputNumber
+          v-else-if="field.type === 'number'"
+          :model-value="modelValue[field.key] === '' || modelValue[field.key] == null ? undefined : Number(modelValue[field.key])"
+          @update:model-value="set(field.key, $event ?? '')"
+        />
         <ElInput v-else-if="field.type === 'textarea'" :model-value="modelValue[field.key]" type="textarea" :rows="3" @update:model-value="set(field.key, $event)" />
         <ElInput v-else-if="field.type === 'richtext'" :model-value="modelValue[field.key]" type="textarea" :rows="8" spellcheck="false" class="mono" @update:model-value="set(field.key, $event)" />
         <ElColorPicker v-else-if="field.type === 'color'" :model-value="modelValue[field.key]" @update:model-value="set(field.key, $event)" />
