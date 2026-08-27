@@ -13,8 +13,15 @@ function set(key: string, value: unknown): void {
   emit('update:modelValue', { ...props.modelValue, [key]: value });
 }
 
+/** What an empty row of each field type starts as, so the control it renders has a value it understands. */
+function blankFor(f: BlockField): unknown {
+  if (f.type === 'switch') return false;
+  if (f.type === 'select') return f.options?.[0]?.value ?? '';
+  return '';
+}
+
 function addItem(field: BlockField): void {
-  const blank = Object.fromEntries((field.itemFields ?? []).map((f) => [f.key, f.type === 'switch' ? false : '']));
+  const blank = Object.fromEntries((field.itemFields ?? []).map((f) => [f.key, blankFor(f)]));
   set(field.key, [...(props.modelValue[field.key] ?? []), blank]);
 }
 
@@ -47,6 +54,11 @@ function setItem(field: BlockField, index: number, key: string, value: unknown):
             <ElFormItem v-for="sub in field.itemFields" :key="sub.key" :label="sub.label">
               <MediaPicker v-if="sub.type === 'image'" :model-value="item[sub.key]" @update:model-value="setItem(field, i, sub.key, $event)" />
               <ElSwitch v-else-if="sub.type === 'switch'" :model-value="!!item[sub.key]" @update:model-value="setItem(field, i, sub.key, $event)" />
+              <ElInputNumber v-else-if="sub.type === 'number'" :model-value="item[sub.key] === '' || item[sub.key] == null ? undefined : Number(item[sub.key])" @update:model-value="setItem(field, i, sub.key, $event)" />
+              <ElColorPicker v-else-if="sub.type === 'color'" :model-value="item[sub.key]" @update:model-value="setItem(field, i, sub.key, $event)" />
+              <ElSelect v-else-if="sub.type === 'select'" :model-value="item[sub.key]" style="width: 100%" @update:model-value="setItem(field, i, sub.key, $event)">
+                <ElOption v-for="o in sub.options" :key="o.value" :value="o.value" :label="o.label" />
+              </ElSelect>
               <ElInput v-else-if="sub.type === 'textarea'" :model-value="item[sub.key]" type="textarea" :rows="2" @update:model-value="setItem(field, i, sub.key, $event)" />
               <ElInput v-else :model-value="item[sub.key]" @update:model-value="setItem(field, i, sub.key, $event)" />
             </ElFormItem>

@@ -86,15 +86,22 @@ const pages = computed(() => Math.ceil(buttons.value.length / PER_VIEW));
 /**
  * How wide a card is on the swipe track — the whole of the mobile layout, in one value.
  *
- * Three cases, and each is the honest answer to what is actually on the track. A lone button
- * has nothing to swipe to and takes the width it always had. An exact pair fills the track,
- * since there is nothing beyond it to hint at. Anything longer is cut narrower than half, and
- * the difference is what the next card shows through — the only thing on screen that says the
- * track goes on.
+ * A short track divides by what is actually on it rather than by {@link PER_VIEW}: three
+ * buttons laid out in quarters would sit bunched to the left with a quarter of the sheet
+ * empty beside them, which reads as a mistake rather than as a row. Only once there is more
+ * than a screenful is a card cut narrower than its share — and that difference is the sliver
+ * the next card shows through, the one thing on screen saying the track goes on.
+ *
+ * Every width is written out in full because Tailwind reads the source for class names: a
+ * width assembled from a variable would never reach the stylesheet.
  */
+const CARD_WIDTHS = ['w-4/5', 'w-[calc(50%-0.5rem)]'] as const;
+/** Cut back by a whole gap, so a sliver of the third card shows past the pair. */
+const CARD_WIDTH_PEEK = 'w-[calc(50%-1.5rem)]';
+
 const cardWidth = computed(() => {
-  if (buttons.value.length === 1) return 'w-4/5';
-  return buttons.value.length > PER_VIEW ? 'w-[calc(50%-1.5rem)]' : 'w-[calc(50%-0.5rem)]';
+  const n = buttons.value.length;
+  return n > PER_VIEW ? CARD_WIDTH_PEEK : (CARD_WIDTHS[n - 1] ?? CARD_WIDTH_PEEK);
 });
 
 /**
@@ -241,7 +248,7 @@ function linkProps(button: CtaButton): Record<string, unknown> {
           v-for="(_, i) in pages"
           :key="i"
           class="w-2.5 h-2.5 rounded-full transition-colors"
-          :style="{ background: i === active ? 'var(--color-primary)' : '#d1d5db' }"
+          :style="{ background: i === active ? '#ea480c' : '#d1d5db' }"
           :aria-label="`Page ${i + 1}`"
           @click="goTo(i)"
         />

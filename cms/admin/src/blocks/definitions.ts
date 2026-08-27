@@ -376,6 +376,125 @@ export const blockDefinitions: BlockDefinition[] = [
     defaultProps: { height: '4rem' },
     fields: [{ key: 'height', label: 'Height (CSS)', type: 'text' }],
   },
+  {
+    type: 'profile-card',
+    label: 'Profile Poster',
+    icon: '🌻',
+    category: 'content',
+    defaultProps: {
+      ratio: 0.56,
+      maxWidth: 560,
+      background: '#fffdf6',
+      accent: '#ea480c',
+      pillColor: '#f4a300',
+      textColor: '#3b2a12',
+      cardColor: '#fff6ef',
+      nameplateColor: '#f4a300',
+      nameplateText: '',
+      cardRows: [],
+      socials: [],
+      facts: [],
+      traits: [],
+      tags: [],
+      decorations: [],
+    },
+    fields: [
+      // ── The sheet ────────────────────────────────────────────────────────
+      { key: 'frameImage', label: 'Frame + background (one image)', type: 'image' },
+      { key: 'personImage', label: 'Cut-out photo (left)', type: 'image' },
+      { key: 'background', label: 'Paper colour behind the frame', type: 'color' },
+      { key: 'ratio', label: 'Poster shape (width ÷ height, e.g. 0.56)', type: 'number' },
+      { key: 'maxWidth', label: 'Widest on desktop (px)', type: 'number' },
+
+      // ── Details card ─────────────────────────────────────────────────────
+      { key: 'cardImage', label: 'Card background image', type: 'image' },
+      { key: 'cardColor', label: 'Card colour (behind the image)', type: 'color' },
+      { key: 'cardPhoto', label: 'Card portrait', type: 'image' },
+      {
+        key: 'cardRows',
+        label: 'Card details',
+        type: 'items',
+        itemFields: [
+          { key: 'label', label: 'Label (e.g. NAME)', type: 'text' },
+          { key: 'value', label: 'Value', type: 'text' },
+        ],
+      },
+      { key: 'cardNote', label: 'Signature line under the card', type: 'text' },
+
+      // ── Name plate ───────────────────────────────────────────────────────
+      { key: 'nameplateImage', label: 'Name plate artwork', type: 'image' },
+      { key: 'nameplateText', label: 'Name plate text (used if there is no artwork)', type: 'text' },
+      { key: 'nameplateColor', label: 'Name plate colour', type: 'color' },
+
+      // ── Lists ────────────────────────────────────────────────────────────
+      {
+        key: 'socials',
+        label: 'Social links',
+        type: 'items',
+        itemFields: [
+          { key: 'icon', label: 'Icon', type: 'image' },
+          { key: 'url', label: 'Link', type: 'url' },
+          { key: 'label', label: 'Name (for screen readers)', type: 'text' },
+        ],
+      },
+      {
+        key: 'facts',
+        label: 'Fact pills',
+        type: 'items',
+        itemFields: [
+          { key: 'text', label: 'Text (e.g. HEIGHT : 205 CM)', type: 'text' },
+          { key: 'icon', label: 'Icon (optional — a dot is used without one)', type: 'image' },
+        ],
+      },
+      {
+        key: 'traits',
+        label: 'Round badges',
+        type: 'items',
+        itemFields: [
+          { key: 'image', label: 'Picture', type: 'image' },
+          { key: 'label', label: 'Caption', type: 'text' },
+          { key: 'color', label: 'Colour', type: 'color' },
+        ],
+      },
+      {
+        key: 'tags',
+        label: 'Bottom pills',
+        type: 'items',
+        itemFields: [
+          { key: 'text', label: 'Text', type: 'text' },
+          { key: 'icon', label: 'Icon (optional)', type: 'image' },
+        ],
+      },
+      {
+        key: 'decorations',
+        label: 'Floating props (flower, drumstick, basketball…)',
+        type: 'items',
+        itemFields: [
+          { key: 'image', label: 'Picture', type: 'image' },
+          { key: 'x', label: 'Across (0–100, from the left)', type: 'number' },
+          { key: 'y', label: 'Down (0–100, from the top)', type: 'number' },
+          { key: 'size', label: 'Width (% of the poster)', type: 'number' },
+          {
+            key: 'motion',
+            label: 'Movement',
+            type: 'select',
+            options: [
+              { label: 'Still', value: 'none' },
+              { label: 'Spin (basketball)', value: 'spin' },
+              { label: 'Swing (drumstick)', value: 'swing' },
+              { label: 'Float up and down', value: 'float' },
+            ],
+          },
+          { key: 'speed', label: 'Seconds per loop', type: 'number' },
+        ],
+      },
+
+      // ── Colours ──────────────────────────────────────────────────────────
+      { key: 'accent', label: 'Accent (borders, captions)', type: 'color' },
+      { key: 'pillColor', label: 'Pill colour', type: 'color' },
+      { key: 'textColor', label: 'Text colour', type: 'color' },
+    ],
+  },
 ];
 
 export const blockByType = new Map(blockDefinitions.map((d) => [d.type, d]));
