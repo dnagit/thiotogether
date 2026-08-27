@@ -424,7 +424,12 @@ const isExternal = (url: string): boolean => /^(https?:)?\/\/|^mailto:|^tel:/i.t
   max-width: 44%;
   object-fit: contain;
   object-position: bottom left;
-  z-index: 1;
+  /*
+   * Above the column, so the figure stands in front of the pills where the two overlap. It
+   * takes no clicks — see the `pointer-events: none` it shares with the frame — so nothing
+   * underneath it becomes unreachable by being covered.
+   */
+  z-index: 3;
 }
 
 /*
@@ -783,7 +788,8 @@ a.social:active {
  */
 .decor {
   position: absolute;
-  z-index: 3;
+  /* The props lie on top of everything, the figure included. */
+  z-index: 4;
   height: auto;
   transform: translate(-50%, -50%);
   pointer-events: none;
