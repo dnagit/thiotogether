@@ -7,6 +7,8 @@ import { reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { http } from '@/api/http';
 import MediaPicker from '@/components/MediaPicker.vue';
+import BlockPropsEditor from '@/components/BlockPropsEditor.vue';
+import type { BlockField } from '@/blocks/definitions';
 import { PERMISSIONS, type ApiResponse } from '@cms/shared';
 import { useAuthStore } from '@/stores/auth';
 
@@ -17,7 +19,7 @@ interface SettingDef {
   key: string;
   label: string;
   group: string;
-  type: 'text' | 'textarea' | 'image' | 'color' | 'select' | 'switch';
+  type: 'text' | 'textarea' | 'image' | 'color' | 'select' | 'switch' | 'items';
   options?: string[];
   /** Shown under the field — for settings whose effect is not obvious from the label. */
   hint?: string;
@@ -35,6 +37,13 @@ const defs: SettingDef[] = [
   { key: 'instagram', label: 'Instagram URL', group: 'social', type: 'text' },
   { key: 'youtube', label: 'YouTube URL', group: 'social', type: 'text' },
   { key: 'line', label: 'LINE URL', group: 'social', type: 'text' },
+  {
+    key: 'socialList',
+    label: 'Social icons (shown in the footer)',
+    group: 'social',
+    type: 'items',
+    hint: 'Each row is one icon in the footer. Rows with no image are skipped.',
+  },
   { key: 'metaTitle', label: 'Default Meta Title', group: 'seo', type: 'text' },
   { key: 'metaDescription', label: 'Default Meta Description', group: 'seo', type: 'textarea' },
   { key: 'ogImage', label: 'Default OG Image', group: 'seo', type: 'image' },
@@ -100,6 +109,24 @@ const tabs = [
   { name: 'popup', label: 'Popup' },
 ];
 
+/**
+ * The repeating rows for `socialList`, described the way the block editor expects them — that
+ * editor already draws image pickers and add/remove rows, so the settings page borrows it
+ * rather than growing a second copy of the same UI.
+ */
+const socialListFields: BlockField[] = [
+  {
+    key: 'socialList',
+    label: 'Social icons',
+    type: 'items',
+    itemFields: [
+      { key: 'icon', label: 'Icon image', type: 'image' },
+      { key: 'url', label: 'Link', type: 'url' },
+      { key: 'label', label: 'Name (read out by screen readers)', type: 'text' },
+    ],
+  },
+];
+
 const values = reactive<Record<string, any>>({});
 const loading = ref(true);
 const saving = ref(false);
@@ -109,7 +136,8 @@ async function load(): Promise<void> {
   try {
     const { data } = await http.get<ApiResponse<Record<string, unknown>>>('/settings');
     for (const def of defs) {
-      values[def.key] = data.data[def.key] ?? (def.type === 'switch' ? false : '');
+      const blank = def.type === 'switch' ? false : def.type === 'items' ? [] : '';
+      values[def.key] = data.data[def.key] ?? blank;
     }
   } finally {
     loading.value = false;
@@ -123,7 +151,12 @@ async function save(): Promise<void> {
     await http.put('/settings', {
       settings: defs.map((d) => ({
         key: d.key,
-        value: d.type === 'switch' ? !!values[d.key] : (values[d.key] ?? ''),
+        value:
+          d.type === 'switch'
+            ? !!values[d.key]
+            : d.type === 'items'
+              ? (values[d.key] ?? [])
+              : (values[d.key] ?? ''),
         group: d.group,
       })),
     });
@@ -146,7 +179,16 @@ async function save(): Promise<void> {
         <ElTabPane v-for="tab in tabs" :key="tab.name" :label="tab.label">
           <ElForm label-position="top" :disabled="!canManage" style="max-width: 560px">
             <template v-for="def in defs.filter((d) => d.group === tab.name)" :key="def.key">
-              <ElFormItem :label="def.label">
+              <!-- Repeating rows bring their own labelled card, so no ElFormItem around them. -->
+              <template v-if="def.type === 'items'">
+                <BlockPropsEditor
+                  :fields="socialListFields"
+                  :model-value="values"
+                  @update:model-value="Object.assign(values, $event)"
+                />
+                <div v-if="def.hint" class="hint">{{ def.hint }}</div>
+              </template>
+              <ElFormItem v-else :label="def.label">
                 <ElSwitch v-if="def.type === 'switch'" v-model="values[def.key]" />
                 <MediaPicker v-else-if="def.type === 'image'" v-model="values[def.key]" />
                 <ElColorPicker v-else-if="def.type === 'color'" v-model="values[def.key]" />

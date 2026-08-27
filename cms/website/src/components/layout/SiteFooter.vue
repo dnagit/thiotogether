@@ -8,6 +8,24 @@ const site = useSiteStore();
 // (MenuLink, the `footer` menu fetch, `social`) went with them. Restore both together.
 const footerText = computed(() => site.theme.footerText || `© ${new Date().getFullYear()} ${site.siteName}`);
 
+/** One icon in the row under the copyright, as the Settings page stores it. */
+interface SocialIcon {
+  icon?: string;
+  url?: string;
+  label?: string;
+}
+
+/**
+ * The footer's icon row.
+ *
+ * `socialLinks` is the whole `social` settings group, so the list lives one level inside it.
+ * Rows with no picture are dropped rather than drawn as a gap — the settings editor adds an
+ * empty row the moment "add" is pressed, and a half-filled one should not reach the site.
+ */
+const socialIcons = computed<SocialIcon[]>(() =>
+  ((site.settings?.socialLinks?.socialList ?? []) as SocialIcon[]).filter((s) => s?.icon),
+);
+
 /**
  * The animated mascot is a 21 MB GIF, so it is only requested once a pointer actually reaches it —
  * never as part of the initial page weight. The still frame stays mounted underneath so the swap
@@ -99,10 +117,42 @@ function onMascotEnter(): void {
     -->
     <div
       class="absolute inset-x-0 bottom-[2.5vw] mx-auto max-w-[70%] px-4 text-center text-white leading-snug
-             text-[clamp(0.45rem,0.85vw,0.8rem)] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
-             v-html="footerText"
+             text-[clamp(0.6rem,1.3vw,1.15rem)] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
     >
-    
+      <div v-html="footerText"></div>
+
+      <!--
+        Under the copyright, centred. The band is anchored by its bottom edge, so this row
+        keeps the place the copyright line had and the text rises above it — nothing is
+        pushed off the artwork.
+
+        Sized in vw like everything else down here — the hill they sit on is 23.7vw tall, so
+        anything measured in pixels would drift off it as the window changes. The floor and
+        ceiling are only the ends: on a phone 3vw is about eleven pixels, too small to tap,
+        and past a very wide window the icons would outgrow the band they sit in.
+      -->
+      <div
+        v-if="socialIcons.length"
+        class="mt-[0.9vw] flex items-center justify-center gap-[1.1vw]"
+      >
+        <a
+          v-for="(s, i) in socialIcons"
+          :key="i"
+          :href="s.url || undefined"
+          :target="s.url ? '_blank' : undefined"
+          :rel="s.url ? 'noopener noreferrer' : undefined"
+          :aria-label="s.label || undefined"
+          class="block transition-transform hover:scale-110 motion-reduce:transition-none
+                 motion-reduce:hover:scale-100"
+        >
+          <img
+            :src="s.icon"
+            alt=""
+            loading="lazy"
+            class="h-auto w-[3vw] min-w-[24px] max-w-[48px]"
+          />
+        </a>
+      </div>
     </div>
     <!--
       Reserves the footer's height. The hill needs 21.4vw (36.8% of a 1.72:1 canvas), but the mascot
