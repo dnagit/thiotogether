@@ -32,7 +32,7 @@ const themeColor = computed(() => event.value?.themeColor ?? '#ea480c');
 </script>
 
 <template>
-  <div class="py-8 font-sukhumvit">
+  <div class="py-8">
     <h2 v-if="title" class="mb-4 text-center text-2xl font-extrabold sm:text-3xl">{{ title }}</h2>
 
     <div v-if="loading" class="py-16 text-center text-gray-400 animate-pulse">Loading wishes…</div>

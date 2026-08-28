@@ -47,7 +47,7 @@ async function check(): Promise<void> {
 </script>
 
 <template>
-  <div class="font-sukhumvit container-site py-12 max-w-2xl">
+  <div class="container-site py-12 max-w-2xl">
     <header class="text-center mb-8">
       <h1 class="text-3xl font-extrabold mb-2">ตรวจสอบ Token ของฉัน</h1>
       <p class="text-gray-500">กรอกชื่อบัญชีเดียวกับที่ใช้ตอนบริจาค</p>

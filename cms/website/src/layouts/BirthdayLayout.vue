@@ -198,7 +198,7 @@ const clouds = computed(() => {
 </script>
 
 <template>
-  <div class="birthday-shell birthday-bg font-sukhumvit" :class="{ 'shell-pinned': pinned }">
+  <div class="birthday-shell birthday-bg" :class="{ 'shell-pinned': pinned }">
     <!-- Scenery. Behind everything, and never in the way of a tap. -->
     <div class="sky-clouds" aria-hidden="true">
       <!--

@@ -100,7 +100,7 @@ function closeAll(): void {
 </script>
 
 <template>
-  <div class="font-sukhumvit container-site py-8 sm:py-12">
+  <div class="container-site py-8 sm:py-12">
     <div v-if="loading" class="py-24 text-center text-gray-400 animate-pulse" role="status">กำลังโหลดผล…</div>
 
     <div v-else-if="error || !board" class="py-20 text-center">

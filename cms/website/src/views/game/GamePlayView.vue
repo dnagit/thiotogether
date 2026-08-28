@@ -241,7 +241,7 @@ function isMine(tile: Tile): boolean {
 </script>
 
 <template>
-  <div class="font-sukhumvit container-site py-8 sm:py-12">
+  <div class="container-site py-8 sm:py-12">
     <!-- Loading -->
     <div v-if="loading" class="py-24 text-center" role="status" aria-live="polite">
       <div class="animate-pulse text-gray-400">กำลังโหลดเกมส์…</div>

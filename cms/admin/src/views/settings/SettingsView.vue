@@ -51,7 +51,13 @@ const defs: SettingDef[] = [
   { key: 'secondaryColor', label: 'Secondary Color', group: 'theme', type: 'color' },
   { key: 'logoUrl', label: 'Logo', group: 'theme', type: 'image' },
   { key: 'faviconUrl', label: 'Favicon', group: 'theme', type: 'image' },
-  { key: 'fontFamily', label: 'Font Family (CSS)', group: 'theme', type: 'text' },
+  {
+    key: 'fontFamily',
+    label: 'Font Family (CSS)',
+    group: 'theme',
+    type: 'text',
+    hint: 'Leave empty to use the font built into the site. A value here overrides it — including a font the developers have since changed.',
+  },
   { key: 'headerStyle', label: 'Header Style', group: 'theme', type: 'select', options: ['default', 'transparent', 'compact'] },
   { key: 'footerText', label: 'Footer Text', group: 'theme', type: 'textarea' },
   {

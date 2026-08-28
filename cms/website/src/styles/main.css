@@ -117,11 +117,6 @@ body {
   font-display: swap;
 }
 
-/* Sukhumvit Set ships with macOS/iOS; elsewhere this falls back to the CMS theme font. */
-.font-sukhumvit {
-  font-family: 'Sukhumvit Set', 'SukhumvitSet-Text', Sukhumvit, var(--font-family);
-}
-
 .text-echo {
   text-shadow:
     0.05em 0.075em 0 rgba(209, 52, 44, 0.7),

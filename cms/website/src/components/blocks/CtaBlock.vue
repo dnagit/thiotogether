@@ -161,7 +161,7 @@ function linkProps(button: CtaButton): Record<string, unknown> {
 </script>
 
 <template>
-  <div :style="spacing" class="py-16 text-center rounded-2xl text-black font-sukhumvit">
+  <div :style="spacing" class="py-16 text-center rounded-2xl text-black">
     <!-- Fluid rather than a fixed step: viewport-proportional, with clamp ends for readability.
          3vw is only ~12px on a phone, so the lower end is what every mobile viewport actually
          gets — it is raised on its own to keep the desktop ramp unchanged. -->
