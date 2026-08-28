@@ -5,15 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!--
-      Bebas Neue — the display face on the profile poster's pills. Linked here rather than
-      @import-ed from the stylesheet so the browser can start fetching it while the CSS is
-      still parsing, and preconnected so the handshake with Google's font host does not wait
-      for the stylesheet to arrive first.
+      Mali carries the site's body copy — it is one of the few faces with a hand-drawn feel
+      that draws Thai as well as Latin, which is what this site needs. Bebas Neue rides along
+      as the fallback under Arabica on the profile poster's pills.
+
+      Linked here rather than @import-ed from the stylesheet so the browser can start fetching
+      while the CSS is still parsing, and preconnected so the handshake with Google's font host
+      does not wait for the stylesheet to arrive first. Only the three weights actually used are
+      requested; Mali ships six, and each one is a separate download.
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Mali:wght@400;600;700&display=swap"
       rel="stylesheet"
     />
 

@@ -9,12 +9,14 @@
   --color-secondary: #0d9488;
   --color-secondary-rgb: 13 148 136;
   /*
-   * The site's face. Bebas Neue leads; Inter and the system stack behind it are not decoration
-   * — Bebas has no lowercase and no Thai, so every Thai word and every fallback glyph comes
-   * from the faces after it. Overwritten at runtime by the CMS theme's Font Family setting,
-   * which has to name Bebas first as well or this line never applies.
+   * The site's face. Mali draws both Thai and Latin, and has real lowercase and several
+   * weights — the three things the display faces on this site do not. Inter and the system
+   * stack behind it cover anything Mali has no glyph for.
+   *
+   * Overwritten at runtime by the CMS theme's Font Family setting, which has to name Mali
+   * first as well or this line never applies.
    */
-  --font-family: 'Bebas Neue', 'Inter', system-ui, sans-serif;
+  --font-family: 'Mali', 'Inter', system-ui, sans-serif;
   /*
    * Header bar height — drives the logo size, the nav panel offset and the page top padding.
    * Scales with the viewport: 210px on wide screens, shrinking to 72px on phones.
