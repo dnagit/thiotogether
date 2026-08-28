@@ -694,7 +694,13 @@ a.social:active {
    * marks.
    */
   font-size: clamp(8px, 2.6cqw, 32px);
-  font-weight: 400;
+  font-weight: 700;
+  /*
+   * The pills are set in caps on the sheet, so the case is applied here rather than left to
+   * whoever types the text — the same line then reads the same whether it was entered as
+   * "Height : 205 cm" or "HEIGHT : 205 CM". Thai is unaffected; it has no cases.
+   */
+  text-transform: uppercase;
   /*
    * Hard-edged and offset, with no blur — a second copy of the pill sitting behind it in a
    * darker shade of its own colour. A blurred shadow lifts the pill off the paper; this one
