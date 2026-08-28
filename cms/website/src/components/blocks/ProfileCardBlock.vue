@@ -673,13 +673,16 @@ a.social:active {
   background: var(--pill);
   color: var(--pill-ink);
   /*
-   * Bebas Neue is a single weight, and a heavy condensed one — so no `font-weight: bold`
-   * here: there is no bold cut to reach for and the browser would fake one by smearing the
-   * glyphs, which on a face this tight closes up the counters. The fallback carries the
-   * weight instead, and Thai falls through to the site's own face, which Bebas has no
-   * glyphs for.
+   * The site's own face, so the pills read as part of the page rather than as a graphic
+   * dropped onto it. Mali also draws Thai, which neither Arabica nor Bebas Neue does, and it
+   * ships a real 700 — the bold below is a cut that exists rather than one the browser smears
+   * on, which is what the two display faces before it were getting.
+   *
+   * The size did not have to move with it: measured off the files, Arabica's capitals stand
+   * at 0.708 em and Mali's at 0.700, so caps set at the same size come out the same height.
+   * What did change is width — see the note on `font-size`.
    */
-  font-family: 'Arabica', 'Bebas Neue', var(--font-family), sans-serif;
+  font-family: 'Mali', var(--font-family), sans-serif;
   letter-spacing: 0.02em;
   /*
    * Three numbers, and each answers a different screen.
@@ -689,11 +692,16 @@ a.social:active {
    * a pill the same shape at every size. 32px caps it, the size asked for, so the type stops
    * growing once the poster is wide enough to carry it. The floor is down at 8px so that the
    * proportional figure — about 9px on a 350px sheet — is the one that governs on a phone
-   * rather than being propped up by it. That is as small as this should go: the pills carry
-   * English only, and Latin caps hold at a size where Thai would already have lost its vowel
-   * marks.
+   * rather than being propped up by it.
+   *
+   * Arabica and Mali set capitals to the same height, but not to the same width: over a real
+   * pill's worth of text Mali runs 1.38× wider, so at the size that matched Arabica's height
+   * the pills came out noticeably longer. These figures are that height-matched set taken down
+   * a step (×0.85), which gives back about half of that width. Taking the whole 0.72 — 23px
+   * and 1.88cqw — would hold Arabica's pill lengths exactly, at the cost of lettering that
+   * reads as smaller than what was there before.
    */
-  font-size: clamp(8px, 2.6cqw, 32px);
+  font-size: clamp(7px, 2.2cqw, 27px);
   font-weight: 700;
   /*
    * The pills are set in caps on the sheet, so the case is applied here rather than left to
