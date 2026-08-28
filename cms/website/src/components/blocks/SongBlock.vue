@@ -111,6 +111,12 @@ const shell = computed(() => ({
 
 <template>
   <div class="song" :style="shell">
+    <!--
+      One frame holds the lot. The title bar is the top of the card rather than a pill
+      floating above it, so a closed song is a single object on the page and the border runs
+      round the name as well as the words.
+    -->
+    <div class="frame">
     <!-- The bar is the control: the whole of it opens the card, not just the chevron. -->
     <button
       type="button"
@@ -200,6 +206,7 @@ const shell = computed(() => ({
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -210,6 +217,18 @@ const shell = computed(() => ({
   container-type: inline-size;
 }
 
+/*
+ * `overflow: hidden` is what rounds the title bar: the bar itself is a plain rectangle and
+ * the frame clips its top corners to whatever radius is set here, so the two can never
+ * disagree about how round they are.
+ */
+.frame {
+  border: 2px solid var(--edge);
+  border-radius: 1.5rem;
+  background: var(--card);
+  overflow: hidden;
+}
+
 /* ── Title bar ───────────────────────────────────────────────────────────── */
 .bar {
   width: 100%;
@@ -218,7 +237,6 @@ const shell = computed(() => ({
   gap: clamp(0.6rem, 2.5cqw, 1.25rem);
   padding: clamp(0.5rem, 2cqw, 1rem);
   border: 0;
-  border-radius: 999px;
   background: var(--header);
   color: var(--header-ink);
   text-align: left;
@@ -226,7 +244,8 @@ const shell = computed(() => ({
 }
 .bar:focus-visible {
   outline: 3px solid var(--btn);
-  outline-offset: 3px;
+  /* Inside the frame, which clips anything outside it. */
+  outline-offset: -3px;
 }
 .bar-title {
   font-weight: 700;
@@ -269,12 +288,9 @@ const shell = computed(() => ({
   min-height: 0;
 }
 
+/* The frame draws the border and the background now; this only spaces the contents. */
 .card {
-  margin-top: 0.75rem;
   padding: clamp(1rem, 4cqw, 2rem);
-  border: 2px solid var(--edge);
-  border-radius: 1.5rem;
-  background: var(--card);
   display: flex;
   flex-direction: column;
   gap: clamp(1rem, 3cqw, 1.75rem);
