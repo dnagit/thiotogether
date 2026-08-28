@@ -117,7 +117,7 @@ function onMascotEnter(): void {
     -->
     <div
       class="absolute inset-x-0 bottom-[2.5vw] mx-auto max-w-[70%] px-4 text-center text-white leading-snug
-             text-[clamp(0.6rem,1.3vw,1.15rem)] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
+             text-[clamp(0.5rem,1.3vw,1.15rem)] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
     >
       <div v-html="footerText"></div>
 
@@ -128,8 +128,12 @@ function onMascotEnter(): void {
 
         Sized in vw like everything else down here — the hill they sit on is 23.7vw tall, so
         anything measured in pixels would drift off it as the window changes. The floor and
-        ceiling are only the ends: on a phone 3vw is about eleven pixels, too small to tap,
-        and past a very wide window the icons would outgrow the band they sit in.
+        ceiling are only the ends: on a phone 3vw is about eleven pixels, and past a very wide
+        window the icons would outgrow the band they sit in.
+
+        The padding on each link is not spacing — it is the difference between an 18px picture
+        and a target big enough to hit with a thumb. The icon can be small on a phone; the
+        thing being tapped cannot.
       -->
       <div
         v-if="socialIcons.length"
@@ -142,14 +146,14 @@ function onMascotEnter(): void {
           :target="s.url ? '_blank' : undefined"
           :rel="s.url ? 'noopener noreferrer' : undefined"
           :aria-label="s.label || undefined"
-          class="block transition-transform hover:scale-110 motion-reduce:transition-none
+          class="block p-[3px] transition-transform hover:scale-110 motion-reduce:transition-none
                  motion-reduce:hover:scale-100"
         >
           <img
             :src="s.icon"
             alt=""
             loading="lazy"
-            class="h-auto w-[3vw] min-w-[24px] max-w-[48px]"
+            class="h-auto w-[3vw] min-w-[18px] max-w-[48px]"
           />
         </a>
       </div>
