@@ -3,6 +3,7 @@
  * Data-driven props editor: renders inputs from a BlockDefinition's fields.
  * Handles nested 'items' arrays generically, so no block needs its own editor.
  */
+import { ref } from 'vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import type { BlockField } from '@/blocks/definitions';
 
@@ -36,6 +37,41 @@ function setItem(field: BlockField, index: number, key: string, value: unknown):
   list[index] = { ...list[index], [key]: value };
   set(field.key, list);
 }
+
+/**
+ * Order is content here — a timeline reads in the order its rows are in, and so does a
+ * gallery — so rows have to be movable without being deleted and retyped.
+ *
+ * Two ways to do it on purpose. The arrows are the ones that always work: they are keyboard
+ * operable and they work on a tablet, where HTML5 drag does not fire at all. Dragging is the
+ * faster way for a mouse, and is added on top rather than instead.
+ */
+function moveItem(field: BlockField, from: number, to: number): void {
+  const list = [...(props.modelValue[field.key] ?? [])];
+  if (to < 0 || to >= list.length || from === to) return;
+  const [row] = list.splice(from, 1);
+  list.splice(to, 0, row);
+  set(field.key, list);
+}
+
+/** The row being dragged, as `fieldKey:index` — one editor can show several lists. */
+const dragging = ref<string | null>(null);
+
+function onDragStart(field: BlockField, index: number, e: DragEvent): void {
+  dragging.value = `${field.key}:${index}`;
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox ignores a drag that carries nothing, so it is given something to carry.
+    e.dataTransfer.setData('text/plain', String(index));
+  }
+}
+
+function onDrop(field: BlockField, index: number): void {
+  const [key, from] = (dragging.value ?? '').split(':');
+  dragging.value = null;
+  if (key !== field.key) return;
+  moveItem(field, Number(from), index);
+}
 </script>
 
 <template>
@@ -44,11 +80,43 @@ function setItem(field: BlockField, index: number, key: string, value: unknown):
       <!-- Repeating items -->
       <ElFormItem v-if="field.type === 'items'" :label="field.label">
         <div class="items-editor">
-          <ElCard v-for="(item, i) in modelValue[field.key] ?? []" :key="i" shadow="never" class="item-card">
+          <ElCard
+            v-for="(item, i) in modelValue[field.key] ?? []"
+            :key="i"
+            shadow="never"
+            class="item-card"
+            :class="{ 'is-dragging': dragging === `${field.key}:${i}` }"
+            draggable="true"
+            @dragstart="onDragStart(field, i, $event)"
+            @dragend="dragging = null"
+            @dragover.prevent
+            @drop.prevent="onDrop(field, i)"
+          >
             <template #header>
               <div class="item-head">
-                <span>#{{ i + 1 }}</span>
-                <ElButton size="small" type="danger" text @click="removeItem(field, i)">Remove</ElButton>
+                <span class="item-no">
+                  <span class="grip" title="ลากเพื่อสลับลำดับ" aria-hidden="true">⠿</span>
+                  #{{ i + 1 }}
+                </span>
+                <span class="item-tools">
+                  <ElButton
+                    size="small"
+                    text
+                    :disabled="i === 0"
+                    title="เลื่อนขึ้น"
+                    aria-label="เลื่อนขึ้น"
+                    @click="moveItem(field, i, i - 1)"
+                  >↑</ElButton>
+                  <ElButton
+                    size="small"
+                    text
+                    :disabled="i === (modelValue[field.key] ?? []).length - 1"
+                    title="เลื่อนลง"
+                    aria-label="เลื่อนลง"
+                    @click="moveItem(field, i, i + 1)"
+                  >↓</ElButton>
+                  <ElButton size="small" type="danger" text @click="removeItem(field, i)">Remove</ElButton>
+                </span>
               </div>
             </template>
             <ElFormItem v-for="sub in field.itemFields" :key="sub.key" :label="sub.label">
@@ -98,6 +166,11 @@ function setItem(field: BlockField, index: number, key: string, value: unknown):
 <style scoped>
 .items-editor { width: 100%; display: flex; flex-direction: column; gap: 8px; }
 .item-card :deep(.el-card__header) { padding: 6px 12px; }
-.item-head { display: flex; justify-content: space-between; align-items: center; }
+.item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.item-no { display: flex; align-items: center; gap: 6px; }
+.item-tools { display: flex; align-items: center; gap: 2px; }
+/* The whole card is draggable, so the grip is a hint rather than the only handle. */
+.grip { cursor: grab; color: var(--el-text-color-secondary); letter-spacing: -2px; }
+.item-card.is-dragging { opacity: 0.5; }
 .mono :deep(textarea) { font-family: ui-monospace, monospace; font-size: 12px; }
 </style>
