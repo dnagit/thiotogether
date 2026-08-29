@@ -785,6 +785,43 @@ model Media {
   @@map("media")
 }
 
+/// A piece of work to show off: a poster, a fan project, an event.
+///
+/// The gallery is a JSON array rather than a table of its own. Nothing queries an
+/// individual picture — they are read, reordered and written as one list, always through
+/// the project that owns them — so a table would buy joins and an id per row and give
+/// nothing back. Same reasoning as `PageBlock.props`.
+model Project {
+  id      Int    @id @default(autoincrement())
+  title   String @db.VarChar(200)
+  slug    String @unique @db.VarChar(200)
+  /// One line under the title on the list page.
+  summary String? @db.VarChar(500)
+  /// The long text on the detail page, as HTML from the editor.
+  description String? @db.Text
+
+  /// The single picture the list page shows. The gallery below is the detail page's.
+  coverImage String? @map("cover_image") @db.VarChar(500)
+  /// `[{ "url": "…", "caption": "…" }]`
+  images     Json    @default("[]")
+
+  /// Shown under the title on the detail page — a date, a venue, whatever fits.
+  eventDate DateTime? @map("event_date")
+
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  metaTitle       String? @map("meta_title") @db.VarChar(255)
+  metaDescription String? @map("meta_description") @db.VarChar(500)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([isActive, sortOrder])
+  @@map("projects")
+}
+
 model Setting {
   id    Int    @id @default(autoincrement())
   key   String @unique @db.VarChar(120)

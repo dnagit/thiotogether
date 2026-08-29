@@ -82,6 +82,13 @@ export const router = createRouter({
       meta: { layout: 'birthday' },
     },
     {
+      // The list lives in a page built in the CMS — see `ProjectsBlock` — so only the detail
+      // needs a route of its own.
+      path: '/projects/:slug',
+      name: 'project-detail',
+      component: () => import('@/views/projects/ProjectDetailView.vue'),
+    },
+    {
       path: '/terms',
       name: 'terms',
       component: () => import('@/views/legal/TermsView.vue'),

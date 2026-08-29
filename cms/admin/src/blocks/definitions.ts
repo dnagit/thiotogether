@@ -377,6 +377,20 @@ export const blockDefinitions: BlockDefinition[] = [
     fields: [{ key: 'height', label: 'Height (CSS)', type: 'text' }],
   },
   {
+    type: 'projects',
+    label: 'Projects',
+    icon: '🗂️',
+    category: 'content',
+    defaultProps: { heading: '', columns: 3, limit: 0, showSummary: true, showDate: false },
+    fields: [
+      { key: 'heading', label: 'Heading above the grid (optional)', type: 'text' },
+      { key: 'columns', label: 'Columns on a desktop (1–5)', type: 'number' },
+      { key: 'limit', label: 'How many to show (0 = all)', type: 'number' },
+      { key: 'showSummary', label: 'Show the summary under each title', type: 'switch' },
+      { key: 'showDate', label: 'Show the date under each title', type: 'switch' },
+    ],
+  },
+  {
     type: 'song',
     label: 'Song',
     icon: '🎵',

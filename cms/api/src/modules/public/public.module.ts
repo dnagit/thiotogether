@@ -70,6 +70,51 @@ router.get(
   }),
 );
 
+// ── Projects ────────────────────────────────────────────────
+
+/** What the list and the detail page are allowed to see. Draft rows never leave the API. */
+const projectSelect = {
+  id: true,
+  title: true,
+  slug: true,
+  summary: true,
+  coverImage: true,
+  eventDate: true,
+} as const;
+
+router.get(
+  '/projects',
+  asyncHandler(async (_req, res) => {
+    const projects = await prisma.project.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      select: projectSelect,
+    });
+    publicCache(res, 120);
+    ok(res, projects);
+  }),
+);
+
+router.get(
+  '/projects/:slug',
+  asyncHandler(async (req, res) => {
+    const project = await prisma.project.findFirst({
+      where: { slug: req.params.slug, isActive: true },
+      // The gallery and the long text are the detail page's alone; the list carries neither.
+      select: {
+        ...projectSelect,
+        description: true,
+        images: true,
+        metaTitle: true,
+        metaDescription: true,
+      },
+    });
+    if (!project) throw new NotFoundError('Project');
+    publicCache(res, 120);
+    ok(res, project);
+  }),
+);
+
 // ── Settings / theme ────────────────────────────────────────
 
 router.get(

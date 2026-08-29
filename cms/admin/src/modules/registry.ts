@@ -152,6 +152,24 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'projects',
+    menu: { label: 'โปรเจกต์', icon: 'Picture', order: 7.4, permission: PERMISSIONS.PROJECTS_VIEW },
+    routes: [
+      {
+        path: 'projects',
+        name: 'projects',
+        component: () => import('@/views/projects/ProjectsListView.vue'),
+        meta: { title: 'โปรเจกต์', permission: PERMISSIONS.PROJECTS_VIEW },
+      },
+      {
+        path: 'projects/:id/edit',
+        name: 'project-edit',
+        component: () => import('@/views/projects/ProjectEditView.vue'),
+        meta: { title: 'ตั้งค่าโปรเจกต์', permission: PERMISSIONS.PROJECTS_MANAGE },
+      },
+    ],
+  },
+  {
     name: 'birthday',
     menu: { label: 'อวยพรวันเกิด', icon: 'Sunny', order: 7.5, permission: PERMISSIONS.BIRTHDAY_VIEW },
     routes: [

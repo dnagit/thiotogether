@@ -58,6 +58,9 @@ export const PERMISSIONS = {
   /// Separate from MANAGE: approving decides what the public wall shows.
   BIRTHDAY_MODERATE: 'birthday.moderate',
 
+  PROJECTS_VIEW: 'projects.view',
+  PROJECTS_MANAGE: 'projects.manage',
+
   AUDIT_LOGS_VIEW: 'audit-logs.view',
 } as const;
 
@@ -83,5 +86,6 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.MEDIA_UPLOAD,
     PERMISSIONS.GAMES_VIEW,
     PERMISSIONS.BIRTHDAY_VIEW,
+    PERMISSIONS.PROJECTS_VIEW,
   ],
 };
