@@ -11,9 +11,12 @@ import SiteFooter from '@/components/layout/SiteFooter.vue';
 import SitePopup from '@/components/SitePopup.vue';
 
 /*
- * No padding under the header any more. The bar used to be fixed, so every page that did not
- * deliberately run underneath it had to be pushed down by exactly its height; now the bar
- * takes that height itself and a padding on top of it would simply be a second gap.
+ * No padding under the header, on any page — and that is true of both kinds now.
+ *
+ * A page that runs under the bar wants its banner to start at the very top, and a page that
+ * does not gets the space from the bar itself, which stands in the flow above this. The old
+ * padding existed only because the bar was fixed and therefore took no space on either.
+ * `SiteHeader` decides which of the two a page is.
  */
 </script>
 

@@ -13,6 +13,17 @@ const navOpen = ref(false);
 
 void site.loadMenu('main').then((m) => (menu.value = m));
 
+/**
+ * Home, and anything flagged like it, opens with a full-bleed banner that the bar sits on
+ * top of. Those pages take the bar out of the flow so the artwork starts at the very top of
+ * the page; every other page leaves it in the flow, where it takes its own height and
+ * overlaps nothing.
+ *
+ * `absolute`, not `fixed`: it belongs at the top of the page, not to the top of the window,
+ * so it scrolls away with the banner it is drawn on.
+ */
+const overlay = computed(() => route.path === '/' || route.meta.underHeader === true);
+
 const items = computed(() => (menu.value?.items ?? []) as MenuItem[]);
 const logo = computed(() => site.theme.logoUrl);
 
@@ -21,11 +32,14 @@ watch(() => route.fullPath, () => (navOpen.value = false));
 
 <template>
   <!--
-    In the flow of the page, not pinned over it. `relative` is still needed: the nav panel
-    below hangs off the bar with `top-full`, and `z-40` keeps that panel above the page it
-    opens across.
+    Either laid over the banner or standing in the flow — see `overlay`. Positioned either
+    way: the nav panel below hangs off the bar with `top-full`, and `z-40` keeps that panel
+    above the page it opens across.
   -->
-  <header class="relative z-40 bg-transparent">
+  <header
+    class="z-40 bg-transparent"
+    :class="overlay ? 'absolute top-0 inset-x-0 text-white' : 'relative'"
+  >
     <div class="container-site flex items-center h-[var(--header-h)]">
       <!-- Menu toggle (left, all breakpoints) -->
       <button class="p-2 -ml-2 shrink-0 text-[#ea480c]" aria-label="Menu" :aria-expanded="navOpen" @click="navOpen = !navOpen">
