@@ -13,7 +13,7 @@
  * the border and what sits behind everything — which is how the poster was drawn, and stops
  * the CMS from having to guess where a border ends.
  */
-import { computed, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 /** A link in the top row: the icon is an upload, so any platform is possible. */
 interface Social {
@@ -218,15 +218,44 @@ const columnStyle = computed(() => ({
   '--indent': `${num(props.listIndent, 13, 0, 60)}%`,
 }));
 
-/** The frame's own width ÷ height, read off the file once it loads. */
+/**
+ * The frame's own width ÷ height. Every layer on the poster is placed as a share of the stage,
+ * and the stage's shape comes from this, so until it is known the whole composition is drawn
+ * against a guess.
+ *
+ * Read three ways on purpose, because one is not enough:
+ *
+ *  - `@load`, for the ordinary first visit.
+ *  - on mount, for a picture the browser already had. A cached image can be `complete` before
+ *    the listener is attached, and then `load` never fires — the poster keeps the 0.56
+ *    fallback and every offset inside it is measured against the wrong shape. That is the
+ *    case that shows up on a second visit or when coming back to a page, which is exactly
+ *    when it looks like the layout "did not recalculate".
+ *  - again whenever the file changes, since the old ratio is meaningless the moment it does.
+ */
 const frameRatio = ref<number | null>(null);
+const frameEl = ref<HTMLImageElement | null>(null);
 
-function onFrameLoad(e: Event): void {
-  const img = e.target as HTMLImageElement;
-  if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+function readFrame(img: HTMLImageElement | null): void {
+  if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
     frameRatio.value = img.naturalWidth / img.naturalHeight;
   }
 }
+
+function onFrameLoad(e: Event): void {
+  readFrame(e.target as HTMLImageElement);
+}
+
+onMounted(() => readFrame(frameEl.value));
+
+watch(
+  () => props.frameImage,
+  async () => {
+    frameRatio.value = null;
+    await nextTick();
+    readFrame(frameEl.value);
+  },
+);
 
 /** An explicit setting wins; otherwise the artwork decides, and 0.56 covers a sheet with no frame. */
 const stageRatio = computed(() => num(props.ratio, frameRatio.value ?? 0.56, 0.2, 4));
@@ -269,7 +298,14 @@ const isExternal = (url: string): boolean => /^(https?:)?\/\/|^mailto:|^tel:/i.t
   <div class="wrap">
     <div class="stage" :style="stageStyle">
       <!-- L0 · the sheet itself: border and background as the one upload -->
-      <img v-if="frameImage" :src="frameImage" alt="" class="frame" @load="onFrameLoad" />
+      <img
+        v-if="frameImage"
+        ref="frameEl"
+        :src="frameImage"
+        alt=""
+        class="frame"
+        @load="onFrameLoad"
+      />
 
       <!-- L1 · the figure, standing on the bottom edge -->
       <img v-if="personImage" :src="personImage" alt="" class="person" :style="personStyle" />
