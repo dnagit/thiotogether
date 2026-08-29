@@ -260,6 +260,13 @@ watch(openAt, async (value) => {
 <style scoped>
 .slider {
   position: relative;
+  /*
+   * The controls' colour, taken from the CTA block's pagination so every "move along" control
+   * on the site reads as the same control. Named here rather than repeated at each use, so
+   * the arrows, the dots and the focus ring cannot drift apart.
+   */
+  --control: #ea480c;
+  --control-off: #d1d5db;
 }
 
 /*
@@ -334,7 +341,7 @@ watch(openAt, async (value) => {
   line-height: 1;
 }
 .slide:focus-visible {
-  outline: 3px solid var(--color-primary, #2563eb);
+  outline: 3px solid var(--control);
   outline-offset: 3px;
 }
 
@@ -356,7 +363,9 @@ watch(openAt, async (value) => {
   border: 0;
   border-radius: 50%;
   background: rgb(255 255 255 / 92%);
-  color: #111827;
+  /* The chevron itself carries the colour; the disc behind it stays white so it reads on any
+     picture underneath. */
+  color: var(--control);
   font-size: 1.75rem;
   line-height: 1;
   cursor: pointer;
@@ -378,11 +387,11 @@ watch(openAt, async (value) => {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #d1d5db;
+  background: var(--control-off);
   cursor: pointer;
   transition: background 0.2s ease;
 }
-.dot.on { background: var(--color-primary, #2563eb); }
+.dot.on { background: var(--control); }
 
 /* ── Lightbox ────────────────────────────────────────────────────────────── */
 .lightbox {
