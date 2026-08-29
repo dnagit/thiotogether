@@ -16,14 +16,16 @@ void site.loadMenu('main').then((m) => (menu.value = m));
 const items = computed(() => (menu.value?.items ?? []) as MenuItem[]);
 const logo = computed(() => site.theme.logoUrl);
 
-/** Banner pages render their artwork underneath the transparent bar, so the site name reads on it. */
-const overlay = computed(() => route.path === '/' || route.meta.underHeader === true);
-
 watch(() => route.fullPath, () => (navOpen.value = false));
 </script>
 
 <template>
-  <header class="fixed top-0 inset-x-0 z-40 bg-transparent" :class="overlay ? 'text-white' : ''">
+  <!--
+    In the flow of the page, not pinned over it. `relative` is still needed: the nav panel
+    below hangs off the bar with `top-full`, and `z-40` keeps that panel above the page it
+    opens across.
+  -->
+  <header class="relative z-40 bg-transparent">
     <div class="container-site flex items-center h-[var(--header-h)]">
       <!-- Menu toggle (left, all breakpoints) -->
       <button class="p-2 -ml-2 shrink-0 text-[#ea480c]" aria-label="Menu" :aria-expanded="navOpen" @click="navOpen = !navOpen">

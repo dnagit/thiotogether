@@ -6,24 +6,21 @@
  * birthday pages needed chrome of their own — see {@link BirthdayLayout} — so that
  * `App.vue` is left doing only the one job no layout can do, which is booting the site.
  */
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
 import SiteHeader from '@/components/layout/SiteHeader.vue';
 import SiteFooter from '@/components/layout/SiteFooter.vue';
 import SitePopup from '@/components/SitePopup.vue';
 
-const route = useRoute();
-/**
- * Pages that open with a full-bleed banner run under the transparent header instead of
- * clearing it: home, plus any route flagged with `meta.underHeader`.
+/*
+ * No padding under the header any more. The bar used to be fixed, so every page that did not
+ * deliberately run underneath it had to be pushed down by exactly its height; now the bar
+ * takes that height itself and a padding on top of it would simply be a second gap.
  */
-const underHeader = computed(() => route.path === '/' || route.meta.underHeader === true);
 </script>
 
 <template>
   <SiteHeader />
   <!-- `page-bg` paints the shared backdrop once here, so every route gets it without opting in. -->
-  <main class="page-bg min-h-[60vh]" :class="underHeader ? '' : 'pt-[var(--header-h)]'">
+  <main class="page-bg min-h-[60vh]">
     <slot />
   </main>
   <SiteFooter />
