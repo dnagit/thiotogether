@@ -15,6 +15,8 @@ export type FieldType =
   | 'richtext'
   | 'number'
   | 'image'
+  /** A picture *or* a video clip, picked from the same library. */
+  | 'media'
   | 'url'
   | 'color'
   | 'switch'

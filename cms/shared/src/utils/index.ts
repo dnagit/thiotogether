@@ -85,3 +85,17 @@ export function randomCode(prefix: string, length = 8): string {
   for (let i = 0; i < length; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return `${prefix}-${code}`;
 }
+
+/**
+ * Whether a stored file URL points at a video.
+ *
+ * Galleries hold a plain URL per row rather than a media-library id, so the kind of file has
+ * to be read back off the URL. That is sound here because uploads keep the original
+ * extension (see `safeFileName`), and it is the only reading that also works for the rows
+ * saved before video was allowed at all.
+ */
+const VIDEO_EXTENSIONS = /\.(mp4|webm|ogv|ogg|mov|m4v)(?:[?#]|$)/i;
+
+export function isVideoUrl(url?: string | null): boolean {
+  return !!url && VIDEO_EXTENSIONS.test(url);
+}

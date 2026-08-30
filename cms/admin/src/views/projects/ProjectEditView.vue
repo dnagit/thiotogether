@@ -38,14 +38,20 @@ const project = reactive<Record<string, any>>({
   metaDescription: '',
 });
 
-/** The gallery's rows, described the way `BlockPropsEditor` expects them. */
+/**
+ * The gallery's rows, described the way `BlockPropsEditor` expects them.
+ *
+ * A row holds a picture or a clip — `media` rather than `image` — and the site decides which
+ * it is from the file itself, so the two never need separate rows or a type to be chosen by
+ * hand.
+ */
 const galleryFields: BlockField[] = [
   {
     key: 'images',
-    label: 'รูปในแกลเลอรี',
+    label: 'รูป/วิดีโอในแกลเลอรี',
     type: 'items',
     itemFields: [
-      { key: 'url', label: 'รูป', type: 'image' },
+      { key: 'url', label: 'รูปหรือวิดีโอ', type: 'media' },
       { key: 'caption', label: 'คำบรรยาย', type: 'text' },
     ],
   },
@@ -187,7 +193,9 @@ async function copy(text: string): Promise<void> {
     <ElCard class="mb">
       <template #header>
         <b>แกลเลอรี</b>
-        <span class="text-muted"> — รูปทั้งหมดในหน้ารายละเอียด ใส่ได้มากกว่าหนึ่งรูป</span>
+        <span class="text-muted">
+          — รูปและวิดีโอทั้งหมดในหน้ารายละเอียด ใส่ได้มากกว่าหนึ่งไฟล์ (วิดีโอรองรับ MP4 และ WebM)
+        </span>
       </template>
       <ElForm label-position="top" :disabled="!canManage">
         <BlockPropsEditor

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * A row of pictures that slides, and opens one whole when tapped.
+ * A row of pictures and clips that slides, and opens one whole when tapped.
  *
  * Written once and used by both the project detail page and the journey block — the two
  * wanted the same thing, and a second copy of a slider is a second set of arrow, dot and
@@ -10,9 +10,13 @@
  * rubber-banding and the trackpad, none of which a hand-written slider does as well. Arrows,
  * dots and autoplay all drive that same scroll position, so they cannot disagree about which
  * slide is up.
+ *
+ * A video is a slide like any other. In the row it is a silent, controlless first frame, so
+ * that a gallery cannot start making noise at someone who only scrolled past it; it plays,
+ * with controls and sound, once opened — which is also the only place it is shown whole.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { SlideImage } from './gallery';
+import { isVideoSlide, type SlideImage } from './gallery';
 
 const props = withDefaults(
   defineProps<{
@@ -32,6 +36,9 @@ const props = withDefaults(
 );
 
 const slides = computed(() => props.images.filter((i) => i?.url));
+
+/** Alt text and labels read the same for both kinds; only the element differs. */
+const describe = (slide: SlideImage): string => slide.caption || props.label;
 
 const perView = computed(() => {
   const n = Math.round(Number(props.perView));
@@ -116,6 +123,22 @@ const box = ref<HTMLElement | null>(null);
 let lastFocused: HTMLElement | null = null;
 
 const opened = computed(() => (openAt.value === null ? null : slides.value[openAt.value]));
+const openedIsVideo = computed(() => !!opened.value && isVideoSlide(opened.value));
+
+/**
+ * The clip playing in the lightbox, stopped whenever the lightbox moves off it.
+ *
+ * Vue reuses the element when only `src` changes, and a `<video>` reused that way keeps
+ * playing the position it was at — the next clip would open already running, part-way in.
+ */
+const player = ref<HTMLVideoElement | null>(null);
+
+function stopPlayback(): void {
+  const el = player.value;
+  if (!el) return;
+  el.pause();
+  el.currentTime = 0;
+}
 
 function openImage(index: number): void {
   openAt.value = index;
@@ -123,6 +146,7 @@ function openImage(index: number): void {
 
 function closeImage(): void {
   if (openAt.value === null) return;
+  stopPlayback();
   // The track follows, so closing leaves the row on the picture just looked at.
   slideTo(openAt.value);
   openAt.value = null;
@@ -130,6 +154,7 @@ function closeImage(): void {
 
 function moveImage(by: number): void {
   if (openAt.value === null || !slides.value.length) return;
+  stopPlayback();
   openAt.value = (openAt.value + by + slides.value.length) % slides.value.length;
 }
 
@@ -138,12 +163,12 @@ function onKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape') {
     e.stopPropagation();
     closeImage();
-  } else if (e.key === 'ArrowRight') {
-    moveImage(1);
-  } else if (e.key === 'ArrowLeft') {
-    moveImage(-1);
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    // On a focused player the arrows seek, which is what someone pressing them there means.
+    if (document.activeElement === player.value) return;
+    moveImage(e.key === 'ArrowRight' ? 1 : -1);
   } else if (e.key === 'Tab') {
-    const items = [...(box.value?.querySelectorAll<HTMLElement>('button') ?? [])].filter(
+    const items = [...(box.value?.querySelectorAll<HTMLElement>('button, video') ?? [])].filter(
       (el) => el.offsetParent !== null,
     );
     if (!items.length) return;
@@ -186,10 +211,26 @@ watch(openAt, async (value) => {
       @focusout="paused = false"
     >
       <li v-for="(img, i) in slides" :key="i">
-        <button type="button" class="slide" @click="openImage(i)">
-          <img :src="img.url" :alt="img.caption || label" loading="lazy" />
-          <span class="zoom" aria-hidden="true">⤢</span>
-          <span class="sr-only">ดูรูปเต็ม{{ img.caption ? ` — ${img.caption}` : '' }}</span>
+        <button type="button" class="slide" :class="{ 'is-video': isVideoSlide(img) }" @click="openImage(i)">
+          <!--
+            No `controls` here on purpose: the row's job is to show what is in the gallery and
+            open it, and a second set of controls inside a button is both a click target that
+            fights the button and, on a phone, a play that starts behind the lightbox.
+            `preload="metadata"` fetches only enough to paint the first frame.
+          -->
+          <video
+            v-if="isVideoSlide(img)"
+            :src="img.url"
+            muted
+            playsinline
+            preload="metadata"
+            :aria-label="describe(img)"
+          />
+          <img v-else :src="img.url" :alt="describe(img)" loading="lazy" />
+          <span class="badge" aria-hidden="true">{{ isVideoSlide(img) ? '▶' : '⤢' }}</span>
+          <span class="sr-only">
+            {{ isVideoSlide(img) ? 'เล่นวิดีโอ' : 'ดูรูปเต็ม' }}{{ img.caption ? ` — ${img.caption}` : '' }}
+          </span>
         </button>
         <p v-if="img.caption" class="caption">{{ img.caption }}</p>
       </li>
@@ -240,7 +281,23 @@ watch(openAt, async (value) => {
           <div ref="box" class="lightbox-inner">
             <button type="button" class="close" aria-label="ปิด" @click="closeImage">×</button>
 
-            <img :src="opened.url" :alt="opened.caption || label" />
+            <!--
+              `autoplay` is what makes tapping a clip play it, which is what the play badge
+              promised. It is keyed on the URL so that stepping to another clip mounts a new
+              player rather than reusing this one mid-playback.
+            -->
+            <video
+              v-if="openedIsVideo"
+              ref="player"
+              :key="opened.url"
+              :src="opened.url"
+              controls
+              autoplay
+              playsinline
+              preload="metadata"
+              :aria-label="describe(opened)"
+            />
+            <img v-else :src="opened.url" :alt="describe(opened)" />
             <p v-if="opened.caption" class="lightbox-caption">{{ opened.caption }}</p>
             <p v-if="slides.length > 1" class="lightbox-count">
               {{ (openAt ?? 0) + 1 }} / {{ slides.length }}
@@ -320,13 +377,16 @@ watch(openAt, async (value) => {
  * picture lurches as it moves. The picture is seen whole in the lightbox instead, which is
  * what makes the crop here acceptable.
  */
-.slide img {
+.slide img,
+.slide video {
   display: block;
   width: 100%;
   aspect-ratio: var(--ratio);
   object-fit: cover;
 }
-.zoom {
+/* A clip's frame is letterboxed against black rather than cropped-and-black-barred oddly. */
+.slide.is-video { background: #000; cursor: pointer; }
+.badge {
   position: absolute;
   right: 0.6rem;
   bottom: 0.6rem;
@@ -416,7 +476,8 @@ watch(openAt, async (value) => {
   gap: 0.6rem;
 }
 /* Whole and uncropped — the reason the lightbox exists. */
-.lightbox-inner img {
+.lightbox-inner img,
+.lightbox-inner video {
   display: block;
   max-width: 100%;
   max-height: 82vh;

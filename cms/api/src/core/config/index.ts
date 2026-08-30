@@ -18,6 +18,12 @@ const envSchema = z.object({
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   UPLOAD_DIR: z.string().default('uploads'),
   MAX_UPLOAD_MB: z.coerce.number().default(10),
+  /**
+   * The media library's own ceiling, separate because a clip is not a picture: 10 MB is a
+   * generous photo and a very short video. Only holders of `media.upload` reach this path,
+   * so the larger number is not an opening for the public form, which keeps MAX_UPLOAD_MB.
+   */
+  MAX_MEDIA_UPLOAD_MB: z.coerce.number().default(200),
 
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().default('ap-southeast-1'),

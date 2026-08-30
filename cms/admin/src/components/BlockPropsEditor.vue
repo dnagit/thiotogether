@@ -120,7 +120,7 @@ function onDrop(field: BlockField, index: number): void {
               </div>
             </template>
             <ElFormItem v-for="sub in field.itemFields" :key="sub.key" :label="sub.label">
-              <MediaPicker v-if="sub.type === 'image'" :model-value="item[sub.key]" @update:model-value="setItem(field, i, sub.key, $event)" />
+              <MediaPicker v-if="sub.type === 'image' || sub.type === 'media'" :kind="sub.type === 'media' ? 'media' : 'image'" :model-value="item[sub.key]" @update:model-value="setItem(field, i, sub.key, $event)" />
               <ElSwitch v-else-if="sub.type === 'switch'" :model-value="!!item[sub.key]" @update:model-value="setItem(field, i, sub.key, $event)" />
               <ElInputNumber v-else-if="sub.type === 'number'" :model-value="item[sub.key] === '' || item[sub.key] == null ? undefined : Number(item[sub.key])" @update:model-value="setItem(field, i, sub.key, $event)" />
               <ElColorPicker v-else-if="sub.type === 'color'" :model-value="item[sub.key]" @update:model-value="setItem(field, i, sub.key, $event)" />
@@ -137,7 +137,7 @@ function onDrop(field: BlockField, index: number): void {
 
       <!-- Scalar fields -->
       <ElFormItem v-else :label="field.label">
-        <MediaPicker v-if="field.type === 'image'" :model-value="modelValue[field.key]" @update:model-value="set(field.key, $event)" />
+        <MediaPicker v-if="field.type === 'image' || field.type === 'media'" :kind="field.type === 'media' ? 'media' : 'image'" :model-value="modelValue[field.key]" @update:model-value="set(field.key, $event)" />
         <ElSwitch v-else-if="field.type === 'switch'" :model-value="!!modelValue[field.key]" @update:model-value="set(field.key, $event)" />
         <!--
           Empty stays empty. `Number(undefined ?? 0)` is 0, and a block whose author never

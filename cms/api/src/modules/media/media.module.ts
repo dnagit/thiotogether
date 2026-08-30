@@ -48,7 +48,14 @@ router.get(
     const query = parseListQuery(req);
     const where: any = {};
     if (query.filters.folder) where.folder = query.filters.folder;
-    if (query.filters.type) where.type = query.filters.type;
+    /*
+     * `type` takes a list as well as one value — a picker that offers pictures *and* clips
+     * asks for `IMAGE,VIDEO`, which is one request rather than two merged in the browser.
+     */
+    if (query.filters.type) {
+      const types = String(query.filters.type).split(',').filter(Boolean);
+      where.type = types.length > 1 ? { in: types } : types[0];
+    }
     if (query.search) {
       where.OR = [
         { originalName: { contains: query.search, mode: 'insensitive' } },

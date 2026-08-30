@@ -22,7 +22,13 @@ const ALLOWED_MIME: Record<string, string[]> = {
     'image/heic-sequence',
     'image/heif-sequence',
   ],
-  video: ['video/mp4', 'video/webm'],
+  /**
+   * MP4 and WebM are what every browser plays. QuickTime is here because that is what an
+   * iPhone hands over, and its usual H.264 payload plays in Chrome and Safari alike — an
+   * uploader is far better served by the odd clip Firefox cannot decode than by being told
+   * their video "is not allowed" for a container difference they never chose.
+   */
+  video: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'],
   document: [
     'application/pdf',
     'application/msword',
@@ -36,10 +42,10 @@ const ALL_ALLOWED = Object.values(ALLOWED_MIME).flat();
 // Extensions that must never be stored regardless of declared MIME type.
 const FORBIDDEN_EXT = /\.(php|phtml|exe|sh|bat|cmd|js|mjs|html?|svgz)$/i;
 
-function makeUploader(mimes: string[]) {
+function makeUploader(mimes: string[], maxMb: number = config.MAX_UPLOAD_MB) {
   return multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: config.MAX_UPLOAD_MB * 1024 * 1024, files: 10 },
+    limits: { fileSize: maxMb * 1024 * 1024, files: 10 },
     fileFilter: (_req, file, cb) => {
       if (!mimes.includes(file.mimetype)) {
         cb(new BadRequestError(`File type ${file.mimetype} is not allowed`));
@@ -54,8 +60,8 @@ function makeUploader(mimes: string[]) {
   });
 }
 
-/** Media library uploads: images, video, documents. */
-export const uploadMedia = makeUploader(ALL_ALLOWED);
+/** Media library uploads: images, video, documents — video gets the larger ceiling. */
+export const uploadMedia = makeUploader(ALL_ALLOWED, config.MAX_MEDIA_UPLOAD_MB);
 
 /** Donation slips: images only. */
 export const uploadSlip = makeUploader(ALLOWED_MIME.image);
