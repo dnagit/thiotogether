@@ -146,11 +146,14 @@ const dateText = (value: string | null): string =>
  * A fixed frame, with the picture cropped into it. Covers arrive at whatever shape they were
  * exported at, and a grid of cards each its own height reads as a mistake rather than as a
  * set — which is what these are.
+ *
+ * Square: it is the one frame that treats a landscape and a portrait cover alike, cropping
+ * each by the same amount rather than flattering one and cutting the head off the other.
  */
 .frame {
   display: block;
   width: 100%;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 1 / 1;
   border-radius: 1rem;
   overflow: hidden;
   background: #eef2f7;

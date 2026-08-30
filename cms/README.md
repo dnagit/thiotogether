@@ -293,7 +293,10 @@ JWT_REFRESH_TTL=30d
 
 STORAGE_DRIVER=local
 UPLOAD_DIR=uploads
+# ฟอร์มสาธารณะ (สลิปโอนเงิน) — คนนอกยิงเข้ามาได้ จึงตั้งไว้ต่ำ
 MAX_UPLOAD_MB=10
+# คลังสื่อในหลังบ้าน (รูปและวิดีโอ) — ต้องมีสิทธิ์ media.upload ถึงจะถึง endpoint นี้
+MAX_MEDIA_UPLOAD_MB=200
 
 OCR_PROVIDER=tesseract
 OCR_AUTO_VERIFY_CONFIDENCE=0.8
@@ -439,8 +442,10 @@ server {
     listen 80;
     server_name tt-api.dna.co.th;
 
-    # ไฟล์สลิปบางไฟล์ใหญ่ ต้องมากกว่า MAX_UPLOAD_MB
-    client_max_body_size 20m;
+    # ต้องมากกว่าค่าที่ API ยอมรับเสมอ ไม่งั้นคำขอถูก nginx ตัดทิ้งเป็น 413
+    # ตั้งแต่ก่อนถึง API — ตัวเลขนี้จึงอิงจาก MAX_MEDIA_UPLOAD_MB (คลิปในแกลเลอรี
+    # โปรเจกต์) ไม่ใช่ MAX_UPLOAD_MB (สลิปโอนเงิน) ซึ่งเล็กกว่ามาก
+    client_max_body_size 210m;
 
     location / {
         proxy_pass http://127.0.0.1:4009;
@@ -630,7 +635,8 @@ sudo chmod +x /etc/cron.daily/cms-backup
 | `pm2 status` ไม่เห็น process ทั้งที่เพิ่ง start | รัน pm2 คนละ user กัน — pm2 แยก daemon ตาม user ต้องใช้ `sudo -H -u cms pm2 ...` ให้เหมือนกันทุกครั้ง ตรวจ daemon ที่ค้างด้วย `ps aux \| grep PM2` |
 | API ไม่ขึ้นมาเองหลัง reboot | ลืม `pm2 save` หลัง start หรือยังไม่ได้รัน `pm2 startup systemd -u cms --hp /opt/cms` |
 | `cms-api` ไม่ start และ log ฟ้อง sharp | Node ไม่ใช่เวอร์ชัน 20 — ตรวจด้วย `node -v` แล้วติดตั้ง libvips: `apt install libvips-dev` |
-| อัปโหลดไฟล์ใหญ่แล้วได้ 413 | `client_max_body_size` ใน nginx น้อยกว่า `MAX_UPLOAD_MB` |
+| อัปโหลดไฟล์ใหญ่แล้วได้ 413 | `client_max_body_size` ใน nginx น้อยกว่าค่าที่ API ยอมรับ — ต้องมากกว่าทั้ง `MAX_UPLOAD_MB` และ `MAX_MEDIA_UPLOAD_MB` ดูวิธีแก้ในขั้นที่ 7 (แก้แล้วต้อง `sudo nginx -t && sudo systemctl reload nginx`) |
+| อัปโหลดวิดีโอแล้วได้ 413 ทั้งที่แก้ nginx แล้ว | ถ้าเว็บอยู่หลัง Cloudflare proxy (เมฆสีส้ม) เพดาน body ของ Cloudflare เองคือ 100MB บนแพลนฟรี nginx แก้ไม่ได้ ต้องอัปโหลดผ่าน DNS-only หรือย้ายไป `STORAGE_DRIVER=s3` |
 | แก้ `VITE_API_URL` แล้วไม่มีผล | ค่านี้ฝังตอน build ต้อง `npm run build` ใหม่ |
 | `pg_restore: error: unsupported version` | ไฟล์ dump สร้างจาก PostgreSQL เวอร์ชันใหม่กว่าบน server ตรวจด้วย `pg_restore --list ไฟล์.dump \| head -3` แล้วติดตั้งเวอร์ชันให้ตรงกัน (ดูขั้นที่ 1) |
 
