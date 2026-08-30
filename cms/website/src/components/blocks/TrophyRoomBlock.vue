@@ -29,6 +29,7 @@ const props = withDefaults(
     headingColor?: string;
     textColor?: string;
     background?: string;
+    /** Empty follows the text colour, which is the only value that works on any background. */
     railColor?: string;
     starColor?: string;
   }>(),
@@ -40,7 +41,7 @@ const props = withDefaults(
     headingColor: '',
     textColor: '',
     background: '',
-    railColor: '#ffffff',
+    railColor: '',
     starColor: '#f4b400',
   },
 );
@@ -107,10 +108,23 @@ function goToSection(mark: number, index: number): void {
   el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
 }
 
+/**
+ * The block's colours, as custom properties the stylesheet reads.
+ *
+ * The rail falls back to `currentColor` rather than to a fixed colour: it was white, which
+ * is invisible the moment the background is set to white — a trap the editor only finds
+ * after saving. Following the text means it is legible against whatever the block is sitting
+ * on, since the text has to be legible there too.
+ *
+ * A colour that was picked deliberately is left at full strength; a derived one is dropped
+ * to a tint, so the rail stays a quiet track behind the markers instead of a bar of body
+ * text running down the page.
+ */
 const shell = computed(() => ({
   '--heading': props.headingColor || 'inherit',
   '--ink': props.textColor || 'inherit',
-  '--rail': props.railColor,
+  '--rail': props.railColor || 'currentColor',
+  '--rail-line-opacity': props.railColor ? '0.9' : '0.25',
   '--star': props.starColor,
   ...(props.background ? { background: props.background } : {}),
 }));
@@ -294,7 +308,7 @@ const shell = computed(() => ({
   width: 0.35rem;
   border-radius: 999px;
   background: var(--rail);
-  opacity: 0.9;
+  opacity: var(--rail-line-opacity);
 }
 
 .rail button {
