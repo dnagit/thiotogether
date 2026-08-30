@@ -51,18 +51,20 @@ void (async () => {
 })();
 
 /**
- * The pictures to show, cover first.
+ * What the slider shows: the gallery when there is one, and the cover only when there is not.
  *
- * The cover is part of the gallery here even though the API keeps them apart: on the list it
- * is the one picture that stands for the project, but on this page it is simply the first
- * one — and repeating it lower down, or leaving it out of the sequence, both read as a slip.
+ * The cover is chosen for the grid on the list page, where it has to stand for the whole
+ * project in one square. A project that went to the trouble of a gallery has already said
+ * which pictures belong on this page and in what order, so leading with the cover would
+ * repeat a picture the visitor just clicked and push the author's real first choice second.
+ * With no gallery the cover is all there is, and an empty page is worse than a single frame.
  */
 const gallery = computed<SlideImage[]>(() => {
   const p = project.value;
   if (!p) return [];
-  const rest = (p.images ?? []).filter((i) => i?.url);
-  const coverAlready = rest.some((i) => i.url === p.coverImage);
-  return p.coverImage && !coverAlready ? [{ url: p.coverImage }, ...rest] : rest;
+  const own = (p.images ?? []).filter((i) => i?.url);
+  if (own.length) return own;
+  return p.coverImage ? [{ url: p.coverImage }] : [];
 });
 
 const dateText = computed(() =>
