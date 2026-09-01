@@ -88,7 +88,7 @@ const dateText = computed(() =>
       <header class="head">
         <h1>{{ project.title }}</h1>
         <p v-if="dateText" class="date">{{ dateText }}</p>
-        <p v-if="project.summary" class="summary">{{ project.summary }}</p>
+       <!--<p v-if="project.summary" class="summary">{{ project.summary }}</p>--> 
       </header>
 
       <!-- One picture at a time here: this page is about the project, not about the row. -->
