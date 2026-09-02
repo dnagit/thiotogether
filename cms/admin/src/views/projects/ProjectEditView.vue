@@ -32,6 +32,10 @@ const project = reactive<Record<string, any>>({
   coverImage: '',
   images: [],
   eventDate: null,
+  ctaLabel: '',
+  ctaUrl: '',
+  ctaColor: '',
+  ctaTextColor: '',
   isActive: true,
   sortOrder: 0,
   metaTitle: '',
@@ -70,6 +74,10 @@ async function load(): Promise<void> {
       summary: data.data.summary ?? '',
       description: data.data.description ?? '',
       coverImage: data.data.coverImage ?? '',
+      ctaLabel: data.data.ctaLabel ?? '',
+      ctaUrl: data.data.ctaUrl ?? '',
+      ctaColor: data.data.ctaColor ?? '',
+      ctaTextColor: data.data.ctaTextColor ?? '',
       metaTitle: data.data.metaTitle ?? '',
       metaDescription: data.data.metaDescription ?? '',
     });
@@ -91,6 +99,10 @@ async function save(): Promise<void> {
       // Rows the editor added but nobody filled in never reach the site.
       images: (project.images ?? []).filter((i: any) => i?.url),
       eventDate: project.eventDate || null,
+      ctaLabel: project.ctaLabel || null,
+      ctaUrl: project.ctaUrl || null,
+      ctaColor: project.ctaColor || null,
+      ctaTextColor: project.ctaTextColor || null,
       isActive: project.isActive,
       sortOrder: Number(project.sortOrder) || 0,
       metaTitle: project.metaTitle || null,
@@ -177,6 +189,43 @@ async function copy(text: string): Promise<void> {
             </ElFormItem>
           </ElCol>
         </ElRow>
+      </ElForm>
+    </ElCard>
+
+    <ElCard class="mb">
+      <template #header>
+        <b>ปุ่มลิงก์</b>
+        <span class="text-muted"> — ปุ่มใต้รายละเอียดในหน้าโปรเจกต์ เช่น พาไปหน้ากิจกรรม</span>
+      </template>
+      <ElForm label-position="top" :disabled="!canManage">
+        <ElRow :gutter="16">
+          <ElCol :span="12">
+            <ElFormItem label="ข้อความบนปุ่ม">
+              <ElInput v-model="project.ctaLabel" placeholder="เช่น ไปหน้ากิจกรรม" maxlength="100" />
+            </ElFormItem>
+          </ElCol>
+          <ElCol :span="12">
+            <ElFormItem label="ลิงก์ของปุ่ม">
+              <ElInput v-model="project.ctaUrl" placeholder="เช่น /กิจกรรม หรือ https://…" maxlength="500" />
+            </ElFormItem>
+          </ElCol>
+        </ElRow>
+        <ElRow :gutter="16">
+          <ElCol :span="12">
+            <ElFormItem label="สีปุ่ม (ว่างไว้ = สีหลักของเว็บ)">
+              <ElColorPicker v-model="project.ctaColor" />
+            </ElFormItem>
+          </ElCol>
+          <ElCol :span="12">
+            <ElFormItem label="สีตัวอักษรบนปุ่ม (ว่างไว้ = ขาว)">
+              <ElColorPicker v-model="project.ctaTextColor" />
+            </ElFormItem>
+          </ElCol>
+        </ElRow>
+        <div class="hint text-muted">
+          ต้องกรอกทั้งข้อความและลิงก์ปุ่มจึงจะแสดง — ลิงก์ในเว็บให้ขึ้นต้นด้วย /
+          ส่วนลิงก์ภายนอกให้ขึ้นต้นด้วย http แล้วจะเปิดในแท็บใหม่
+        </div>
       </ElForm>
     </ElCard>
 

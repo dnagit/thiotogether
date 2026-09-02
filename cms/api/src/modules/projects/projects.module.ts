@@ -33,6 +33,12 @@ export const projectSchema = z.object({
   images: z.array(imageSchema).default([]),
   /** Accepts a date or a plain `YYYY-MM-DD`, and an empty field means "no date". */
   eventDate: z.coerce.date().nullish(),
+  /** The button under the write-up on the detail page. It needs both a label and a link. */
+  ctaLabel: z.string().max(100).nullish(),
+  ctaUrl: z.string().max(500).nullish(),
+  /** Blank means "use the site's colours". */
+  ctaColor: z.string().max(30).nullish(),
+  ctaTextColor: z.string().max(30).nullish(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
   metaTitle: z.string().max(255).nullish(),

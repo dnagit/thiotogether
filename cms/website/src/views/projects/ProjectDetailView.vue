@@ -8,7 +8,7 @@
  * The gallery and its lightbox live in {@link GallerySlider}, shared with the journey block.
  */
 import { computed, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import { get } from '@/api/client';
 import { applySeo } from '@/composables/useSeo';
 import GallerySlider from '@/components/GallerySlider.vue';
@@ -23,6 +23,10 @@ interface Project {
   coverImage: string | null;
   images: SlideImage[] | null;
   eventDate: string | null;
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+  ctaColor: string | null;
+  ctaTextColor: string | null;
   metaTitle: string | null;
   metaDescription: string | null;
 }
@@ -67,6 +71,32 @@ const gallery = computed<SlideImage[]>(() => {
   return p.coverImage ? [{ url: p.coverImage }] : [];
 });
 
+/**
+ * The button under the write-up — the way on to the activity this project is about.
+ *
+ * Both halves are the editor's, and both are needed: a label with nowhere to go is not a
+ * button, and a link with nothing written on it has nothing for anyone to click.
+ */
+const cta = computed(() => {
+  const p = project.value;
+  return p?.ctaLabel && p?.ctaUrl ? { label: p.ctaLabel, url: p.ctaUrl } : null;
+});
+
+/** Only what the editor overrode; the stylesheet keeps the site's colours for the rest. */
+const ctaStyle = computed(() => ({
+  background: project.value?.ctaColor || undefined,
+  color: project.value?.ctaTextColor || undefined,
+}));
+
+/** Router links keep in-app navigation; anything absolute has to leave through a plain anchor. */
+const ctaInternal = computed(() => !cta.value?.url.startsWith('http'));
+const ctaTag = computed<typeof RouterLink | 'a'>(() => (ctaInternal.value ? RouterLink : 'a'));
+const ctaProps = computed<Record<string, unknown>>(() =>
+  ctaInternal.value
+    ? { to: cta.value?.url }
+    : { href: cta.value?.url, target: '_blank', rel: 'noopener noreferrer' },
+);
+
 const dateText = computed(() =>
   project.value?.eventDate
     ? new Date(project.value.eventDate).toLocaleDateString('th-TH', { dateStyle: 'long' })
@@ -103,6 +133,10 @@ const dateText = computed(() =>
 
       <!-- Authored in the admin, so it is rendered as written. -->
       <div v-if="project.description" class="prose-cms body" v-html="project.description"></div>
+
+      <p v-if="cta" class="cta-row">
+        <component :is="ctaTag" v-bind="ctaProps" class="cta" :style="ctaStyle">{{ cta.label }}</component>
+      </p>
     </article>
   </div>
 </template>
@@ -158,5 +192,29 @@ const dateText = computed(() =>
 
 .body {
   line-height: 1.85;
+}
+
+.cta-row {
+  margin: clamp(1.75rem, 4vw, 2.75rem) 0 0;
+  text-align: center;
+}
+.cta {
+  display: inline-block;
+  padding: 0.8rem 2.25rem;
+  border-radius: 999px;
+  background: var(--color-primary, #2563eb);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+.cta:hover,
+.cta:focus-visible {
+  opacity: 0.9;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta {
+    transition: none;
+  }
 }
 </style>
