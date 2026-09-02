@@ -286,6 +286,22 @@ const tagScale = computed(() => ((props.name ?? '').trim().length > 22 ? 0.85 : 
   box-shadow: 0 2px 5px rgb(0 0 0 / 22%);
 }
 
+/*
+ * On a phone the balloons are drawn small enough that the 11px floor above is the widest
+ * part of the assembly — the tag ends up bigger than the present it hangs from. The floor
+ * drops to 9px there, which still reads at arm's length on a phone held close, and lets a
+ * name sit inside the balloon's own width again.
+ */
+@media (max-width: 640px) {
+  .assembly {
+    font-size: max(9px, calc(var(--w) / 12));
+  }
+  .gift-tag {
+    font-size: max(9px, calc(1em * var(--tag-scale, 1)));
+    padding: 0.2em 0.6em;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .assembly-interactive {
     transition: none;
