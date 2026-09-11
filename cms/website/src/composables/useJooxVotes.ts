@@ -10,6 +10,7 @@ import {
   messageOf,
   reportJooxVoteMissing,
   statusOf,
+  watchJooxVotes,
   type JooxVoteAccount,
 } from '@/api/jooxVotes';
 
@@ -18,9 +19,10 @@ import {
  * and edits. The server owns the counts and the 23:00 Thai-time reset (see the API module);
  * this keeps a copy on screen and keeps it fresh.
  *
- * Fresh means: polled while the page is visible, fetched again the moment a phone comes back
- * to it — typically from the JOOX app, after voting — and again when 23:00 passes, so the
- * list turns over without anyone reloading.
+ * Fresh means: other phones' changes pushed in live while the page is visible, with a poll
+ * behind that in case the live feed can't get through; fetched again the moment a phone comes
+ * back to the page — typically from the JOOX app, after voting — and again when 23:00 passes,
+ * so the list turns over without anyone reloading.
  */
 
 const POLL_MS = 30_000;
@@ -149,15 +151,44 @@ export function useJooxVotes() {
 
   void refresh();
 
+  /*
+   * Live: what other phones do, as they do it. A pushed change counts as a write for the
+   * rule above, so a poll already on its way can't land after it and put older figures back.
+   */
+  let stopWatching: (() => void) | null = null;
+  function watchLive(on: boolean): void {
+    stopWatching?.();
+    stopWatching = on
+      ? watchJooxVotes({
+          onOpen: () => void refresh(),
+          onAccount: (account) => {
+            writes += 1;
+            put(account);
+          },
+          onRemoved: (id) => {
+            writes += 1;
+            drop(id);
+          },
+        })
+      : null;
+  }
+
   // The same rule as the birthday wall: a hidden tab stops asking, and catches up on return.
+  // That goes for the live feed too — a phone suspends it in the background anyway. The poll
+  // stays on as the fallback for wherever the feed can't get through.
   const visibility = useDocumentVisibility();
   const timer = window.setInterval(() => {
     if (visibility.value === 'visible') void refresh();
   }, POLL_MS);
-  onBeforeUnmount(() => window.clearInterval(timer));
+  onBeforeUnmount(() => {
+    window.clearInterval(timer);
+    watchLive(false);
+  });
   watch(visibility, (v) => {
     if (v === 'visible') void refresh();
+    watchLive(v === 'visible');
   });
+  watchLive(visibility.value === 'visible');
   // 23:00 has passed: the server is already reporting zeros, so fetch them.
   watch(today, () => void refresh());
 

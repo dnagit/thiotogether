@@ -9,6 +9,8 @@
  *   POST   /public/joox-votes/:id/missing → { missing: 1–3 } votes short: open again, the
  *                                          count set back to 3 − missing
  *   DELETE /public/joox-votes/:id
+ *   GET    /public/joox-votes/events     → server-sent events: `account` (a row as it now
+ *                                          stands, new ones included) and `removed` ({ id })
  *
  * Every write answers with the account as it now stands, so the caller can put the server's
  * figure on screen rather than guessing at it.
@@ -64,6 +66,28 @@ export async function reportJooxVoteMissing(
 
 export async function deleteJooxVote(id: number): Promise<void> {
   await api.delete(`/public/joox-votes/${id}`);
+}
+
+/**
+ * The live feed: every change anyone makes, as it lands (see the API's `jooxVoteStream.ts`).
+ * The browser's EventSource reconnects by itself after a drop; `onOpen` fires on every
+ * (re)connect, the cue to catch up on whatever happened while it was down. Returns the
+ * function that closes it.
+ *
+ * Each open feed holds a connection for as long as it's open, and over HTTP/1.1 a browser
+ * gives a host six. Hence open only while the page is on screen (see useJooxVotes): six
+ * windows of it showing at once in one browser would leave its taps no connection to go out on.
+ */
+export function watchJooxVotes(handlers: {
+  onOpen: () => void;
+  onAccount: (account: JooxVoteAccount) => void;
+  onRemoved: (id: number) => void;
+}): () => void {
+  const source = new EventSource(`${api.defaults.baseURL}/public/joox-votes/events`);
+  source.onopen = handlers.onOpen;
+  source.addEventListener('account', (e) => handlers.onAccount(JSON.parse(e.data)));
+  source.addEventListener('removed', (e) => handlers.onRemoved(JSON.parse(e.data).id));
+  return () => source.close();
 }
 
 /** HTTP status off either an axios error or the error {@link clickJooxVote} throws. */

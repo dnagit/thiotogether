@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { config } from './core/config/index.js';
 import { logger } from './core/logger.js';
 import { rawPrisma } from './core/database/prisma.js';
+import { modules } from './modules/index.js';
 
 const app = createApp();
 
@@ -15,6 +16,7 @@ async function shutdown(signal: string): Promise<void> {
     await rawPrisma.$disconnect();
     process.exit(0);
   });
+  for (const mod of modules) mod.onShutdown?.();
   // Force-exit if connections refuse to drain.
   setTimeout(() => process.exit(1), 10_000).unref();
 }

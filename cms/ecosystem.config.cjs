@@ -17,7 +17,9 @@ module.exports = {
       script: 'dist/api/src/server.js',
       // Single instance: sharp and tesseract are memory-hungry, so scale by raising this
       // only after watching RAM. The API itself is stateless (sessions live in PostgreSQL),
-      // so exec_mode 'cluster' with more instances is safe when the box can take it.
+      // so exec_mode 'cluster' with more instances is safe when the box can take it — with one
+      // loss: the JOOX checklist's live updates reach only phones on the same instance, and
+      // the rest fall back to its 30s poll (see jooxVoteStream.ts).
       instances: 1,
       exec_mode: 'fork',
       env: {

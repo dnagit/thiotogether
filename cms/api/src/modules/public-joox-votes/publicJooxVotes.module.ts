@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../core/database/prisma.js';
 import { validate } from '../../core/middleware/validate.js';
@@ -15,12 +15,14 @@ import {
   type JooxVoteAccount,
 } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
+import { broadcastJooxVote, closeJooxVoteStreams, openJooxVoteStream } from './jooxVoteStream.js';
 
 /**
  * The shared JOOX voting checklist behind `/joox-vote` on the website.
  *
  * One list for everybody and no login: anyone on the page sees every account and can add,
- * count, finish and delete. What keeps that from going wrong is here rather than in a login:
+ * count, finish and delete — and sees everyone else doing it as it happens, over the event
+ * stream in `jooxVoteStream.ts`. What keeps that from going wrong is here rather than in a login:
  *  - Links must be http(s). Every visitor's browser renders them as hrefs, so a stored
  *    `javascript:` URL would run in the page of whoever tapped it.
  *  - Deletes are soft. A wiped list can be put back from the table.
@@ -97,6 +99,15 @@ const rowSelect = {
 const RETURNING = Prisma.sql`RETURNING id, account_name AS "accountName", link, clicks,
   is_done AS "isDone", vote_day AS "voteDay"`;
 
+/** The account as it now stands: to the phone that changed it, and to every phone watching. */
+function answer(res: Response, account: JooxVoteAccount): void {
+  ok(res, account);
+  broadcastJooxVote({ type: 'account', account });
+}
+
+/** Live updates; see {@link openJooxVoteStream}. */
+router.get('/joox-votes/events', openJooxVoteStream);
+
 router.get(
   '/joox-votes',
   asyncHandler(async (_req, res) => {
@@ -143,7 +154,9 @@ router.post(
         data: { accountName, link, nameKey, linkKey, voteDay: today },
         select: rowSelect,
       });
-      created(res, toPublic(row, today), 'เพิ่มบัญชีแล้ว');
+      const account = toPublic(row, today);
+      created(res, account, 'เพิ่มบัญชีแล้ว');
+      broadcastJooxVote({ type: 'account', account });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictError('มีบัญชีหรือลิงก์นี้อยู่ในรายการแล้ว');
@@ -174,7 +187,7 @@ router.post(
       WHERE id = ${Number(req.params.id)} AND deleted_at IS NULL
       ${RETURNING}`;
     if (!row) throw gone();
-    ok(res, toPublic(row, today));
+    answer(res, toPublic(row, today));
   }),
 );
 
@@ -199,7 +212,7 @@ router.post(
       WHERE id = ${Number(req.params.id)} AND deleted_at IS NULL
       ${RETURNING}`;
     if (!row) throw gone();
-    ok(res, toPublic(row, today));
+    answer(res, toPublic(row, today));
   }),
 );
 
@@ -219,7 +232,7 @@ router.post(
       WHERE id = ${Number(req.params.id)} AND deleted_at IS NULL
       ${RETURNING}`;
     if (!row) throw gone();
-    ok(res, toPublic(row, today));
+    answer(res, toPublic(row, today));
   }),
 );
 
@@ -235,6 +248,7 @@ router.delete(
     });
     if (count === 0) throw gone();
     ok(res, null, 'ลบบัญชีแล้ว');
+    broadcastJooxVote({ type: 'removed', id: Number(req.params.id) });
   }),
 );
 
@@ -242,4 +256,5 @@ export const publicJooxVotesModule: FeatureModule = {
   name: 'public-joox-votes',
   basePath: '/public',
   router,
+  onShutdown: closeJooxVoteStreams,
 };
