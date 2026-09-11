@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useDocumentVisibility, useNow } from '@vueuse/core';
-import { jooxVoteDay, jooxVoteResetAt } from '@cms/shared';
+import { JOOX_VOTE_TARGET, jooxVoteDay, jooxVoteResetAt } from '@cms/shared';
 import {
   addJooxVote,
   clickJooxVote,
@@ -8,6 +8,7 @@ import {
   listJooxVotes,
   markJooxVoteDone,
   messageOf,
+  reportJooxVoteMissing,
   statusOf,
   type JooxVoteAccount,
 } from '@/api/jooxVotes';
@@ -93,7 +94,10 @@ export function useJooxVotes() {
    */
   async function countClick(id: number): Promise<string | null> {
     const row = accounts.value.find((a) => a.id === id);
-    if (row) put({ ...row, clicks: row.clicks + 1 });
+    if (row) {
+      const clicks = row.clicks + 1;
+      put({ ...row, clicks, isDone: row.isDone || clicks >= JOOX_VOTE_TARGET });
+    }
     try {
       put(await write(() => clickJooxVote(id)));
       return null;
@@ -105,6 +109,16 @@ export function useJooxVotes() {
   async function markDone(id: number): Promise<string | null> {
     try {
       put(await write(() => markJooxVoteDone(id)));
+      return null;
+    } catch (err) {
+      return failed(err, id, 'บันทึกไม่สำเร็จ กรุณาลองใหม่');
+    }
+  }
+
+  /** Done, but `missing` of the taps didn't become votes: open again until they're made up. */
+  async function reportMissing(id: number, missing: number): Promise<string | null> {
+    try {
+      put(await write(() => reportJooxVoteMissing(id, missing)));
       return null;
     } catch (err) {
       return failed(err, id, 'บันทึกไม่สำเร็จ กรุณาลองใหม่');
@@ -156,6 +170,7 @@ export function useJooxVotes() {
     add,
     countClick,
     markDone,
+    reportMissing,
     remove,
   };
 }

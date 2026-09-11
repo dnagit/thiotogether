@@ -124,6 +124,22 @@ export function jooxVoteResetAt(at: number | Date = Date.now()): Date {
 }
 
 /**
+ * Vote-link opens that make an account done for the day. The third tap marks it done by
+ * itself; someone who knows some of those taps didn't become votes can say how many are
+ * missing, which takes the count back down and leaves it open until it reaches this again.
+ */
+export const JOOX_VOTE_TARGET = 3;
+
+/**
+ * Everything pasted in front of the link itself — share text like "มาโหวตกัน! https://…" —
+ * dropped, so the field is left holding the URL. Text with no http(s):// in it comes back as is.
+ */
+export function stripBeforeJooxLink(text: string): string {
+  const start = text.search(/https?:\/\//i);
+  return start > 0 ? text.slice(start) : text;
+}
+
+/**
  * The form of an account name that duplicates are judged on: case, surrounding space and
  * runs of inner space ignored, so "Main", "main " and "MAIN" are one account. NFC so that
  * text typed as different code-point sequences for the same letters compares equal.

@@ -8,6 +8,7 @@ import { asyncHandler } from '../../core/utils/asyncHandler.js';
 import { ok, created } from '../../core/base/BaseController.js';
 import { AppError, BadRequestError, ConflictError } from '../../core/errors/AppError.js';
 import {
+  JOOX_VOTE_TARGET,
   jooxLinkKey,
   jooxNameKey,
   jooxVoteDay,
@@ -48,6 +49,10 @@ const accountSchema = z.object({
 });
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
+
+const missingSchema = z.object({
+  missing: z.coerce.number().int().min(1).max(JOOX_VOTE_TARGET),
+});
 
 interface Row {
   id: number;
@@ -148,7 +153,10 @@ router.post(
   }),
 );
 
-/** One vote link opened. Atomic, so taps from several phones at once all count. */
+/**
+ * One vote link opened. Atomic, so taps from several phones at once all count. The tap that
+ * brings the count to {@link JOOX_VOTE_TARGET} marks the account done in the same UPDATE.
+ */
 router.post(
   '/joox-votes/:id/click',
   jooxVoteLimiter,
@@ -158,7 +166,9 @@ router.post(
     const [row] = await prisma.$queryRaw<Row[]>`
       UPDATE joox_vote_accounts
       SET clicks     = CASE WHEN vote_day >= ${today} THEN clicks + 1 ELSE 1 END,
-          is_done    = CASE WHEN vote_day >= ${today} THEN is_done ELSE false END,
+          is_done    = CASE WHEN vote_day >= ${today}
+                            THEN is_done OR clicks + 1 >= ${JOOX_VOTE_TARGET}
+                            ELSE 1 >= ${JOOX_VOTE_TARGET} END,
           vote_day   = GREATEST(vote_day, ${today}),
           updated_at = NOW() AT TIME ZONE 'UTC'
       WHERE id = ${Number(req.params.id)} AND deleted_at IS NULL
@@ -168,7 +178,32 @@ router.post(
   }),
 );
 
-/** Finished voting with this account for today. Undone by the reset, not by a button. */
+/**
+ * Done, but some of today's taps didn't become votes: the count goes back to what it should
+ * have been, and the account is open again until taps bring it back up to the target.
+ * A report about a day that has since been reset changes nothing — today starts from zero.
+ */
+router.post(
+  '/joox-votes/:id/missing',
+  jooxVoteLimiter,
+  validate({ params: idParams, body: missingSchema }),
+  asyncHandler(async (req, res) => {
+    const { missing } = req.body as z.infer<typeof missingSchema>;
+    const today = jooxVoteDay();
+    const [row] = await prisma.$queryRaw<Row[]>`
+      UPDATE joox_vote_accounts
+      SET clicks     = CASE WHEN vote_day >= ${today} THEN ${JOOX_VOTE_TARGET - missing} ELSE 0 END,
+          is_done    = false,
+          vote_day   = GREATEST(vote_day, ${today}),
+          updated_at = NOW() AT TIME ZONE 'UTC'
+      WHERE id = ${Number(req.params.id)} AND deleted_at IS NULL
+      ${RETURNING}`;
+    if (!row) throw gone();
+    ok(res, toPublic(row, today));
+  }),
+);
+
+/** Finished voting with this account for today, without waiting for the taps to add up. */
 router.post(
   '/joox-votes/:id/done',
   jooxVoteLimiter,

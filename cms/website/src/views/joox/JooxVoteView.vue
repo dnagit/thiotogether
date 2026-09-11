@@ -10,21 +10,34 @@
  * The add form folds away once there is a list, to keep it from pushing the links down the
  * screen.
  *
- * Marking an account done and deleting it both go through a confirm dialog: the buttons sit
- * side by side on a small screen, neither can be taken back, and on a shared list a slip
- * costs everybody.
+ * An account is done by itself on its third vote-link tap, or by hand with "ครบแล้ว". Once
+ * done, that button turns into "ยังขาด…", for when some taps never became votes: saying how
+ * many are missing puts the account back on the "still to vote" list until taps make them up.
+ *
+ * All three — done, missing, delete — go through a dialog: the buttons sit side by side on a
+ * small screen, and on a shared list a slip costs everybody.
  */
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AppModal from '@/components/AppModal.vue';
 import { applySeo } from '@/composables/useSeo';
 import { useJooxVotes } from '@/composables/useJooxVotes';
 import type { JooxVoteAccount } from '@/api/jooxVotes';
-import { jooxNameKey } from '@cms/shared';
+import { JOOX_VOTE_TARGET, jooxNameKey, stripBeforeJooxLink } from '@cms/shared';
 
 applySeo({ title: 'โหวต JOOX' });
 
-const { accounts, loading, loadError, msUntilReset, refresh, add, countClick, markDone, remove } =
-  useJooxVotes();
+const {
+  accounts,
+  loading,
+  loadError,
+  msUntilReset,
+  refresh,
+  add,
+  countClick,
+  markDone,
+  reportMissing,
+  remove,
+} = useJooxVotes();
 
 // ── A failed tap or confirm, shown for a few seconds above the list ───────────
 const notice = ref<string | null>(null);
@@ -43,6 +56,12 @@ const accountName = ref('');
 const link = ref('');
 const formError = ref<string | null>(null);
 const adding = ref(false);
+
+// Links usually arrive pasted along with share text; keep just the URL, as soon as it's in.
+watch(link, (value) => {
+  const stripped = stripBeforeJooxLink(value);
+  if (stripped !== value) link.value = stripped;
+});
 
 // With nothing on the list the form is the whole page; after that it opens on request, and
 // stays open between adds for someone entering several accounts in a row.
@@ -135,6 +154,11 @@ function onAuxClick(e: MouseEvent, id: number): void {
   if (e.button === 1) void onVoteClick(id);
 }
 
+/** Taps still to go before the account is done by itself. */
+function shortBy(a: JooxVoteAccount): number {
+  return Math.max(0, JOOX_VOTE_TARGET - a.clicks);
+}
+
 function hostOf(url: string): string {
   try {
     return new URL(url).host;
@@ -143,23 +167,41 @@ function hostOf(url: string): string {
   }
 }
 
-// ── Confirm dialog, shared by "done" and "delete" ─────────────────────────────
-type Pending = { kind: 'done' | 'delete'; account: JooxVoteAccount };
+// ── Dialog, shared by "done", "missing" and "delete" ──────────────────────────
+type Pending = { kind: 'done' | 'missing' | 'delete'; account: JooxVoteAccount };
 const pending = ref<Pending | null>(null);
 const confirming = ref(false);
+
+const dialogTitles: Record<Pending['kind'], string> = {
+  done: 'ยืนยันว่าโหวตครบแล้ว',
+  missing: 'ยังขาดอีกกี่ครั้ง?',
+  delete: 'ยืนยันการลบบัญชี',
+};
 
 function ask(kind: Pending['kind'], account: JooxVoteAccount): void {
   pending.value = { kind, account };
 }
 
-async function confirm(): Promise<void> {
+/** `missing` is the number picked in the "missing" dialog; the other two ignore it. */
+async function confirm(missing = 0): Promise<void> {
   if (!pending.value) return;
   const { kind, account } = pending.value;
   confirming.value = true;
-  const error = kind === 'done' ? await markDone(account.id) : await remove(account.id);
+  const error =
+    kind === 'done'
+      ? await markDone(account.id)
+      : kind === 'missing'
+        ? await reportMissing(account.id, missing)
+        : await remove(account.id);
   confirming.value = false;
   pending.value = null;
-  flash(error);
+  // The card leaves the "done" list it was just on; say where it went.
+  flash(
+    error ??
+      (kind === 'missing'
+        ? `${account.accountName} กลับไปที่ “ยังไม่ครบ” แล้ว · ขาดอีก ${missing} ครั้ง`
+        : null),
+  );
 }
 </script>
 
@@ -248,8 +290,11 @@ async function confirm(): Promise<void> {
               <p class="text-xs text-gray-400 truncate" :title="a.link">{{ hostOf(a.link) }}</p>
             </div>
             <div class="shrink-0 text-right leading-none">
-              <span class="text-3xl font-extrabold tabular-nums">{{ a.clicks }}</span>
-              <span class="block text-xs text-gray-500 mt-1">ครั้งวันนี้</span>
+              <span class="text-3xl font-extrabold tabular-nums">{{ a.clicks }}</span
+              ><span class="text-base font-bold text-gray-400 tabular-nums">/{{ JOOX_VOTE_TARGET }}</span>
+              <span class="block text-xs text-gray-500 mt-1">
+                {{ !a.isDone && shortBy(a) > 0 ? `ขาดอีก ${shortBy(a)} ครั้ง` : 'ครั้งวันนี้' }}
+              </span>
             </div>
           </div>
 
@@ -267,14 +312,10 @@ async function confirm(): Promise<void> {
           </a>
 
           <div class="grid grid-cols-2 gap-2 mt-2">
-            <button
-              type="button"
-              class="tap btn-done"
-              :disabled="a.isDone"
-              @click="ask('done', a)"
-            >
-              {{ a.isDone ? 'ครบแล้ว ✓' : 'ครบแล้ว' }}
+            <button v-if="a.isDone" type="button" class="tap btn-missing" @click="ask('missing', a)">
+              ยังขาด…
             </button>
+            <button v-else type="button" class="tap btn-done" @click="ask('done', a)">ครบแล้ว</button>
             <button type="button" class="tap btn-delete" @click="ask('delete', a)">ลบ</button>
           </div>
         </li>
@@ -374,10 +415,39 @@ async function confirm(): Promise<void> {
     <AppModal
       :open="pending !== null"
       :busy="confirming"
-      :title="pending?.kind === 'delete' ? 'ยืนยันการลบบัญชี' : 'ยืนยันว่าโหวตครบแล้ว'"
+      :title="pending ? dialogTitles[pending.kind] : ''"
       @close="pending = null"
     >
-      <template v-if="pending">
+      <template v-if="pending?.kind === 'missing'">
+        <p class="text-gray-700">
+          บัญชี <b>{{ pending.account.accountName }}</b> ยังโหวตไม่ครบอีกกี่ครั้ง?
+          สถานะจะกลับเป็น “ยังไม่ครบ” จนกว่าจะกดโหวตครบ {{ JOOX_VOTE_TARGET }} ครั้ง
+        </p>
+
+        <div class="grid grid-cols-3 gap-2 mt-5" role="group" aria-label="จำนวนที่ยังขาด">
+          <button
+            v-for="n in JOOX_VOTE_TARGET"
+            :key="n"
+            type="button"
+            class="tap btn-missing-pick"
+            :disabled="confirming"
+            @click="confirm(n)"
+          >
+            <span class="block text-2xl font-extrabold tabular-nums">{{ n }}</span>
+            <span class="block text-xs font-medium">ครั้ง</span>
+          </button>
+        </div>
+        <button
+          type="button"
+          class="tap btn-ghost w-full mt-2"
+          :disabled="confirming"
+          @click="pending = null"
+        >
+          {{ confirming ? 'กำลังบันทึก…' : 'ยกเลิก' }}
+        </button>
+      </template>
+
+      <template v-else-if="pending">
         <p v-if="pending.kind === 'delete'" class="text-gray-700">
           ต้องการลบบัญชี <b>{{ pending.account.accountName }}</b> ใช่หรือไม่?
           บัญชีจะหายจากรายการของทุกคน
@@ -401,7 +471,7 @@ async function confirm(): Promise<void> {
             class="tap flex-1"
             :class="pending.kind === 'delete' ? 'btn-delete-solid' : 'btn-done'"
             :disabled="confirming"
-            @click="confirm"
+            @click="confirm()"
           >
             {{ confirming ? 'กำลังบันทึก…' : pending.kind === 'delete' ? 'ลบ' : 'ยืนยัน' }}
           </button>
@@ -447,6 +517,14 @@ async function confirm(): Promise<void> {
 .btn-done {
   @apply bg-green-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-green-700
     disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+}
+/* On a done card: there if needed, but quieter than the vote link above it. */
+.btn-missing {
+  @apply border border-amber-400 text-amber-700 font-semibold px-4 py-3 rounded-lg hover:bg-amber-50;
+}
+.btn-missing-pick {
+  @apply rounded-xl border-2 border-amber-400 text-amber-700 py-3 hover:bg-amber-50
+    disabled:opacity-50;
 }
 .btn-delete {
   @apply border border-red-300 text-red-600 font-semibold px-4 py-3 rounded-lg hover:bg-red-50;

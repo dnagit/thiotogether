@@ -4,8 +4,10 @@
  *   GET    /public/joox-votes            → every account, with today's counts
  *   POST   /public/joox-votes            → add { accountName, link }; 409 names the account a
  *                                          duplicate name or link belongs to
- *   POST   /public/joox-votes/:id/click  → one vote link opened
+ *   POST   /public/joox-votes/:id/click  → one vote link opened; the 3rd makes it done
  *   POST   /public/joox-votes/:id/done   → finished for today
+ *   POST   /public/joox-votes/:id/missing → { missing: 1–3 } votes short: open again, the
+ *                                          count set back to 3 − missing
  *   DELETE /public/joox-votes/:id
  *
  * Every write answers with the account as it now stands, so the caller can put the server's
@@ -46,6 +48,17 @@ export async function clickJooxVote(id: number): Promise<JooxVoteAccount> {
 
 export async function markJooxVoteDone(id: number): Promise<JooxVoteAccount> {
   const { data } = await api.post<ApiResponse<JooxVoteAccount>>(`/public/joox-votes/${id}/done`);
+  return data.data;
+}
+
+export async function reportJooxVoteMissing(
+  id: number,
+  missing: number,
+): Promise<JooxVoteAccount> {
+  const { data } = await api.post<ApiResponse<JooxVoteAccount>>(
+    `/public/joox-votes/${id}/missing`,
+    { missing },
+  );
   return data.data;
 }
 
