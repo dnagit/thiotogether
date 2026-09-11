@@ -214,6 +214,20 @@ async function confirm(missing = 0): Promise<void> {
       </p>
     </header>
 
+    <!-- The house rules, above the list so they are read before the first tap. -->
+    <section class="note mb-4 sm:mb-6" aria-labelledby="joox-note-title">
+      <h2 id="joox-note-title" class="font-bold mb-2">📌 กติกาการโหวต</h2>
+      <ol class="list-decimal pl-5 space-y-1.5">
+        <li>1 บัญชี JOOX กดโหวต <b>3 ลิงก์</b></li>
+        <li><b>อย่ากดลิงก์ของบัญชี JOOX ที่ตัวเอง login อยู่</b></li>
+        <li>
+          ถ้าบัญชีไหนขึ้น “ครบแล้ว” แต่จริง ๆ ยังไม่ครบ ให้ไปที่แท็บ “ครบแล้ว” หาบัญชีนั้น
+          แล้วกดปุ่ม <b>“ยังขาด…”</b> เลือกจำนวนที่ยังขาด บัญชีจะกลับไปอยู่ใน “ยังไม่ครบ”
+          ให้ช่วยกันกดต่อจนครบ {{ JOOX_VOTE_TARGET }} ครั้ง
+        </li>
+      </ol>
+    </section>
+
     <p v-if="loading" class="text-center text-gray-400 py-10 animate-pulse">กำลังโหลดรายการ…</p>
 
     <div v-else-if="loadError" class="card text-center" role="alert">
@@ -483,6 +497,7 @@ async function confirm(missing = 0): Promise<void> {
 
 <style scoped>
 .card { @apply bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 shadow-sm; }
+.note { @apply rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5 text-sm sm:text-base text-amber-900; }
 /* 16px text: anything smaller and iOS zooms the page in when the field takes focus. */
 .input {
   @apply w-full rounded-lg border border-gray-300 px-4 py-3 text-base
