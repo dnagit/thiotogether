@@ -5,8 +5,8 @@
  * 23:00 Thai-time reset.
  *
  * Laid out for a phone held in one hand, since that is where the voting happens: the list
- * comes first, each account's vote link is the one big button on its card, and accounts still
- * to vote sit above the finished ones so the next link to tap is always near the top. The add
+ * comes first, newest account on top, and each account's vote link is the one big button on
+ * its card. A filter narrows it to the accounts still to vote, or the finished ones. The add
  * form folds away once there is a list, to keep it from pushing the links down the screen.
  *
  * Marking an account done and deleting it both go through a confirm dialog: the buttons sit
@@ -73,17 +73,31 @@ async function submit(): Promise<void> {
   if (!formError.value) {
     accountName.value = '';
     link.value = '';
+    // A new account is never done yet; don't let it vanish behind the "done" filter.
+    if (filter.value === 'done') filter.value = 'all';
   }
 }
 
 // ── The list ──────────────────────────────────────────────────────────────────
-/** Still to vote first, finished last; each group keeps the order the accounts were added in. */
-const ordered = computed(() => [
-  ...accounts.value.filter((a) => !a.isDone),
-  ...accounts.value.filter((a) => a.isDone),
-]);
+type Filter = 'all' | 'pending' | 'done';
+const filter = ref<Filter>('all');
 
 const doneCount = computed(() => accounts.value.filter((a) => a.isDone).length);
+
+const filters = computed<Array<{ key: Filter; label: string; count: number }>>(() => [
+  { key: 'all', label: 'ทั้งหมด', count: accounts.value.length },
+  { key: 'pending', label: 'ยังไม่ครบ', count: accounts.value.length - doneCount.value },
+  { key: 'done', label: 'ครบแล้ว', count: doneCount.value },
+]);
+
+/** Newest first. Ids count up as accounts are added, so the highest id is the latest. */
+const shown = computed(() =>
+  accounts.value
+    .filter((a) =>
+      filter.value === 'all' ? true : filter.value === 'done' ? a.isDone : !a.isDone,
+    )
+    .sort((a, b) => b.id - a.id),
+);
 
 const resetIn = computed(() => {
   const minutes = Math.max(0, Math.ceil(msUntilReset.value / 60_000));
@@ -151,9 +165,31 @@ async function confirm(): Promise<void> {
         ครบแล้ว <b>{{ doneCount }}</b> / {{ accounts.length }} บัญชี
       </p>
 
-      <ul class="space-y-3" role="list">
+      <div
+        class="grid grid-cols-3 gap-1 p-1 mb-3 rounded-xl bg-gray-100"
+        role="group"
+        aria-label="กรองรายการ"
+      >
+        <button
+          v-for="f in filters"
+          :key="f.key"
+          type="button"
+          class="tap rounded-lg text-sm font-semibold px-2"
+          :class="filter === f.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
+          :aria-pressed="filter === f.key"
+          @click="filter = f.key"
+        >
+          {{ f.label }} <span class="tabular-nums">({{ f.count }})</span>
+        </button>
+      </div>
+
+      <p v-if="shown.length === 0" class="card text-center text-gray-500">
+        {{ filter === 'done' ? 'ยังไม่มีบัญชีที่โหวตครบ' : 'โหวตครบทุกบัญชีแล้ว 🎉' }}
+      </p>
+
+      <ul v-else class="space-y-3" role="list">
         <li
-          v-for="a in ordered"
+          v-for="a in shown"
           :key="a.id"
           class="card"
           :class="{ 'bg-green-50 border-green-200': a.isDone }"
