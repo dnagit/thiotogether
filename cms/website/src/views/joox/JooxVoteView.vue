@@ -83,7 +83,8 @@ async function submit(): Promise<void> {
 
 // ── The list ──────────────────────────────────────────────────────────────────
 type Filter = 'all' | 'pending' | 'done';
-const filter = ref<Filter>('all');
+// Opens on what still needs a vote — that's what people come to the page for.
+const filter = ref<Filter>('pending');
 const search = ref('');
 
 const doneCount = computed(() => accounts.value.filter((a) => a.isDone).length);
