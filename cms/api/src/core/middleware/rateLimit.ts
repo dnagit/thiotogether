@@ -50,6 +50,34 @@ export const reserveLimiter = rateLimit({
   },
 });
 
+/**
+ * JOOX checklist taps — a vote link opened, an account marked done. Loose, because a fan
+ * works through account after account, and on mobile data many of them share one IP.
+ */
+export const jooxVoteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'กดถี่เกินไป กรุณารอสักครู่', code: 'RATE_LIMITED' },
+});
+
+/**
+ * Adding and deleting JOOX checklist accounts. The list is public and needs no login, so
+ * this is what stands between it and a script emptying it or flooding it.
+ */
+export const jooxVoteEditLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'เพิ่มหรือลบบัญชีถี่เกินไป กรุณารอสักครู่',
+    code: 'RATE_LIMITED',
+  },
+});
+
 /** Limiter for public submissions (donations, forms) to deter spam. */
 export const submissionLimiter = rateLimit({
   windowMs: 60 * 1000,

@@ -998,3 +998,34 @@ model BirthdayWish {
   @@index([eventId, status, createdAt])
   @@map("birthday_wishes")
 }
+
+// ─────────────────────────── JOOX voting checklist ───────────────────────────
+
+/// Shared list of fan JOOX accounts and their vote links, edited from the public website
+/// with no login — anyone on the page can add, count, finish and delete.
+model JooxVoteAccount {
+  id          Int    @id @default(autoincrement())
+  accountName String @map("account_name") @db.VarChar(100)
+  link        String @db.VarChar(500)
+
+  /// The name and link as duplicates are judged — see `jooxNameKey` / `jooxLinkKey` in
+  /// @cms/shared. Unique so two people adding the same account at once cannot both win.
+  /// Cleared when the row is deleted, which frees the name and link to be added again
+  /// (PostgreSQL lets any number of NULLs share a unique index) while the deleted row
+  /// keeps its original name and link for whoever needs to put it back.
+  nameKey String? @unique @map("name_key") @db.VarChar(100)
+  linkKey String? @unique @map("link_key") @db.VarChar(500)
+
+  /// Both belong to `voteDay` only. A row whose day has passed reads as 0 / false — the
+  /// 23:00 Thai-time reset happens on read and on the next write, with no job to schedule.
+  clicks  Int     @default(0)
+  isDone  Boolean @default(false) @map("is_done")
+  /// `jooxVoteDay()` — days since the epoch, each starting at 23:00 Thai time.
+  voteDay Int     @map("vote_day")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("joox_vote_accounts")
+}

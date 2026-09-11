@@ -99,3 +99,48 @@ const VIDEO_EXTENSIONS = /\.(mp4|webm|ogv|ogg|mov|m4v)(?:[?#]|$)/i;
 export function isVideoUrl(url?: string | null): boolean {
   return !!url && VIDEO_EXTENSIONS.test(url);
 }
+
+// ── JOOX voting day ──────────────────────────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** 23:00 in Bangkok is 16:00 UTC. Thailand keeps no daylight saving, so this never moves. */
+const JOOX_RESET_OFFSET_MS = 16 * 60 * 60 * 1000;
+
+/**
+ * Number of the JOOX voting day `at` falls in. A day starts at 23:00 Thai time, when JOOX
+ * opens a fresh round of votes — and when the checklist's click counts and "done" marks
+ * start over with it.
+ *
+ * Plain arithmetic on the UTC timestamp, so the server's own time zone never enters into it.
+ */
+export function jooxVoteDay(at: number | Date = Date.now()): number {
+  const ms = typeof at === 'number' ? at : at.getTime();
+  return Math.floor((ms - JOOX_RESET_OFFSET_MS) / DAY_MS);
+}
+
+/** When the voting day containing `at` ends: the next 23:00 Thai time. */
+export function jooxVoteResetAt(at: number | Date = Date.now()): Date {
+  return new Date((jooxVoteDay(at) + 1) * DAY_MS + JOOX_RESET_OFFSET_MS);
+}
+
+/**
+ * The form of an account name that duplicates are judged on: case, surrounding space and
+ * runs of inner space ignored, so "Main", "main " and "MAIN" are one account. NFC so that
+ * text typed as different code-point sequences for the same letters compares equal.
+ */
+export function jooxNameKey(name: string): string {
+  return name.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * The form of a vote link that duplicates are judged on: as the browser reads it — host case
+ * and default ports ironed out by `URL` — with a trailing slash ignored. Nothing else is
+ * stripped: the query and the hash can be exactly what tells one vote link from another.
+ */
+export function jooxLinkKey(link: string): string {
+  try {
+    return new URL(link.trim()).href.replace(/\/$/, '');
+  } catch {
+    return link.trim();
+  }
+}

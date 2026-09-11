@@ -59,6 +59,11 @@ export const router = createRouter({
       component: () => import('@/views/game/TokenCheckView.vue'),
     },
     {
+      path: '/joox-vote',
+      name: 'joox-vote',
+      component: () => import('@/views/joox/JooxVoteView.vue'),
+    },
+    {
       // Declared before the wall so `/birthday/wish` is read as the form rather than as a
       // wall whose slug happens to be "wish". Both take an optional slug, so a site running
       // a single birthday can link to `/birthday` and `/birthday/wish` and never name it.
