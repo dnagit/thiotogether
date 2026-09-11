@@ -5,9 +5,10 @@
  * 23:00 Thai-time reset.
  *
  * Laid out for a phone held in one hand, since that is where the voting happens: the list
- * comes first, newest account on top, and each account's vote link is the one big button on
- * its card. A filter narrows it to the accounts still to vote, or the finished ones. The add
- * form folds away once there is a list, to keep it from pushing the links down the screen.
+ * comes first, oldest account on top, and each account's vote link is the one big button on
+ * its card. A search on the account name and a filter (still to vote / finished) narrow it.
+ * The add form folds away once there is a list, to keep it from pushing the links down the
+ * screen.
  *
  * Marking an account done and deleting it both go through a confirm dialog: the buttons sit
  * side by side on a small screen, neither can be taken back, and on a shared list a slip
@@ -18,6 +19,7 @@ import AppModal from '@/components/AppModal.vue';
 import { applySeo } from '@/composables/useSeo';
 import { useJooxVotes } from '@/composables/useJooxVotes';
 import type { JooxVoteAccount } from '@/api/jooxVotes';
+import { jooxNameKey } from '@cms/shared';
 
 applySeo({ title: 'โหวต JOOX' });
 
@@ -73,31 +75,48 @@ async function submit(): Promise<void> {
   if (!formError.value) {
     accountName.value = '';
     link.value = '';
-    // A new account is never done yet; don't let it vanish behind the "done" filter.
+    // A new account is never done yet; don't let it vanish behind the "done" filter or a search.
     if (filter.value === 'done') filter.value = 'all';
+    if (!jooxNameKey(name).includes(searchKey.value)) search.value = '';
   }
 }
 
 // ── The list ──────────────────────────────────────────────────────────────────
 type Filter = 'all' | 'pending' | 'done';
 const filter = ref<Filter>('all');
+const search = ref('');
 
 const doneCount = computed(() => accounts.value.filter((a) => a.isDone).length);
 
-const filters = computed<Array<{ key: Filter; label: string; count: number }>>(() => [
-  { key: 'all', label: 'ทั้งหมด', count: accounts.value.length },
-  { key: 'pending', label: 'ยังไม่ครบ', count: accounts.value.length - doneCount.value },
-  { key: 'done', label: 'ครบแล้ว', count: doneCount.value },
-]);
+/** Matched the way duplicate names are judged, so case and extra spaces don't matter. */
+const searchKey = computed(() => jooxNameKey(search.value));
+const matched = computed(() =>
+  accounts.value.filter((a) => jooxNameKey(a.accountName).includes(searchKey.value)),
+);
 
-/** Newest first. Ids count up as accounts are added, so the highest id is the latest. */
+/** The counts follow the search, so each button says what tapping it would show. */
+const filters = computed<Array<{ key: Filter; label: string; count: number }>>(() => {
+  const done = matched.value.filter((a) => a.isDone).length;
+  return [
+    { key: 'all', label: 'ทั้งหมด', count: matched.value.length },
+    { key: 'pending', label: 'ยังไม่ครบ', count: matched.value.length - done },
+    { key: 'done', label: 'ครบแล้ว', count: done },
+  ];
+});
+
+/** Oldest first. Ids count up as accounts are added, so the lowest id is the earliest. */
 const shown = computed(() =>
-  accounts.value
+  matched.value
     .filter((a) =>
       filter.value === 'all' ? true : filter.value === 'done' ? a.isDone : !a.isDone,
     )
-    .sort((a, b) => b.id - a.id),
+    .sort((a, b) => a.id - b.id),
 );
+
+const emptyMessage = computed(() => {
+  if (searchKey.value) return `ไม่พบบัญชีที่ตรงกับ “${search.value.trim()}”`;
+  return filter.value === 'done' ? 'ยังไม่มีบัญชีที่โหวตครบ' : 'โหวตครบทุกบัญชีแล้ว 🎉';
+});
 
 const resetIn = computed(() => {
   const minutes = Math.max(0, Math.ceil(msUntilReset.value / 60_000));
@@ -165,6 +184,29 @@ async function confirm(): Promise<void> {
         ครบแล้ว <b>{{ doneCount }}</b> / {{ accounts.length }} บัญชี
       </p>
 
+      <div class="relative mb-2">
+        <label for="joox-search" class="sr-only">ค้นหาบัญชี</label>
+        <input
+          id="joox-search"
+          v-model="search"
+          type="search"
+          autocomplete="off"
+          autocapitalize="off"
+          enterkeyhint="search"
+          placeholder="ค้นหาชื่อบัญชี"
+          class="input pr-12"
+        />
+        <button
+          v-if="search"
+          type="button"
+          class="tap absolute inset-y-0 right-0 w-12 text-gray-400 text-xl"
+          aria-label="ล้างคำค้นหา"
+          @click="search = ''"
+        >
+          ×
+        </button>
+      </div>
+
       <div
         class="grid grid-cols-3 gap-1 p-1 mb-3 rounded-xl bg-gray-100"
         role="group"
@@ -183,8 +225,8 @@ async function confirm(): Promise<void> {
         </button>
       </div>
 
-      <p v-if="shown.length === 0" class="card text-center text-gray-500">
-        {{ filter === 'done' ? 'ยังไม่มีบัญชีที่โหวตครบ' : 'โหวตครบทุกบัญชีแล้ว 🎉' }}
+      <p v-if="shown.length === 0" class="card text-center text-gray-500 break-words">
+        {{ emptyMessage }}
       </p>
 
       <ul v-else class="space-y-3" role="list">
@@ -375,6 +417,8 @@ async function confirm(): Promise<void> {
   @apply w-full rounded-lg border border-gray-300 px-4 py-3 text-base
     focus:outline-none focus:ring-2 focus:ring-blue-500;
 }
+/* The search box has its own thumb-sized clear button; drop the small one Chrome/Safari add. */
+.input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
 /*
  * Everything a thumb presses. At least 48px tall; `manipulation` stops a quick second tap —
