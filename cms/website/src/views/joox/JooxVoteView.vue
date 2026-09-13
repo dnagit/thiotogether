@@ -272,7 +272,7 @@ async function confirm(missing = 0): Promise<void> {
     <section class="note mb-4 sm:mb-6" aria-labelledby="joox-note-title">
       <h2 id="joox-note-title" class="font-bold mb-2">📌 กติกาการโหวต</h2>
       <ol class="list-decimal pl-5 space-y-1.5">
-        <li>บัญชี JOOX 1 บัญชี กดโหวต <b>3 ลิงก์</b></li>
+        <li>บัญชี JOOX 1 บัญชี กดโหวต <b>6 ลิงก์</b></li>
         <li><b>อย่ากดลิงก์ของบัญชี JOOX ที่ตัวเอง login อยู่</b></li>
         <li>
           ถ้าบัญชีไหนขึ้น “ครบแล้ว” แต่จริง ๆ ยังไม่ครบ ให้ไปที่แท็บ “ครบแล้ว”
