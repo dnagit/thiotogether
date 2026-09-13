@@ -203,7 +203,10 @@ const SPEED = 26;
 /** How far the flight path may outgrow the window before shrinking the balloons instead. */
 const MAX_TRAVEL = 3;
 /**
- * Seconds for one lap. The last resort once the balloons are as small as they may go.
+ * Seconds for one lap, as far as the spacing is worth waiting for. The last resort once the
+ * balloons are as small as they may go — and a soft one: it caps the rhythm room {@link GAP_Y}
+ * asks for, never the clearance {@link MIN_GAP_Y} demands, which a crowded wall goes on buying
+ * past this. See {@link layout}.
  *
  * Moves with {@link SPEED}, and has to: the two are only ever multiplied together, as the
  * longest flight path a balloon may be given. Drop the speed alone and that path shortens
@@ -467,9 +470,11 @@ function scatterSeats(
  *     {@link MAX_CYCLE}-second lap.
  *
  * The search walks sizes downwards and stops at the largest one that clears the gaps, so a
- * quiet wall keeps big balloons and only a busy one pays. Past a few hundred wishes on a
- * phone every knob is spent and the balloons do finally overlap — by then there is no
- * arrangement of that many that does not.
+ * quiet wall keeps big balloons and only a busy one pays. Once all three are spent the path
+ * goes on stretching regardless, because the alternative is balloons drawn through each
+ * other: a wall crowded past that point is a slow wall, never an overlapping one. What it
+ * costs is how long a given wish waits to come round again, which on a phone showing several
+ * hundred is minutes — the honest price of a sky that narrow holding that many.
  */
 const layout = computed(() => {
   const wishes = seated.value;
@@ -479,16 +484,28 @@ const layout = computed(() => {
   // The responsive size crowding starts from — and, when there is more width than there are
   // wishes to fill it, a balloon grown to take up some of the slack rather than leave it.
   /*
-   * The 112 is the phone's floor and only ever applies there: anything wider than about
-   * 860px already clears it on `width * 0.13` alone, so a desktop is untouched by it. A
-   * phone is where the balloon has to carry a present and a readable name in a third of
+   * The 96 is the phone's floor and only ever applies there: anything wider than about
+   * 740px already clears it on `width * 0.13` alone, so a desktop is untouched by it. A
+   * phone is where the balloon has to carry a present and a readable name in a quarter of
    * the width, which is the one place proportion has to give way to legibility.
+   *
+   * A quarter, not the third it used to be. At 112 a balloon on a 390px phone was drawn
+   * with its present and tag nearly a third of the way across the screen, which reads as
+   * one big ornament rather than as a sky with balloons in it; 96 puts four across where
+   * there were three and leaves the name no smaller than {@link MIN_BALLOON_W} ever does.
+   *
+   * The second line is the balloon grown into whatever room the wishes leave — and it is
+   * capped against both sides of the window, not just the height. Height alone let a wall
+   * holding one or two wishes grow to {@link MAX_BALLOON_W} on a phone, where 180px is
+   * nearly half the screen across: one balloon filling the sky rather than floating in it.
+   * A share of the width says the same thing about the scarce dimension that `height * 0.28`
+   * says about the roomy one, and only a phone is ever narrow enough for it to bind.
    */
   const maxW = Math.min(
     MAX_BALLOON_W,
     Math.max(
-      Math.min(150, Math.max(112, width * 0.13)),
-      Math.min(width / total / GAP_X, height * 0.28),
+      Math.min(150, Math.max(96, width * 0.13)),
+      Math.min(width / total / GAP_X, height * 0.28, width * 0.28),
     ),
   );
 
@@ -514,8 +531,28 @@ const layout = computed(() => {
   }
 
   const assembly = w * ASSEMBLY_RATIO;
-  // Out of columns and out of sizes: buy the rest of the clearance with patience.
-  if (!fits) travel = Math.max(travel, Math.min(perColumn * assembly * GAP_Y, SPEED * MAX_CYCLE));
+  /*
+   * Out of columns and out of sizes: buy the rest of the clearance with patience.
+   *
+   * Two figures, and they are not the same kind of thing. {@link GAP_Y} asks for rhythm room
+   * on top of the gap that has to survive, and a slower lap is not worth that — so MAX_CYCLE
+   * caps what is spent on it. {@link MIN_GAP_Y} is the gap itself, the one {@link laneOffsets}
+   * gives up on by dividing the path evenly when its lane cannot afford it. Nothing may cap
+   * that: a lap slow enough to notice is a complaint about pacing, where balloons passing
+   * through each other is the wall being wrong.
+   *
+   * The two part company on a phone, which is narrow enough that the columns run out while
+   * the wishes keep coming: four lanes across 390px, and from about 120 wishes the cap alone
+   * left each lane short of the gap it needed — which is what put the balloons through each
+   * other at 140. A wide screen never reaches it.
+   */
+  if (!fits) {
+    travel = Math.max(
+      travel,
+      Math.min(perColumn * assembly * GAP_Y, SPEED * MAX_CYCLE),
+      perColumn * assembly * (MIN_GAP_Y + BOB_CLEAR),
+    );
+  }
 
   /*
    * Scattering needs more room than lanes do — a lattice packs to nearly its own area,
