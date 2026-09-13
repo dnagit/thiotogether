@@ -10,6 +10,15 @@ const props = withDefaults(
   { slides: () => [], autoplay: true, interval: 5000 },
 );
 
+/**
+ * The dots. The lit one is a fixed orange rather than the site's `--color-primary`, which is
+ * set per site from the CMS theme — this slider wants the one colour wherever it appears. The
+ * unlit one stays grey: two dots the same colour say which slides exist but not which you are
+ * on, which is the only thing the dots are for.
+ */
+const DOT_ACTIVE = 'rgb(234, 72, 12)';
+const DOT_IDLE = '#d1d5db';
+
 const current = ref(0);
 const isSingle = computed(() => props.slides.length === 1);
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -32,12 +41,20 @@ onBeforeUnmount(() => clearInterval(timer));
 
 <template>
   <div v-if="slides.length" class="relative py-10">
-    <div class="relative overflow-hidden rounded-xl" :class="isSingle ? '' : 'h-72 md:h-96'">
+    <!--
+      The slides are stacked in one grid cell rather than positioned absolutely over a box of
+      a fixed height. A fixed height forced `object-cover` on every slide, which cropped the
+      top and bottom off — and these are banners with their wording drawn into the artwork,
+      so what it cropped was the message. Stacked, each slide keeps its own aspect ratio and
+      the box takes the height of the tallest, so nothing is ever cut.
+    -->
+    <div class="relative grid overflow-hidden rounded-xl">
       <div
         v-for="(slide, i) in slides"
         :key="i"
+        class="relative col-start-1 row-start-1"
         :class="[
-          isSingle ? 'relative' : 'absolute inset-0 transition-opacity duration-700',
+          isSingle ? '' : 'transition-opacity duration-700',
           !isSingle && i !== current ? 'opacity-0 pointer-events-none' : 'opacity-100',
         ]"
       >
@@ -46,14 +63,9 @@ onBeforeUnmount(() => clearInterval(timer));
           :href="slide.url"
           :target="isExternal(slide.url) ? '_blank' : undefined"
           :rel="isExternal(slide.url) ? 'noopener noreferrer' : undefined"
-          class="block h-full"
+          class="block"
         >
-          <img
-            :src="slide.image"
-            class="w-full"
-            :class="isSingle ? 'h-auto' : 'h-full object-cover'"
-            :alt="slide.title ?? ''"
-          />
+          <img :src="slide.image" class="w-full h-auto" :alt="slide.title ?? ''" />
           <div v-if="slide.title || slide.text" class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-6 text-white">
             <h3 class="text-xl font-bold">{{ slide.title }}</h3>
             <p class="text-sm opacity-90">{{ slide.text }}</p>
@@ -69,7 +81,7 @@ onBeforeUnmount(() => clearInterval(timer));
           v-for="(_, i) in slides"
           :key="i"
           class="w-2.5 h-2.5 rounded-full"
-          :style="{ background: i === current ? 'var(--color-primary)' : '#d1d5db' }"
+          :style="{ background: i === current ? DOT_ACTIVE : DOT_IDLE }"
           :aria-label="`Slide ${i + 1}`"
           @click="go(i)"
         />
