@@ -61,6 +61,10 @@ export const PERMISSIONS = {
   PROJECTS_VIEW: 'projects.view',
   PROJECTS_MANAGE: 'projects.manage',
 
+  /// The fan accounts that unlock `/joox-vote` on the website — not admin users.
+  JOOX_VOTERS_VIEW: 'joox-voters.view',
+  JOOX_VOTERS_MANAGE: 'joox-voters.manage',
+
   AUDIT_LOGS_VIEW: 'audit-logs.view',
 } as const;
 

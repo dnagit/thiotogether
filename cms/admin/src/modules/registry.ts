@@ -194,6 +194,23 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'joox-voters',
+    menu: {
+      label: 'บัญชีโหวต JOOX',
+      icon: 'Headset',
+      order: 7.6,
+      permission: PERMISSIONS.JOOX_VOTERS_VIEW,
+    },
+    routes: [
+      {
+        path: 'joox-voters',
+        name: 'joox-voters',
+        component: () => import('@/views/joox/JooxVotersView.vue'),
+        meta: { title: 'บัญชีโหวต JOOX', permission: PERMISSIONS.JOOX_VOTERS_VIEW },
+      },
+    ],
+  },
+  {
     name: 'tokens',
     menu: { label: 'Token', icon: 'Coin', order: 8, permission: PERMISSIONS.TOKENS_VIEW },
     routes: [

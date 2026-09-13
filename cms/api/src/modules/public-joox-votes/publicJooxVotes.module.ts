@@ -15,15 +15,22 @@ import {
   type JooxVoteAccount,
 } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
+import { requireJooxVoter } from '../joox-voters/jooxVoterAuth.js';
 import { broadcastJooxVote, closeJooxVoteStreams, openJooxVoteStream } from './jooxVoteStream.js';
 
 /**
  * The shared JOOX voting checklist behind `/joox-vote` on the website.
  *
- * One list for everybody and no login: anyone on the page sees every account and can add,
- * count, finish and delete — and sees everyone else doing it as it happens, over the event
- * stream in `jooxVoteStream.ts`. What keeps that from going wrong is here rather than in a login:
- *  - Links must be http(s). Every visitor's browser renders them as hrefs, so a stored
+ * One list for everybody who can get in: every signed-in voter sees every account and can
+ * add, count, finish and delete — and sees everyone else doing it as it happens, over the
+ * event stream in `jooxVoteStream.ts`. Getting in means a login an admin handed out, checked
+ * by `requireJooxVoter` on every route below, the event stream included; see
+ * `joox-voters/jooxVoterAuth.ts`. That login is not an admin account and grants nothing but
+ * this page.
+ *
+ * A login narrows who can reach the list but not what a voter can do to it, so what kept the
+ * open version honest still applies:
+ *  - Links must be http(s). Every voter's browser renders them as hrefs, so a stored
  *    `javascript:` URL would run in the page of whoever tapped it.
  *  - Deletes are soft. A wiped list can be put back from the table.
  *  - Adds and deletes are rate limited tighter than taps.
@@ -34,6 +41,12 @@ import { broadcastJooxVote, closeJooxVoteStreams, openJooxVoteStream } from './j
  */
 
 const router = Router();
+
+/*
+ * Every route in this module, the event stream included — mounted before them all so a route
+ * added later cannot be left open by forgetting to guard it.
+ */
+router.use('/joox-votes', requireJooxVoter);
 
 const accountSchema = z.object({
   accountName: z.string().trim().min(1, 'กรุณากรอกชื่อบัญชี').max(100, 'ชื่อบัญชียาวเกินไป'),

@@ -63,8 +63,27 @@ export const jooxVoteLimiter = rateLimit({
 });
 
 /**
- * Adding and deleting JOOX checklist accounts. The list is public and needs no login, so
- * this is what stands between it and a script emptying it or flooding it.
+ * JOOX voter logins. Usernames are handed out by an admin and their passwords are ten
+ * random characters, so this is what stands between the login and someone working through
+ * the guesses. Successful logins don't count: a household or a school sharing one IP can
+ * sign in all evening, and only the failures are throttled.
+ */
+export const jooxLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: {
+    success: false,
+    message: 'ลองเข้าสู่ระบบหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่',
+    code: 'RATE_LIMITED',
+  },
+});
+
+/**
+ * Adding and deleting JOOX checklist accounts. One shared list that every signed-in voter
+ * can edit, so this is what stands between it and one of them emptying it or flooding it.
  */
 export const jooxVoteEditLimiter = rateLimit({
   windowMs: 60 * 1000,

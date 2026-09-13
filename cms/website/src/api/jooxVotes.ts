@@ -17,6 +17,7 @@
  */
 import type { ApiResponse, JooxVoteAccount } from '@cms/shared';
 import { api, get } from '@/api/client';
+import { jooxToken } from '@/api/jooxAuth';
 
 export type { JooxVoteAccount };
 
@@ -36,12 +37,13 @@ export async function addJooxVote(accountName: string, link: string): Promise<Jo
  * Sent with `fetch({ keepalive })` rather than axios. The tap that sends it also opens the
  * vote link, and on a phone that usually hands the screen to the JOOX app — a request the
  * browser is allowed to drop as the page goes to the background. `keepalive` is the promise
- * that it is sent anyway.
+ * that it is sent anyway. Being outside axios, it carries the token itself.
  */
 export async function clickJooxVote(id: number): Promise<JooxVoteAccount> {
   const res = await fetch(`${api.defaults.baseURL}/public/joox-votes/${id}/click`, {
     method: 'POST',
     keepalive: true,
+    headers: { Authorization: `Bearer ${jooxToken() ?? ''}` },
   });
   const body = await res.json().catch(() => null);
   if (!res.ok) throw Object.assign(new Error(body?.message ?? 'click failed'), { status: res.status, body });
@@ -83,7 +85,10 @@ export function watchJooxVotes(handlers: {
   onAccount: (account: JooxVoteAccount) => void;
   onRemoved: (id: number) => void;
 }): () => void {
-  const source = new EventSource(`${api.defaults.baseURL}/public/joox-votes/events`);
+  // EventSource cannot set headers, so this is the one place the token travels in the URL.
+  const url = new URL(`${api.defaults.baseURL}/public/joox-votes/events`, window.location.origin);
+  url.searchParams.set('token', jooxToken() ?? '');
+  const source = new EventSource(url.toString());
   source.onopen = handlers.onOpen;
   source.addEventListener('account', (e) => handlers.onAccount(JSON.parse(e.data)));
   source.addEventListener('removed', (e) => handlers.onRemoved(JSON.parse(e.data).id));

@@ -4,6 +4,11 @@
  * and edits. See {@link useJooxVotes} for how it stays fresh, and the API module for the
  * 23:00 Thai-time reset.
  *
+ * Everyone here signed in with a login an admin handed out — the router's guard turns away a
+ * phone with no token, and the API refuses one whose token has gone stale. A session that
+ * lapses mid-visit (expired, or revoked because an admin reset the password) surfaces as
+ * `authLost` and sends the phone back to the login page with this route to return to.
+ *
  * Laid out for a phone held in one hand, since that is where the voting happens: the list
  * comes first, oldest account on top, and each account's vote link is the one big button on
  * its card. A search on the account name and a filter (still to vote / finished) narrow it.
@@ -18,9 +23,11 @@
  * small screen, and on a shared list a slip costs everybody.
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppModal from '@/components/AppModal.vue';
 import { applySeo } from '@/composables/useSeo';
 import { useJooxVotes } from '@/composables/useJooxVotes';
+import { useJooxAuthStore } from '@/stores/jooxAuth';
 import type { JooxVoteAccount } from '@/api/jooxVotes';
 import { JOOX_VOTE_TARGET, jooxNameKey, stripBeforeJooxLink } from '@cms/shared';
 
@@ -30,6 +37,7 @@ const {
   accounts,
   loading,
   loadError,
+  authLost,
   msUntilReset,
   refresh,
   add,
@@ -38,6 +46,39 @@ const {
   reportMissing,
   remove,
 } = useJooxVotes();
+
+// ── Who is signed in ──────────────────────────────────────────────────────────
+const auth = useJooxAuthStore();
+const route = useRoute();
+const router = useRouter();
+
+/** The session can be refused by two routes at once; the page is only sent away once. */
+let leaving = false;
+
+async function toLogin(): Promise<void> {
+  if (leaving) return;
+  leaving = true;
+  auth.clear();
+  await router.replace({ name: 'joox-login', query: { redirect: route.fullPath } });
+}
+
+// Confirms the stored token and fetches the name to show. A token the API no longer accepts
+// sends the phone back to the login page — the router's guard only saw that one existed.
+void auth.restore().then((valid) => {
+  if (!valid) void toLogin();
+});
+watch(authLost, (lost) => {
+  if (lost) void toLogin();
+});
+
+const signingOut = ref(false);
+
+async function signOut(): Promise<void> {
+  signingOut.value = true;
+  await auth.logout();
+  leaving = true;
+  await router.replace({ name: 'joox-login' });
+}
 
 // ── A failed tap or confirm, shown for a few seconds above the list ───────────
 const notice = ref<string | null>(null);
@@ -212,18 +253,31 @@ async function confirm(missing = 0): Promise<void> {
       <p class="text-sm sm:text-base text-gray-500">
         รีเซ็ตทุกวัน 23:00 น. (เวลาไทย) · อีก {{ resetIn }}
       </p>
+      <!-- Who this phone is signed in as, and the way out. Quiet: the list is why we're here. -->
+      <p v-if="auth.voterLabel" class="text-xs text-gray-400 mt-2">
+        เข้าสู่ระบบเป็น <b class="text-gray-500">{{ auth.voterLabel }}</b>
+        ·
+        <button
+          type="button"
+          class="underline underline-offset-2 disabled:opacity-50"
+          :disabled="signingOut"
+          @click="signOut"
+        >
+          {{ signingOut ? 'กำลังออก…' : 'ออกจากระบบ' }}
+        </button>
+      </p>
     </header>
 
     <!-- The house rules, above the list so they are read before the first tap. -->
     <section class="note mb-4 sm:mb-6" aria-labelledby="joox-note-title">
       <h2 id="joox-note-title" class="font-bold mb-2">📌 กติกาการโหวต</h2>
       <ol class="list-decimal pl-5 space-y-1.5">
-        <li>1 บัญชี JOOX กดโหวต <b>3 ลิงก์</b></li>
+        <li>บัญชี JOOX 1 บัญชี กดโหวต <b>3 ลิงก์</b></li>
         <li><b>อย่ากดลิงก์ของบัญชี JOOX ที่ตัวเอง login อยู่</b></li>
         <li>
-          ถ้าบัญชีไหนขึ้น “ครบแล้ว” แต่จริง ๆ ยังไม่ครบ ให้ไปที่แท็บ “ครบแล้ว” หาบัญชีนั้น
-          แล้วกดปุ่ม <b>“ยังขาด…”</b> เลือกจำนวนที่ยังขาด บัญชีจะกลับไปอยู่ใน “ยังไม่ครบ”
-          ให้ช่วยกันกดต่อจนครบ {{ JOOX_VOTE_TARGET }} ครั้ง
+          ถ้าบัญชีไหนขึ้น “ครบแล้ว” แต่จริง ๆ ยังไม่ครบ ให้ไปที่แท็บ “ครบแล้ว”
+          กดปุ่ม <b>“ยังขาด…”</b> ของบัญชีนั้น แล้วเลือกจำนวนที่ยังขาด
+          บัญชีจะกลับไปอยู่ใน “ยังไม่ครบ” ให้ช่วยกันกดต่อจนครบ {{ JOOX_VOTE_TARGET }}&nbsp;ครั้ง
         </li>
       </ol>
     </section>
@@ -410,7 +464,7 @@ async function confirm(missing = 0): Promise<void> {
     </form>
 
     <p class="text-xs text-gray-400 text-center mt-10">
-      รายการนี้ใช้ร่วมกัน ทุกคนที่เปิดหน้านี้เห็นและแก้ไขรายการเดียวกัน
+      รายการนี้ใช้ร่วมกัน ทุกคนที่เข้าสู่ระบบเห็นและแก้ไขรายการเดียวกัน
     </p>
 
     <!-- A failed tap or confirm. Pinned to the bottom of the screen: the card that failed may
@@ -517,6 +571,19 @@ async function confirm(missing = 0): Promise<void> {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   @apply transition active:scale-[0.98];
+}
+
+/*
+ * This page's own call-to-action colour, in place of the site's blue. Scoped, so it repaints
+ * the buttons here and nothing else on the site.
+ *
+ * The text colour has to come with it: `.btn-primary` is white-on-primary, and white on a
+ * yellow this light reads at about 1.3:1 — invisible. Near-black lands around 10:1, which is
+ * what makes the swap safe on the one button the whole page exists for.
+ */
+.btn-primary {
+  background: #ffde59;
+  @apply text-gray-900;
 }
 
 .btn-vote {

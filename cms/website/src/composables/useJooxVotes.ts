@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useDocumentVisibility, useNow } from '@vueuse/core';
 import { JOOX_VOTE_TARGET, jooxVoteDay, jooxVoteResetAt } from '@cms/shared';
+import { isJooxAuthError } from '@/api/jooxAuth';
 import {
   addJooxVote,
   clickJooxVote,
@@ -32,6 +33,18 @@ export function useJooxVotes() {
   const loading = ref(true);
   const loadError = ref<string | null>(null);
 
+  /*
+   * The session went away mid-visit — it expired, or an admin reset the password or switched
+   * the account off. Raised rather than acted on: sending the phone to the login page is the
+   * view's job, since only it knows the route it should come back to. Every call below runs
+   * its error past `checkAuth`, so it is raised wherever the session is first refused.
+   */
+  const authLost = ref(false);
+
+  function checkAuth(err: unknown): void {
+    if (isJooxAuthError(err)) authLost.value = true;
+  }
+
   // Ticks often enough for the countdown to stay right to the minute.
   const now = useNow({ interval: 15_000 });
   const today = computed(() => jooxVoteDay(now.value));
@@ -51,7 +64,8 @@ export function useJooxVotes() {
       const list = await listJooxVotes();
       if (startedAt === writes && inFlight === 0) accounts.value = list;
       loadError.value = null;
-    } catch {
+    } catch (err) {
+      checkAuth(err);
       // Only the first load reports it: a dropped poll leaves the list on screen alone.
       if (loading.value) loadError.value = 'โหลดรายการไม่สำเร็จ กรุณาลองใหม่';
     } finally {
@@ -85,6 +99,7 @@ export function useJooxVotes() {
       put(await write(() => addJooxVote(accountName, link)));
       return null;
     } catch (err) {
+      checkAuth(err);
       return messageOf(err, 'เพิ่มบัญชีไม่สำเร็จ กรุณาลองใหม่');
     }
   }
@@ -138,12 +153,14 @@ export function useJooxVotes() {
         drop(id);
         return null;
       }
+      checkAuth(err);
       return messageOf(err, 'ลบไม่สำเร็จ กรุณาลองใหม่');
     }
   }
 
   /** A write that did not land: take the server's list as it is, and say why. */
   function failed(err: unknown, id: number, fallback: string): string {
+    checkAuth(err);
     if (statusOf(err) === 404) drop(id);
     void refresh();
     return messageOf(err, fallback);
@@ -196,6 +213,7 @@ export function useJooxVotes() {
     accounts,
     loading,
     loadError,
+    authLost,
     msUntilReset,
     refresh,
     add,

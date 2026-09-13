@@ -67,6 +67,20 @@ Cross-cutting infrastructure lives in `api/src/core/`:
 - `roles` ⟷ `permissions` many-to-many; middleware `authorize('pages.update')` guards routes;
   admin UI hides actions the user lacks (`v-permission` directive).
 
+### The second login: JOOX voters
+
+The website's `/joox-vote` has its own sign-in, deliberately sharing nothing with the above.
+A `joox_voters` row is a fan an admin handed a username and a generated password to; it has
+no role, no permission and no way into the admin, and an admin `User` cannot sign in with it
+either. Admins hand the accounts out under `joox-voters.view` / `.manage`.
+
+Sessions there are opaque random tokens in `joox_voter_sessions`, stored hashed and checked
+against the database on every request — not JWTs. A JWT's selling point is being verifiable
+without a lookup, which is the wrong trade for accounts an admin disables, renames or resets
+by hand: here, doing so signs the phone out on its very next tap. Tokens last 30 days and
+live in the browser's `localStorage`, because the page is opened daily by people who were
+told the password once. See `api/src/modules/joox-voters/jooxVoterAuth.ts`.
+
 ## Donation flow
 
 ```

@@ -1001,8 +1001,48 @@ model BirthdayWish {
 
 // ─────────────────────────── JOOX voting checklist ───────────────────────────
 
-/// Shared list of fan JOOX accounts and their vote links, edited from the public website
-/// with no login — anyone on the page can add, count, finish and delete.
+/// Who is allowed to open the checklist. Deliberately not a `User`: a voter is a fan an
+/// admin hands a username and a generated password to, with no role, no permission and no
+/// way into the admin. Kept apart so that handing out a hundred of them can never widen
+/// what anybody can reach beyond the one page.
+model JooxVoter {
+  id           Int     @id @default(autoincrement())
+  username     String  @unique @db.VarChar(50)
+  /// bcrypt. The plaintext exists once, on the admin screen that generated it.
+  passwordHash String  @map("password_hash") @db.VarChar(255)
+  displayName  String? @map("display_name") @db.VarChar(100)
+
+  /// Off shuts the voter out without losing the row — sessions are revoked with it.
+  isActive    Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+
+  sessions JooxVoterSession[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("joox_voters")
+}
+
+/// One logged-in phone. Opaque random token, stored hashed the same way refresh tokens are,
+/// so a leak of this table hands out nothing usable. Rows are deleted rather than soft
+/// deleted: a revoked session must not be findable, and there is nothing to audit in one.
+model JooxVoterSession {
+  id        Int       @id @default(autoincrement())
+  voterId   Int       @map("voter_id")
+  voter     JooxVoter @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([voterId])
+  @@map("joox_voter_sessions")
+}
+
+/// Shared list of fan JOOX accounts and their vote links, edited from the website by anyone
+/// signed in as a {@link JooxVoter} — one list, which every voter sees and edits.
 model JooxVoteAccount {
   id          Int    @id @default(autoincrement())
   accountName String @map("account_name") @db.VarChar(100)

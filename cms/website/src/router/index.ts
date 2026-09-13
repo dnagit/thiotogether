@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { jooxToken } from '@/api/jooxAuth';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -59,9 +60,23 @@ export const router = createRouter({
       component: () => import('@/views/game/TokenCheckView.vue'),
     },
     {
+      // Declared before the checklist so `/joox-vote/login` is read as the login page.
+      path: '/joox-vote/login',
+      name: 'joox-login',
+      component: () => import('@/views/joox/JooxLoginView.vue'),
+    },
+    {
       path: '/joox-vote',
       name: 'joox-vote',
       component: () => import('@/views/joox/JooxVoteView.vue'),
+      /*
+       * The checklist is for people an admin gave a login to; see `api/jooxAuth.ts`. The guard
+       * asks only whether a token is stored, because a navigation cannot wait on the network
+       * without leaving the page blank every time. Whether the token still works is the API's
+       * answer, and the view acts on it — so this is the fast gate, not the real one.
+       */
+      beforeEnter: (to) =>
+        jooxToken() ? true : { name: 'joox-login', query: { redirect: to.fullPath } },
     },
     {
       // Declared before the wall so `/birthday/wish` is read as the form rather than as a
