@@ -440,7 +440,7 @@ async function confirm(missing = 0): Promise<void> {
           />
         </div>
         <div>
-          <label for="joox-link" class="block text-sm font-medium mb-1">ลิงก์โหวต</label>
+          <label for="joox-link" class="block text-sm font-medium mb-1">invite friend</label>
           <input
             id="joox-link"
             v-model="link"
