@@ -6,6 +6,7 @@ export * from './types/content.js';
 export * from './types/forms.js';
 export * from './types/donations.js';
 export * from './types/dashboard.js';
+export * from './types/jooxAccounts.js';
 export * from './types/jooxAuth.js';
 export * from './types/jooxVotes.js';
 export * from './utils/index.js';

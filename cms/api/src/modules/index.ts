@@ -22,6 +22,7 @@ import { projectsModule } from './projects/projects.module.js';
 import { publicJooxVotesModule } from './public-joox-votes/publicJooxVotes.module.js';
 import { jooxVotersModule } from './joox-voters/jooxVoters.module.js';
 import { publicJooxAuthModule } from './joox-voters/publicJooxAuth.module.js';
+import { publicJooxAccountsModule } from './public-joox-accounts/publicJooxAccounts.module.js';
 
 /**
  * Module registry. Adding a feature = create a folder in src/modules/<name>/
@@ -52,4 +53,5 @@ export const modules: FeatureModule[] = [
   publicBirthdayModule,
   publicJooxAuthModule,
   publicJooxVotesModule,
+  publicJooxAccountsModule,
 ];

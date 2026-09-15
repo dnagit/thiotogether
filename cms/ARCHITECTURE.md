@@ -81,6 +81,11 @@ by hand: here, doing so signs the phone out on its very next tap. Tokens last 30
 live in the browser's `localStorage`, because the page is opened daily by people who were
 told the password once. See `api/src/modules/joox-voters/jooxVoterAuth.ts`.
 
+The same login opens `/joox-accounts`: a voter's own JOOX logins (name, email or phone, note)
+and which checklist accounts each has voted for today, six at most, cleared at the same 23:00
+reset. Unlike the checklist these rows belong to the voter who added them and nobody else
+sees them. See `api/src/modules/public-joox-accounts/publicJooxAccounts.module.ts`.
+
 ## Donation flow
 
 ```

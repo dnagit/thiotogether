@@ -79,6 +79,15 @@ export const router = createRouter({
         jooxToken() ? true : { name: 'joox-login', query: { redirect: to.fullPath } },
     },
     {
+      // The voter's own JOOX logins and who each has voted for today. Same login and the same
+      // fast gate as the checklist above.
+      path: '/joox-accounts',
+      name: 'joox-accounts',
+      component: () => import('@/views/joox/JooxAccountsView.vue'),
+      beforeEnter: (to) =>
+        jooxToken() ? true : { name: 'joox-login', query: { redirect: to.fullPath } },
+    },
+    {
       // Declared before the wall so `/birthday/wish` is read as the form rather than as a
       // wall whose slug happens to be "wish". Both take an optional slug, so a site running
       // a single birthday can link to `/birthday` and `/birthday/wish` and never name it.

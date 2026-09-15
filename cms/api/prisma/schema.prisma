@@ -1017,6 +1017,7 @@ model JooxVoter {
   lastLoginAt DateTime? @map("last_login_at")
 
   sessions JooxVoterSession[]
+  accounts JooxAccount[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -1063,9 +1064,57 @@ model JooxVoteAccount {
   /// `jooxVoteDay()` — days since the epoch, each starting at 23:00 Thai time.
   voteDay Int     @map("vote_day")
 
+  votesReceived JooxAccountVote[]
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
   @@map("joox_vote_accounts")
+}
+
+/// One of a voter's own JOOX logins — the accounts votes are cast *from* — kept on
+/// `/joox-accounts` with a note and today's votes. Private to the {@link JooxVoter} who added
+/// it, since it holds emails and phone numbers; nothing to do with the shared vote list beyond
+/// {@link JooxAccountVote}.
+model JooxAccount {
+  id          Int       @id @default(autoincrement())
+  voterId     Int       @map("voter_id")
+  voter       JooxVoter @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  accountName String    @map("account_name") @db.VarChar(100)
+  /// The JOOX login as typed: an email or a phone number.
+  accountUser String    @map("account_user") @db.VarChar(100)
+  note        String?   @db.VarChar(1000)
+
+  /// `jooxAccountUserKey(accountUser)`, so one voter cannot add the same login twice. Cleared
+  /// on delete, like the keys on {@link JooxVoteAccount}, to free it to be added again.
+  userKey String? @map("user_key") @db.VarChar(100)
+
+  votes JooxAccountVote[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([voterId, userKey])
+  @@index([voterId])
+  @@map("joox_accounts")
+}
+
+/// A vote one {@link JooxAccount} cast for one {@link JooxVoteAccount}, on one voting day
+/// (`jooxVoteDay()`). The 23:00 reset is only that reads ask for today's rows — nothing is
+/// cleared on a schedule. A join row, so it has no `deleted_at` and taking a vote back deletes it.
+model JooxAccountVote {
+  id            Int             @id @default(autoincrement())
+  accountId     Int             @map("account_id")
+  account       JooxAccount     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  voteAccountId Int             @map("vote_account_id")
+  voteAccount   JooxVoteAccount @relation(fields: [voteAccountId], references: [id], onDelete: Cascade)
+  voteDay       Int             @map("vote_day")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([accountId, voteDay, voteAccountId])
+  @@index([voteAccountId])
+  @@map("joox_account_votes")
 }

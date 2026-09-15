@@ -131,6 +131,33 @@ export function jooxVoteResetAt(at: number | Date = Date.now()): Date {
 export const JOOX_VOTE_TARGET = 3;
 
 /**
+ * Votes one JOOX account can cast in a voting day. Tracked per account on `/joox-accounts`, and
+ * given back with everything else at the 23:00 reset.
+ */
+export const JOOX_VOTES_PER_ACCOUNT = 6;
+
+/**
+ * The form of a JOOX login that duplicates are judged on. An email is compared lowercased; a
+ * phone number by its digits alone, with a Thai +66 written the local way, so "081-234-5678"
+ * and "+66 81 234 5678" are one account.
+ */
+export function jooxAccountUserKey(user: string): string {
+  const value = user.normalize('NFC').trim();
+  if (value.includes('@')) return value.toLowerCase();
+  const digits = value.replace(/\D/g, '');
+  return digits.startsWith('66') && digits.length === 11 ? `0${digits.slice(2)}` : digits;
+}
+
+/** An email, or a phone number: 9–15 digits, with the spaces, dashes, dots and + people type. */
+export function isJooxAccountUser(user: string): boolean {
+  const value = user.trim();
+  if (value.includes('@')) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  if (!/^\+?[\d\s().-]+$/.test(value)) return false;
+  const digits = value.replace(/\D/g, '').length;
+  return digits >= 9 && digits <= 15;
+}
+
+/**
  * Everything pasted in front of the link itself — share text like "มาโหวตกัน! https://…" —
  * dropped, so the field is left holding the URL. Text with no http(s):// in it comes back as is.
  */
