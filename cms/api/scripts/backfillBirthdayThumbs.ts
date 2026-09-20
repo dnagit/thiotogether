@@ -9,6 +9,19 @@
  * Safe to re-run and safe to interrupt: each wish is committed as it is done, and rows that
  * already have a thumbnail are skipped unless `--force` says otherwise.
  *
+ * It runs *after* the deploy, not instead of part of it — the column has to exist and the
+ * generated client has to know about it:
+ *
+ *   npm run prisma:generate      # from cms/, not `npx prisma` — see the README
+ *   npm run prisma:deploy
+ *   npm run build                # the API reads and writes the column too
+ *   npm run birthday:thumbs -w api
+ *
+ * Skipping the first step is the one failure that does not look like itself: the migration
+ * has applied, the database has the column, and Prisma still answers `Unknown argument
+ * \`photoThumbUrl\`` — because the client in `node_modules` was generated from the old
+ * schema and is what actually builds the query.
+ *
  * The original is fetched over its own public URL rather than read out of storage, because
  * {@link StorageProvider} only writes — and going through the URL means the same script
  * works whether the files sit on disk or in S3. That does mean APP_URL has to be reachable

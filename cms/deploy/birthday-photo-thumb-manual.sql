@@ -18,7 +18,16 @@
 -- falls back to the original upload, which is exactly what it did before. Two
 -- more things have to happen for the wall to get lighter:
 --
---   1. Deploy the new API build, so wishes sent from now on arrive with one.
+--   1. Regenerate the Prisma client and deploy the new API build, so wishes
+--      sent from now on arrive with one:
+--
+--          npm run prisma:generate      (from cms/)
+--          npm run build
+--
+--      The client in node_modules is what builds every query, so until it has
+--      been regenerated both the API and the backfill below fail with
+--      "Unknown argument photoThumbUrl" even though the column is there.
+--
 --   2. Fill it in for the wishes already sent:
 --
 --          npm run birthday:thumbs -w api
