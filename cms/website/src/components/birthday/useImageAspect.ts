@@ -13,8 +13,14 @@
 import { ref, watch, type Ref } from 'vue';
 
 const cache = new Map<string, number>();
-/** Object URLs are one per upload, so the map would otherwise grow all session. */
-const CACHE_MAX = 200;
+/**
+ * Object URLs are one per upload, so the map would otherwise grow all session.
+ *
+ * Comfortably past the 300 wishes the API will return for one wall: the wall mounts and
+ * unmounts its balloons as they come round, and a ceiling below that would throw the whole
+ * map away mid-flight and re-probe every photo on the next lap.
+ */
+const CACHE_MAX = 1000;
 
 export function useImageAspect(url: () => string | null | undefined): Ref<number | null> {
   const aspect = ref<number | null>(null);

@@ -8,6 +8,7 @@ import { asyncHandler } from '../../core/utils/asyncHandler.js';
 import { ok, created } from '../../core/base/BaseController.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../core/errors/AppError.js';
 import { getStorage } from '../../core/storage/index.js';
+import { makePhotoThumb } from './photoThumb.js';
 import type { FeatureModule } from '../../core/modules.js';
 
 /**
@@ -19,6 +20,7 @@ import type { FeatureModule } from '../../core/modules.js';
  *  - The photo is stored as uploaded and the framing kept as three numbers next to it.
  *    Baking the crop into the file would throw away the rest of the picture, and the
  *    balloon shape it is framed against is a rendering decision the website may change.
+ *    A small copy goes up beside it for the wall — see {@link makePhotoThumb}.
  */
 
 const router = Router();
@@ -104,6 +106,7 @@ router.get(
         balloonShape: true,
         balloonColor: true,
         photoUrl: true,
+        photoThumbUrl: true,
         photoZoom: true,
         photoX: true,
         photoY: true,
@@ -147,10 +150,14 @@ router.post(
     }
 
     let photoUrl: string | null = null;
+    let photoThumbUrl: string | null = null;
     if (req.file) {
       const storage = getStorage();
       const key = `birthday/${event.slug}/${safeFileName(req.file.originalname)}`;
       photoUrl = (await storage.put(req.file.buffer, key, req.file.mimetype)).url;
+      // After the original is safely stored, and allowed to fail: a wish whose thumbnail
+      // could not be made is still a wish, and the wall falls back to the full picture.
+      photoThumbUrl = await makePhotoThumb(req.file.buffer, key);
     }
 
     const wish = await rawPrisma.birthdayWish.create({
@@ -163,6 +170,7 @@ router.post(
         giftId: req.body.giftId ?? null,
         backgroundId: req.body.backgroundId ?? null,
         photoUrl,
+        photoThumbUrl,
         // Framing is meaningless without a photo, so it is only kept alongside one.
         photoZoom: photoUrl ? (req.body.photoZoom ?? 1) : null,
         photoX: photoUrl ? (req.body.photoX ?? 0) : null,

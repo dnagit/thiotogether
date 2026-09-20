@@ -11,5 +11,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "prisma/seed.ts", "../shared/src"]
+  "include": ["src", "scripts", "prisma/seed.ts", "../shared/src"]
 }

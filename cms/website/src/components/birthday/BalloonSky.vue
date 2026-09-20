@@ -2,7 +2,7 @@
 /**
  * Balloons drifting up the screen, each opening its message when tapped.
  *
- * Four decisions shape it:
+ * What shapes it:
  *
  *  - **Motion is CSS, not JavaScript.** Two nested animations — a rise and a slower sway —
  *    run on the compositor, so a phone showing forty balloons stays smooth and a background
@@ -19,11 +19,17 @@
  *  - **A balloon keeps its seat.** Seats are dealt in the order the wishes were written, so
  *    a poll bringing in a new one appends rather than reshuffling the sky mid-flight, and
  *    everything about a balloon but its position is hashed from the wish's id.
+ *  - **Only the balloons in sight are in the document.** A crowded sky is a queue: the path
+ *    is several windows long and most of it is below the floor. Keeping all of it rendered
+ *    is what used to crash a phone — every lane and every sway is a compositor layer with a
+ *    full-resolution backing store, so a couple of hundred wishes asked for hundreds of
+ *    megabytes of them. See {@link visible}, and {@link now} for the clock that lets a
+ *    balloon be mounted part-way through its flight without landing in the wrong place.
  *  - **Reduced motion gets a still gallery, not a slower rise.** Someone asking for less
  *    movement is asking not to chase a moving target, so the same balloons are laid out in
  *    a grid with the same popup behind them.
  */
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useElementSize, useMediaQuery } from '@vueuse/core';
 import { useRoute, useRouter } from 'vue-router';
 import WishBalloon from './WishBalloon.vue';
@@ -57,9 +63,44 @@ const route = useRoute();
 const router = useRouter();
 
 const opened = ref<Wish | null>(null);
-// Reported outwards so the owner's poll can hold off: refreshing the list under someone
-// who is part-way through a message would swap the balloon they are reading.
-watch(opened, (wish) => emit('update:reading', !!wish));
+
+/**
+ * The sky's own clock, in seconds, with the time spent paused taken out of it.
+ *
+ * Balloons come and go from the document as they come round (see {@link visible}), and a CSS
+ * animation starts when its element does. So a balloon's `animation-delay` cannot simply be
+ * the place in the cycle it was dealt — mounted half a minute in, it would appear at that
+ * height instead of down at the floor where it belongs. Every delay is measured against this
+ * shared clock instead, which is the same for the whole sky however long any one element has
+ * been in it.
+ *
+ * Paused time is subtracted because `animation-play-state: paused` stops the balloons but not
+ * the wall clock: without it, closing a card would snap the sky forward by however long the
+ * message took to read.
+ */
+const origin = typeof performance === 'undefined' ? 0 : performance.now();
+/** When the current pause began, on the raw clock; null while the sky is moving. */
+let pausedAt: number | null = null;
+let pausedFor = 0;
+
+function raw(): number {
+  return typeof performance === 'undefined' ? origin : performance.now();
+}
+
+function now(): number {
+  return ((pausedAt ?? raw()) - origin - pausedFor) / 1000;
+}
+
+watch(opened, (wish) => {
+  // Reported outwards so the owner's poll can hold off: refreshing the list under someone
+  // who is part-way through a message would swap the balloon they are reading.
+  emit('update:reading', !!wish);
+  if (wish) pausedAt ??= raw();
+  else if (pausedAt !== null) {
+    pausedFor += raw() - pausedAt;
+    pausedAt = null;
+  }
+});
 
 const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
@@ -584,6 +625,10 @@ const layout = computed(() => {
     w,
     travel,
     seats,
+    /** The measured sky, or the fallback the sizing above used before it was measured. */
+    height,
+    /** Full assembly height at this size — how far a balloon reaches above its lane's floor. */
+    assembly,
     /** The path outgrew one crossing, so the sky is showing a slice at a time. */
     cycling: travel > height + assembly * 2 + 1,
     // Anything the path has over the shortest crossing is queued below the floor, so a
@@ -593,14 +638,146 @@ const layout = computed(() => {
   };
 });
 
-/** Past this many, per-balloon compositor hints cost more than they buy. */
-const dense = computed(() => seated.value.length > 60);
+/**
+ * Worked out once per balloon, when it enters the sky, and held until it leaves.
+ *
+ * The delays below say where a balloon is *at the moment its element appears*, and that is
+ * the only moment they are true: a CSS animation's position is its own elapsed time plus its
+ * delay, so handing a running animation a delay recomputed later moves it on by however long
+ * it has already been in the air. (It did, too — every poll shunted the sky a tenth of a lap
+ * forward.) So a mounted balloon keeps the delay it arrived with, and only a real change of
+ * arrangement issues new ones — which {@link generation} does by replacing the elements, so
+ * the new delays are read from a fresh start rather than added to an old one.
+ */
+const styles = new Map<Wish['id'], Record<string, string>>();
+
+/**
+ * What the arrangement actually is, as a string that is equal whenever it is unchanged.
+ *
+ * The wall polls every thirty seconds and {@link layout} recomputes from scratch each time,
+ * so object identity says "changed" on every poll while nothing has moved. This says it only
+ * when a seat, a size or the flight path really is different — a new wish, or a resized
+ * window.
+ */
+const arrangement = computed(() => {
+  const { w, travel, seats } = layout.value;
+  return [
+    w,
+    travel.toFixed(1),
+    ...seats.map(
+      (s) =>
+        `${s.x.toFixed(1)},${s.phase.toFixed(4)},${s.scale.toFixed(3)},` +
+        `${s.drift.toFixed(1)},${s.tilt.toFixed(1)},${s.duration.toFixed(1)}`,
+    ),
+  ].join('|');
+});
+
+/**
+ * Bumped when the arrangement changes, and part of every balloon's key — so a re-deal
+ * replaces the elements rather than re-styling them in place. See {@link styles} for why
+ * that distinction is the difference between a sky that keeps time and one that runs fast.
+ */
+const generation = ref(0);
+watch(arrangement, () => {
+  generation.value++;
+  styles.clear();
+});
+
+/**
+ * Seconds of flight a balloon is in the document before it can be seen, and after it can.
+ *
+ * It buys two things. The sweep below only looks every {@link SWEEP_MS}, so a balloon must
+ * already be mounted by the time the sweep that would have noticed it runs — and its photo
+ * has to arrive before it clears the floor, which on a phone on mobile data is the longer
+ * of the two waits by far.
+ */
+const MOUNT_LEAD = 6;
+/** How often the window is re-swept. A balloon covers about 20px in that time. */
+const SWEEP_MS = 800;
+
+/** Bumped by the sweep; {@link visible} reads it so that it recomputes on each one. */
+const sweep = ref(0);
+
+/**
+ * The balloons near enough to the window to be worth having in the document.
+ *
+ * On a crowded wall the flight path is several windows long — at a couple of hundred wishes
+ * on a phone it is tens of them — and all but the current slice of it is queued below the
+ * floor or already gone over the top. Those balloons cost what a visible one costs: two
+ * animated transforms, so two compositor layers with backing stores at device resolution,
+ * plus a decoded photo each. That is the bill that took a wall of 169 wishes past what iOS
+ * gives a tab, and it is why the page kept reloading itself.
+ *
+ * So the sky renders the slice and nothing else. What makes that safe is {@link now}: a
+ * balloon's delay is its place in a clock the whole sky shares, not an offset from whenever
+ * its element happened to appear, so mounting one part-way through the flight puts it
+ * exactly where it would have been had it never left.
+ *
+ * Nothing is windowed when the whole path already fits in the window — a quiet wall renders
+ * every balloon, as it always did — and nothing is windowed in the still gallery.
+ */
+const visible = computed(() => {
+  const wishes = seated.value;
+  const all = (): { wish: Wish; seat: number }[] => wishes.map((wish, seat) => ({ wish, seat }));
+  if (reducedMotion.value) return all();
+
+  const { seats, height, assembly, start, end, cycling } = layout.value;
+  if (!cycling) return all();
+
+  // Read so the window is re-tested on every sweep; the value itself means nothing.
+  void sweep.value;
+  const t = now();
+  const lead = SPEED * MOUNT_LEAD;
+
+  const shown: { wish: Wish; seat: number }[] = [];
+  for (let seat = 0; seat < wishes.length; seat++) {
+    const { phase, duration } = seats[seat];
+    // Where the rise has carried this balloon by now: `start` below the floor, `end` above
+    // the ceiling, travelled linearly and looped — the same arithmetic the keyframes do.
+    const y = start + (end - start) * wrap(phase + t / duration);
+    if (y > -(height + lead) && y < assembly + lead) shown.push({ wish: wishes[seat], seat });
+  }
+  return shown;
+});
+
+let timer: number | undefined;
+onMounted(() => {
+  timer = window.setInterval(() => {
+    // Nothing moves behind an open card, and {@link now} is frozen while one is — re-testing
+    // would return the same window and re-render the sky for nothing.
+    if (opened.value || reducedMotion.value || !layout.value.cycling) return;
+    sweep.value++;
+    // The balloons that have just left take their cached styles with them, so that the next
+    // time one comes round it is placed against the clock afresh. See {@link flight}.
+    const live = new Set(visible.value.map((entry) => entry.wish.id));
+    for (const id of styles.keys()) if (!live.has(id)) styles.delete(id);
+  }, SWEEP_MS);
+});
+onBeforeUnmount(() => window.clearInterval(timer));
+
+/**
+ * Past this many, per-balloon compositor hints cost more than they buy.
+ *
+ * Counted over what is rendered rather than over the whole wall: the window above bounds
+ * that at a screenful however many wishes there are, so a wall of three hundred keeps the
+ * hints — and the drop shadows — that a wall of seventy always had.
+ */
+const dense = computed(() => visible.value.length > 60);
 
 watch(
   () => !reducedMotion.value && layout.value.cycling,
   (cycling) => emit('update:crowded', cycling),
   { immediate: true },
 );
+
+/**
+ * Offset into an oscillation that runs `alternate`, which repeats over two durations rather
+ * than one — taking it modulo the duration alone would keep the position but flip the
+ * direction, and the sway would fold back on itself every time a balloon was re-seated.
+ */
+function oscillator(base: number, duration: number, t: number): number {
+  return (base + t) % (duration * 2);
+}
 
 /**
  * One seat, as the CSS custom properties the animation reads.
@@ -611,32 +788,44 @@ watch(
  * cycle its id says.
  */
 function flight(wish: Wish, seat: number): Record<string, string> {
+  const cached = styles.get(wish.id);
+  if (cached) return cached;
+
   const { w, seats } = layout.value;
   const { x, phase, scale, drift, tilt, duration } = seats[seat];
+  const t = now();
+  // Where this balloon is on the shared clock, not where it was dealt: its element may be
+  // appearing part-way through the flight. See {@link now}.
+  const risen = wrap(phase + t / duration);
+  const swayDuration = 9 + hash(wish.id, 4) * 9;
+  const bobDuration = 6 + hash(wish.id, 12) * 7;
 
-  return {
+  const style = {
     '--balloon-w': `${(w * scale).toFixed(0)}px`,
     '--lane': `${x.toFixed(1)}px`,
     '--rise-duration': `${duration.toFixed(1)}s`,
     // Negative, so the sky opens already full rather than empty for the first half minute.
-    '--rise-delay': `-${(phase * duration).toFixed(1)}s`,
+    '--rise-delay': `-${(risen * duration).toFixed(2)}s`,
     // Slow: at a few seconds a swing reads as a jiggle, and a sky of them as one machine.
     // Over a quarter of a minute it reads as a balloon finding its own way up.
-    '--sway-duration': `${(9 + hash(wish.id, 4) * 9).toFixed(1)}s`,
+    '--sway-duration': `${swayDuration.toFixed(1)}s`,
     // Without a delay every balloon starts at the same end of its swing, and the whole sky
     // leans one way together for the first few seconds.
-    '--sway-delay': `-${(hash(wish.id, 11) * 18).toFixed(1)}s`,
+    '--sway-delay': `-${oscillator(hash(wish.id, 11) * 18, swayDuration, t).toFixed(2)}s`,
     '--sway': `${drift.toFixed(1)}px`,
     // Rise and fall of its own, on top of the shared climb — see {@link BOB}. Its period is
     // deliberately not the sway's: on one track the two would compose into a single diagonal
     // slide, which is a balloon on rails rather than a balloon.
     '--bob': `${(w * scale * BOB).toFixed(1)}px`,
-    '--bob-duration': `${(6 + hash(wish.id, 12) * 7).toFixed(1)}s`,
-    '--bob-delay': `-${(hash(wish.id, 13) * 13).toFixed(1)}s`,
+    '--bob-duration': `${bobDuration.toFixed(1)}s`,
+    '--bob-delay': `-${oscillator(hash(wish.id, 13) * 13, bobDuration, t).toFixed(2)}s`,
     '--tilt': `${tilt.toFixed(1)}deg`,
     // Layered by size, so the small ones sit behind: the same cue as drawing them small.
     'z-index': String(10 + Math.round(((scale - MIN_SCALE) / (1 - MIN_SCALE)) * 6)),
   };
+
+  styles.set(wish.id, style);
+  return style;
 }
 
 /** Into 0–1, for phases that a negative jitter can push off either end. */
@@ -662,12 +851,12 @@ const galleryWidth = computed(() => {
       role="list"
       :style="{ '--balloon-w': galleryWidth }"
     >
-      <li v-for="wish in seated" :key="wish.id">
+      <li v-for="{ wish } in visible" :key="wish.id">
         <WishBalloon
           interactive
           :shape="wish.balloonShape"
           :color="wish.balloonColor"
-          :photo-url="wish.photoUrl"
+          :photo-url="wish.photoThumbUrl ?? wish.photoUrl"
           :framing="wish.photoFraming"
           :gift-image="wish.gift?.imageUrl"
           :name="wish.name"
@@ -687,9 +876,13 @@ const galleryWidth = computed(() => {
         '--travel-end': `${layout.end.toFixed(0)}px`,
       }"
     >
+      <!--
+        Keyed by the arrangement as well as the wish: a re-deal has to replace the elements,
+        because a new delay only means what it says on an animation that starts with it.
+      -->
       <div
-        v-for="(wish, seat) in seated"
-        :key="wish.id"
+        v-for="{ wish, seat } in visible"
+        :key="`${generation}:${wish.id}`"
         class="lane"
         :style="flight(wish, seat)"
       >
@@ -698,7 +891,7 @@ const galleryWidth = computed(() => {
             interactive
             :shape="wish.balloonShape"
             :color="wish.balloonColor"
-            :photo-url="wish.photoUrl"
+            :photo-url="wish.photoThumbUrl ?? wish.photoUrl"
             :framing="wish.photoFraming"
             :gift-image="wish.gift?.imageUrl"
             :name="wish.name"
@@ -822,6 +1015,16 @@ const galleryWidth = computed(() => {
   justify-content: center;
   gap: clamp(1rem, 3vw, 2rem);
   padding-block: 2rem;
+}
+/*
+ * The gallery has no window to queue behind — every balloon is in it at once — so the
+ * browser is told to skip the ones scrolled away instead. The intrinsic size is the slot a
+ * balloon takes when it is drawn, so the page is the same length either way and the
+ * scrollbar does not jump as rows come into view.
+ */
+.gallery > li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--balloon-w) auto calc(var(--balloon-w) * 2.2);
 }
 
 </style>

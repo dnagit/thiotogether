@@ -54,6 +54,15 @@ export interface Wish {
   balloonShape: BalloonShapeId;
   balloonColor: string;
   photoUrl: string | null;
+  /**
+   * A small copy of the same picture, for the wall.
+   *
+   * The balloons draw every photo of an event at once and a phone decodes whatever it is
+   * sent, so the wall asks for this and falls back to {@link photoUrl} — which is null for
+   * wishes uploaded before the server started making them, and is what the card shows
+   * either way.
+   */
+  photoThumbUrl: string | null;
   photoFraming: PhotoFraming | null;
   gift: Gift | null;
   background: CardBackground | null;

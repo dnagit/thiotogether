@@ -969,6 +969,13 @@ model BirthdayWish {
   balloonColor String @default("#0ea5e9") @map("balloon_color") @db.VarChar(20)
 
   photoUrl  String? @map("photo_url") @db.VarChar(500)
+  /// A small WebP copy of the same picture, for the wall.
+  ///
+  /// The wall draws every photo a hundred-odd pixels wide but decodes whatever it is sent,
+  /// and a phone holding a few hundred full-size uploads in memory is a phone that reloads
+  /// the tab. Null on rows uploaded before this column existed and on anything libvips
+  /// could not read; both fall back to `photoUrl`, which is what the card always uses.
+  photoThumbUrl String? @map("photo_thumb_url") @db.VarChar(500)
   /// How the photo sits inside the balloon: a zoom plus an x/y offset in the shape's
   /// 100×100 box. Stored beside the original upload rather than baked into it, so the
   /// picture can be reframed later without a re-upload.
