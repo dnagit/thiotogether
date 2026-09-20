@@ -14,6 +14,14 @@ export interface JooxAccount {
   accountUser: string;
   note: string | null;
   /**
+   * The voter's running score for this account — whatever they are keeping count of on JOOX,
+   * typed in by hand.
+   *
+   * Not a vote count and not derived from `votes`: it does not reset at 23:00 and nothing but
+   * an edit changes it. Zero until the voter puts a number in.
+   */
+  score: number;
+  /**
    * Today's votes only, oldest first — an account comes back with none after the 23:00 Thai-time
    * reset. At most {@link JOOX_VOTES_PER_ACCOUNT}.
    */

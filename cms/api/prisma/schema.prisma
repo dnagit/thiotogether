@@ -1093,6 +1093,13 @@ model JooxAccount {
   accountUser String    @map("account_user") @db.VarChar(100)
   note        String?   @db.VarChar(1000)
 
+  /// The voter's running score for this account, as they keep it themselves.
+  ///
+  /// Nothing computes it and nothing resets it: unlike {@link JooxAccountVote}, which belongs
+  /// to a voting day and comes off at 23:00, this is a total that carries on until the voter
+  /// edits it. The page adds them up across a voter's accounts.
+  score Int @default(0)
+
   /// `jooxAccountUserKey(accountUser)`, so one voter cannot add the same login twice. Cleared
   /// on delete, like the keys on {@link JooxVoteAccount}, to free it to be added again.
   userKey String? @map("user_key") @db.VarChar(100)

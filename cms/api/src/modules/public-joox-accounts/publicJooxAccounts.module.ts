@@ -21,8 +21,9 @@ import { requireJooxVoter } from '../joox-voters/jooxVoterAuth.js';
  * A voter's own JOOX logins, behind `/joox-accounts` on the website.
  *
  *   GET    /public/joox-accounts            → this voter's accounts, with today's votes
- *   POST   /public/joox-accounts            → add { accountName, accountUser, note }
- *   PATCH  /public/joox-accounts/:id        → the same three fields
+ *   POST   /public/joox-accounts            → add { accountName, accountUser, note, score }
+ *   PATCH  /public/joox-accounts/:id        → the same four fields
+ *   PATCH  /public/joox-accounts/:id/score  → { score } alone, for the quick edit on the card
  *   DELETE /public/joox-accounts/:id
  *   PUT    /public/joox-accounts/:id/votes  → { voteAccountIds }: today's votes, the whole set
  *
@@ -41,6 +42,28 @@ const router = Router();
 // Every route in this module, mounted before them all — see the same line in publicJooxVotes.
 router.use('/joox-accounts', requireJooxVoter);
 
+/**
+ * The score a voter keeps for one account.
+ *
+ * Whole and never negative, and capped a long way below `Int`'s ceiling so that the sum the
+ * page shows cannot overflow either — adding up a few hundred accounts has to stay a number.
+ *
+ * Absent means zero rather than an error: the field did not exist before this, so a page
+ * cached from before it saving a whole account leaves the score at nothing instead of being
+ * rejected. Written as its own shape because the account schema below takes it too.
+ */
+const SCORE_MAX = 1_000_000_000;
+const scoreShape = {
+  score: z.coerce
+    .number()
+    .int('คะแนนต้องเป็นจำนวนเต็ม')
+    .min(0, 'คะแนนต้องไม่ติดลบ')
+    .max(SCORE_MAX, 'คะแนนสูงเกินไป')
+    .default(0),
+};
+
+const scoreSchema = z.object(scoreShape);
+
 const accountSchema = z.object({
   accountName: z.string().trim().min(1, 'กรุณากรอกชื่อบัญชี').max(100, 'ชื่อบัญชียาวเกินไป'),
   accountUser: z
@@ -55,6 +78,7 @@ const accountSchema = z.object({
     .max(1000, 'โน้ตยาวเกินไป')
     .nullish()
     .transform((value) => value || null),
+  ...scoreShape,
 });
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
@@ -73,6 +97,7 @@ function accountSelect(today: number) {
     accountName: true,
     accountUser: true,
     note: true,
+    score: true,
     votes: {
       where: { voteDay: today },
       orderBy: { id: 'asc' },
@@ -92,6 +117,7 @@ function toPublic(row: Row): JooxAccount {
     accountName: row.accountName,
     accountUser: row.accountUser,
     note: row.note,
+    score: row.score,
     votes: row.votes.map((v) => ({
       voteAccountId: v.voteAccountId,
       accountName: v.voteAccount.accountName,
@@ -127,7 +153,7 @@ router.post(
   jooxVoteEditLimiter,
   validate({ body: accountSchema }),
   asyncHandler(async (req, res) => {
-    const { accountName, accountUser, note } = req.body as z.infer<typeof accountSchema>;
+    const { accountName, accountUser, note, score } = req.body as z.infer<typeof accountSchema>;
     try {
       const row = await prisma.jooxAccount.create({
         data: {
@@ -135,6 +161,7 @@ router.post(
           accountName,
           accountUser,
           note,
+          score,
           userKey: jooxAccountUserKey(accountUser),
         },
         select: accountSelect(jooxVoteDay()),
@@ -152,12 +179,12 @@ router.patch(
   jooxVoteEditLimiter,
   validate({ params: idParams, body: accountSchema }),
   asyncHandler(async (req, res) => {
-    const { accountName, accountUser, note } = req.body as z.infer<typeof accountSchema>;
+    const { accountName, accountUser, note, score } = req.body as z.infer<typeof accountSchema>;
     const where = { id: Number(req.params.id), voterId: req.jooxVoter!.id, deletedAt: null };
     try {
       const { count } = await prisma.jooxAccount.updateMany({
         where,
-        data: { accountName, accountUser, note, userKey: jooxAccountUserKey(accountUser) },
+        data: { accountName, accountUser, note, score, userKey: jooxAccountUserKey(accountUser) },
       });
       if (count === 0) throw gone();
     } catch (err) {
@@ -167,6 +194,29 @@ router.patch(
     const row = await prisma.jooxAccount.findFirst({ where, select: accountSelect(jooxVoteDay()) });
     if (!row) throw gone();
     ok(res, toPublic(row), 'บันทึกแล้ว');
+  }),
+);
+
+/**
+ * The score on its own, for the box on the account's card.
+ *
+ * Its own route rather than the full PATCH above, because the card has only the score to send.
+ * Putting the whole account back to change one number would re-key the login and take the
+ * duplicate check with it, and would let a card left open in one tab overwrite a name edited
+ * in another.
+ */
+router.patch(
+  '/joox-accounts/:id/score',
+  jooxVoteEditLimiter,
+  validate({ params: idParams, body: scoreSchema }),
+  asyncHandler(async (req, res) => {
+    const { score } = req.body as z.infer<typeof scoreSchema>;
+    const where = { id: Number(req.params.id), voterId: req.jooxVoter!.id, deletedAt: null };
+    const { count } = await prisma.jooxAccount.updateMany({ where, data: { score } });
+    if (count === 0) throw gone();
+    const row = await prisma.jooxAccount.findFirst({ where, select: accountSelect(jooxVoteDay()) });
+    if (!row) throw gone();
+    ok(res, toPublic(row), 'บันทึกคะแนนแล้ว');
   }),
 );
 

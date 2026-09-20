@@ -12,8 +12,13 @@
  * 23:00 Thai-time reset. Picking here changes nothing on the checklist — this page only keeps
  * track.
  *
+ * Each account also carries a score the voter keeps by hand — see {@link JooxAccount.score}.
+ * It is nothing to do with the votes and never resets; the page adds it up across every
+ * account and shows the total at the top.
+ *
  * Laid out for a phone like the checklist: search and a filter on top, one card per account,
- * and add / edit / delete / pick votes each in a dialog.
+ * and add / edit / delete / pick votes each in a dialog. The score is the one thing edited
+ * without a dialog: it is what changes most often, so the card has a box for it.
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -27,6 +32,7 @@ import {
   addJooxAccount,
   deleteJooxAccount,
   listJooxAccounts,
+  setJooxAccountScore,
   setJooxAccountVotes,
   updateJooxAccount,
   type JooxAccount,
@@ -173,14 +179,111 @@ const shown = computed(() =>
 const fullCount = computed(() => accounts.value.filter(isFull).length);
 const votesToday = computed(() => accounts.value.reduce((sum, a) => sum + a.votes.length, 0));
 
+/**
+ * Every account's score added up — the whole list, never the filtered one.
+ *
+ * A total that moved when a search was typed would be read as the search having changed
+ * something, so the heading says "ทุกบัญชี" and means it. The count beside it is the number
+ * of accounts it covers, which is what makes the two agree.
+ */
+const totalScore = computed(() => accounts.value.reduce((sum, a) => sum + a.score, 0));
+
+/** Grouped thousands, which is the only way a seven-figure total is read at a glance. */
+function formatScore(value: number): string {
+  return value.toLocaleString('th-TH');
+}
+
 const emptyMessage = computed(() => {
   if (searchKey.value) return `ไม่พบบัญชีที่ตรงกับ “${search.value.trim()}”`;
   return filter.value === 'full' ? 'ยังไม่มีบัญชีที่โหวตครบ' : 'ทุกบัญชีโหวตครบแล้ว 🎉';
 });
 
+// ── The score ─────────────────────────────────────────────────────────────────
+/** Matches the API's own ceiling, so the two never disagree about what is too big. */
+const SCORE_MAX = 1_000_000_000;
+const SCORE_ERROR = 'คะแนนต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป';
+
+/**
+ * A typed score as a number, or null when it is not one.
+ *
+ * Empty reads as 0 rather than as an error: clearing the box is how someone says "none", and
+ * refusing it would leave them unable to get back to zero without typing the digit. Thai
+ * digits and the separators a phone keyboard offers are accepted too — a number pasted from
+ * the JOOX app arrives with commas in it.
+ */
+function readScore(text: string): number | null {
+  const normalised = text
+    .trim()
+    .replace(/[๐-๙]/g, (d) => String('๐๑๒๓๔๕๖๗๘๙'.indexOf(d)))
+    .replace(/[,\s]/g, '');
+  if (!normalised) return 0;
+  if (!/^\d+$/.test(normalised)) return null;
+  const value = Number(normalised);
+  return Number.isSafeInteger(value) && value <= SCORE_MAX ? value : null;
+}
+
+/**
+ * The card's own score box: which account is open in it, and what has been typed.
+ *
+ * One at a time — opening a second closes the first, so a half-typed number is never left
+ * behind on a card scrolled off screen. It saves through its own endpoint, which sends the
+ * score and nothing else.
+ */
+const scoring = ref<{ id: number; text: string } | null>(null);
+const scoreSaving = ref(false);
+const scoreError = ref<string | null>(null);
+
+function openScore(account: JooxAccount): void {
+  scoring.value = { id: account.id, text: String(account.score) };
+  scoreError.value = null;
+}
+
+function closeScore(): void {
+  scoring.value = null;
+  scoreError.value = null;
+}
+
+async function saveScore(): Promise<void> {
+  const open = scoring.value;
+  if (!open || scoreSaving.value) return;
+  const score = readScore(open.text);
+  if (score === null) {
+    scoreError.value = SCORE_ERROR;
+    return;
+  }
+  const before = accounts.value.find((a) => a.id === open.id)?.score;
+  // Nothing typed but the box opened and shut again: no reason to spend a request on it.
+  if (score === before) {
+    closeScore();
+    return;
+  }
+
+  scoreSaving.value = true;
+  scoreError.value = null;
+  try {
+    const row = await setJooxAccountScore(open.id, score);
+    put(row);
+    closeScore();
+    flash(`บันทึกคะแนน ${row.accountName} เป็น ${formatScore(row.score)} แล้ว`);
+  } catch (err) {
+    if (checkAuth(err)) return;
+    if (statusOf(err) === 404) {
+      drop(open.id);
+      closeScore();
+      flash(messageOf(err, 'ไม่พบบัญชีนี้ อาจถูกลบไปแล้ว'));
+      return;
+    }
+    scoreError.value = messageOf(err, 'บันทึกคะแนนไม่สำเร็จ กรุณาลองใหม่');
+  } finally {
+    scoreSaving.value = false;
+  }
+}
+
 // ── Add / edit ────────────────────────────────────────────────────────────────
 const editing = ref<{ id: number | null } | null>(null);
-const form = ref({ accountName: '', accountUser: '', note: '' });
+// The score is held as text, not a number: an emptied box has to stay empty while it is
+// being retyped rather than snapping back to 0 under the caret.
+const form = ref({ accountName: '', accountUser: '', note: '', score: '' });
 const formError = ref<string | null>(null);
 const saving = ref(false);
 
@@ -189,6 +292,7 @@ function openForm(account?: JooxAccount): void {
     accountName: account?.accountName ?? '',
     accountUser: account?.accountUser ?? '',
     note: account?.note ?? '',
+    score: account ? String(account.score) : '',
   };
   formError.value = null;
   editing.value = { id: account?.id ?? null };
@@ -196,10 +300,16 @@ function openForm(account?: JooxAccount): void {
 
 async function submitForm(): Promise<void> {
   if (!editing.value) return;
+  const score = readScore(form.value.score);
+  if (score === null) {
+    formError.value = SCORE_ERROR;
+    return;
+  }
   const input = {
     accountName: form.value.accountName.trim(),
     accountUser: form.value.accountUser.trim(),
     note: form.value.note.trim(),
+    score,
   };
   if (!input.accountName) {
     formError.value = 'กรุณากรอกชื่อบัญชี';
@@ -404,6 +514,22 @@ async function savePicks(): Promise<void> {
     </div>
 
     <template v-else-if="accounts.length > 0">
+      <!--
+        The headline number, and the one the page is asked for most: every account's score
+        added up. Always the whole list, never what a search has narrowed it to.
+      -->
+      <div class="score-total" role="status" aria-live="polite">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide opacity-70">คะแนนรวมทุกบัญชี</p>
+          <p class="text-4xl font-extrabold tabular-nums leading-tight">
+            {{ formatScore(totalScore) }}
+          </p>
+        </div>
+        <p class="text-sm opacity-70 text-right">
+          {{ accounts.length }} บัญชี
+        </p>
+      </div>
+
       <p class="text-sm text-gray-600 mb-3" role="status" aria-live="polite">
         โหวตครบแล้ว <b>{{ fullCount }}</b> / {{ accounts.length }} บัญชี · วันนี้โหวตไป
         <b>{{ votesToday }}</b> ครั้ง
@@ -489,6 +615,64 @@ async function savePicks(): Promise<void> {
             class="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 mb-3 whitespace-pre-line break-words"
           >
             {{ a.note }}
+          </p>
+
+          <!--
+            The score, edited in place. Closed it is a button showing the number; open it is a
+            field with save and cancel, and Enter and Escape do the same two things — a phone
+            keyboard's "done" key is Enter, and it is what a thumb will reach for.
+          -->
+          <div class="score-row">
+            <span class="text-xs font-medium text-gray-500 shrink-0">คะแนน</span>
+            <template v-if="scoring?.id === a.id">
+              <input
+                v-model="scoring.text"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                maxlength="13"
+                class="score-input"
+                :aria-label="`คะแนนของ ${a.accountName}`"
+                :disabled="scoreSaving"
+                @keydown.enter.prevent="saveScore"
+                @keydown.esc.prevent="closeScore"
+              />
+              <button
+                type="button"
+                class="tap btn-done px-3"
+                :disabled="scoreSaving"
+                :aria-label="`บันทึกคะแนนของ ${a.accountName}`"
+                @click="saveScore"
+              >
+                {{ scoreSaving ? '…' : '✓' }}
+              </button>
+              <button
+                type="button"
+                class="tap btn-ghost px-3"
+                :disabled="scoreSaving"
+                aria-label="ยกเลิกการแก้คะแนน"
+                @click="closeScore"
+              >
+                ✕
+              </button>
+            </template>
+            <button
+              v-else
+              type="button"
+              class="tap score-value"
+              :aria-label="`แก้คะแนนของ ${a.accountName} ตอนนี้ ${formatScore(a.score)}`"
+              @click="openScore(a)"
+            >
+              <span class="tabular-nums font-bold text-lg">{{ formatScore(a.score) }}</span>
+              <span class="text-xs text-gray-400" aria-hidden="true">แตะเพื่อแก้</span>
+            </button>
+          </div>
+          <p
+            v-if="scoreError && scoring?.id === a.id"
+            class="text-sm text-red-600 mb-3"
+            role="alert"
+          >
+            {{ scoreError }}
           </p>
 
           <div class="mb-3">
@@ -594,6 +778,22 @@ async function savePicks(): Promise<void> {
               enterkeyhint="next"
               placeholder="name@example.com หรือ 0812345678"
               class="input"
+            />
+          </div>
+          <div>
+            <label for="joox-acc-score" class="block text-sm font-medium mb-1">
+              คะแนน <span class="text-gray-400 font-normal">(ไม่บังคับ)</span>
+            </label>
+            <input
+              id="joox-acc-score"
+              v-model="form.score"
+              type="text"
+              inputmode="numeric"
+              maxlength="13"
+              autocomplete="off"
+              enterkeyhint="next"
+              placeholder="0"
+              class="input tabular-nums"
             />
           </div>
           <div>
@@ -789,6 +989,27 @@ async function savePicks(): Promise<void> {
 }
 .btn-delete-solid {
   @apply bg-red-600 text-white font-semibold px-5 py-3 rounded-lg hover:bg-red-700 disabled:opacity-50;
+}
+
+/*
+ * The total, in the checklist's yellow so it reads as this page's one headline figure rather
+ * than as another card in the list.
+ */
+.score-total {
+  background: #ffde59;
+  @apply flex items-end justify-between gap-3 rounded-2xl px-4 py-3 mb-3 text-gray-900 shadow-sm;
+}
+
+.score-row { @apply flex items-center gap-2 mb-3; }
+/* Closed: the number and its invitation, filling the row so the whole strip is the target. */
+.score-value {
+  @apply flex flex-1 items-baseline justify-between gap-2 rounded-lg border border-gray-200
+    bg-gray-50 px-3 text-left hover:bg-gray-100;
+}
+/* Open: `.input` is the whole width, which a field sharing a row with two buttons is not. */
+.score-input {
+  @apply min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-base tabular-nums
+    focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50;
 }
 
 .chip { @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold break-all; }
