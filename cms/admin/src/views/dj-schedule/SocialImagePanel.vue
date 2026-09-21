@@ -39,6 +39,12 @@ const ZONES = {
   left: { x: 0.05, y: 0.565, w: 0.22 },
   right: { x: 0.73, y: 0.525, w: 0.22 },
 };
+/**
+ * With an odd number of DJs the right side takes the extra one, and starts higher — just under
+ * "UNBOUND" — to make room for it. With an even number the sides hold the same, and the right
+ * starts lower (`ZONES.right.y`) so the two answer each other across the artist.
+ */
+const RIGHT_Y_WHEN_FULLER = 0.49;
 /** Both sides may run down to here, just above the date band. */
 const ZONE_BOTTOM = 0.765;
 /** The largest a picture gets — what a single DJ on a side is drawn at. */
@@ -234,17 +240,22 @@ async function render(): Promise<void> {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(bg, 0, 0, W, H);
 
-    // DJs alternate left, right, left…. Each side lays its own out in the grid that gives its
+    // DJs alternate right, left, right…. Each side lays its own out in the grid that gives its
     // pictures the most room between its line of text and the date band; then both sides draw
     // at the smaller of the two sizes, so the pictures match across the artist, with a gap
     // between each. However many there are, they shrink to fit and never reach the text.
     const sides: Record<'left' | 'right', HTMLImageElement[]> = { left: [], right: [] };
-    pictures.forEach((img, i) => sides[i % 2 === 0 ? 'left' : 'right'].push(img));
+    // Alternate, starting on the right: an odd count leaves the right side one ahead.
+    pictures.forEach((img, i) => sides[i % 2 === 0 ? 'right' : 'left'].push(img));
+    const rightFuller = sides.right.length > sides.left.length;
     const gap = PICTURE_GAP * H;
     const layouts = (['left', 'right'] as const)
       .filter((side) => sides[side].length)
       .map((side) => {
-        const z = ZONES[side];
+        const z =
+          side === 'right' && rightFuller
+            ? { ...ZONES.right, y: RIGHT_Y_WHEN_FULLER }
+            : ZONES[side];
         const box = { x: z.x * W, y: z.y * H, w: z.w * W, h: (ZONE_BOTTOM - z.y) * H };
         return { side, list: sides[side], box, ...bestGrid(sides[side].length, box.w, box.h, gap) };
       });
