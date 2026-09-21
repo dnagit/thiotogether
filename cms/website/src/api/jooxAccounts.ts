@@ -4,7 +4,7 @@
  *   GET    /public/joox-accounts            → this voter's accounts, with today's votes
  *   POST   /public/joox-accounts            → add { accountName, accountUser, note, score }
  *   PATCH  /public/joox-accounts/:id        → the same four fields
- *   PATCH  /public/joox-accounts/:id/score  → { score } alone, for the box on the card
+ *   PATCH  /public/joox-accounts/:id/score  → { score?, scoreDone? }, for the card's own box
  *   DELETE /public/joox-accounts/:id
  *   PUT    /public/joox-accounts/:id/votes  → { voteAccountIds }: today's votes, the whole set
  *
@@ -21,7 +21,7 @@ export interface JooxAccountInput {
   accountName: string;
   accountUser: string;
   note: string;
-  /** The voter's running score. Whole and never negative; see {@link JooxAccount.score}. */
+  /** Today's score. Whole and never negative; see {@link JooxAccount.score}. */
   score: number;
 }
 
@@ -40,15 +40,19 @@ export async function updateJooxAccount(id: number, input: JooxAccountInput): Pr
 }
 
 /**
- * The score alone, which is what the box on the card sends.
+ * Today's score, the tick, or both — whichever the card changed.
  *
- * Separate from {@link updateJooxAccount} so that changing a number cannot carry a stale copy
- * of the name and login back to the server with it.
+ * A patch, not a replacement: the number and the tick are tapped separately, so sending one
+ * must leave the other alone. Separate from {@link updateJooxAccount} so that changing either
+ * cannot carry a stale copy of the name and login back to the server with it.
  */
-export async function setJooxAccountScore(id: number, score: number): Promise<JooxAccount> {
+export async function setJooxAccountScore(
+  id: number,
+  patch: { score?: number; scoreDone?: boolean },
+): Promise<JooxAccount> {
   const { data } = await api.patch<ApiResponse<JooxAccount>>(
     `/public/joox-accounts/${id}/score`,
-    { score },
+    patch,
   );
   return data.data;
 }

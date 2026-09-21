@@ -12,9 +12,10 @@
  * 23:00 Thai-time reset. Picking here changes nothing on the checklist — this page only keeps
  * track.
  *
- * Each account also carries a score the voter keeps by hand — see {@link JooxAccount.score}.
- * It is nothing to do with the votes and never resets; the page adds it up across every
- * account and shows the total at the top.
+ * Each account also carries a score the voter keeps by hand, and a tick for having collected
+ * it — see {@link JooxAccount.score}. Neither has anything to do with the votes, but both are
+ * on the same clock: they come back to zero and off at the 23:00 reset, like everything else
+ * on these two pages. The page adds the scores up and shows today's total at the top.
  *
  * Laid out for a phone like the checklist: search and a filter on top, one card per account,
  * and add / edit / delete / pick votes each in a dialog. The score is the one thing edited
@@ -187,6 +188,8 @@ const votesToday = computed(() => accounts.value.reduce((sum, a) => sum + a.vote
  * of accounts it covers, which is what makes the two agree.
  */
 const totalScore = computed(() => accounts.value.reduce((sum, a) => sum + a.score, 0));
+/** How many accounts have today's score ticked off. */
+const collectedCount = computed(() => accounts.value.filter((a) => a.scoreDone).length);
 
 /** Grouped thousands, which is the only way a seven-figure total is read at a glance. */
 function formatScore(value: number): string {
@@ -261,7 +264,7 @@ async function saveScore(): Promise<void> {
   scoreSaving.value = true;
   scoreError.value = null;
   try {
-    const row = await setJooxAccountScore(open.id, score);
+    const row = await setJooxAccountScore(open.id, { score });
     put(row);
     closeScore();
     flash(`บันทึกคะแนน ${row.accountName} เป็น ${formatScore(row.score)} แล้ว`);
@@ -276,6 +279,36 @@ async function saveScore(): Promise<void> {
     scoreError.value = messageOf(err, 'บันทึกคะแนนไม่สำเร็จ กรุณาลองใหม่');
   } finally {
     scoreSaving.value = false;
+  }
+}
+
+/**
+ * The "เก็บคะแนนแล้ว" tick, which saves the moment it is tapped.
+ *
+ * Shown ticked straight away and put back if the save fails: a checkbox that waits on the
+ * network before it moves reads as broken, and the one thing that must not happen is a voter
+ * tapping it twice because the first tap looked ignored. `toggling` holds the ids in flight so
+ * the box stays disabled until its own answer arrives.
+ */
+const toggling = ref<number[]>([]);
+
+async function toggleCollected(account: JooxAccount, next: boolean): Promise<void> {
+  if (toggling.value.includes(account.id)) return;
+  toggling.value = [...toggling.value, account.id];
+  put({ ...account, scoreDone: next });
+  try {
+    put(await setJooxAccountScore(account.id, { scoreDone: next }));
+  } catch (err) {
+    if (checkAuth(err)) return;
+    if (statusOf(err) === 404) {
+      drop(account.id);
+      flash(messageOf(err, 'ไม่พบบัญชีนี้ อาจถูกลบไปแล้ว'));
+      return;
+    }
+    put(account);
+    flash(messageOf(err, 'บันทึกไม่สำเร็จ กรุณาลองใหม่'));
+  } finally {
+    toggling.value = toggling.value.filter((id) => id !== account.id);
   }
 }
 
@@ -515,18 +548,21 @@ async function savePicks(): Promise<void> {
 
     <template v-else-if="accounts.length > 0">
       <!--
-        The headline number, and the one the page is asked for most: every account's score
-        added up. Always the whole list, never what a search has narrowed it to.
+        The headline number, and the one the page is asked for most: today's score across every
+        account. Always the whole list, never what a search has narrowed it to — and "วันนี้"
+        is said out loud, because a total that empties itself overnight has to explain why.
       -->
       <div class="score-total" role="status" aria-live="polite">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-wide opacity-70">คะแนนรวมทุกบัญชี</p>
+          <p class="text-xs font-semibold uppercase tracking-wide opacity-70">
+            คะแนนรวมทุกบัญชีวันนี้
+          </p>
           <p class="text-4xl font-extrabold tabular-nums leading-tight">
             {{ formatScore(totalScore) }}
           </p>
         </div>
-        <p class="text-sm opacity-70 text-right">
-          {{ accounts.length }} บัญชี
+        <p class="text-sm opacity-70 text-right leading-snug">
+          เก็บแล้ว<br /><b class="tabular-nums">{{ collectedCount }}</b> / {{ accounts.length }} บัญชี
         </p>
       </div>
 
@@ -616,6 +652,22 @@ async function savePicks(): Promise<void> {
           >
             {{ a.note }}
           </p>
+
+          <!--
+            Collected today. A real checkbox, so a screen reader and a keyboard get it for
+            free, dressed as a full-width row because a bare 16px box is not a phone target.
+          -->
+          <label class="collect-row" :class="{ 'collect-row-on': a.scoreDone }">
+            <input
+              type="checkbox"
+              class="h-5 w-5 shrink-0 accent-green-600"
+              :checked="a.scoreDone"
+              :disabled="toggling.includes(a.id)"
+              @change="toggleCollected(a, ($event.target as HTMLInputElement).checked)"
+            />
+            <span class="font-semibold">เก็บคะแนนแล้ววันนี้</span>
+            <span v-if="a.scoreDone" class="ml-auto text-green-700" aria-hidden="true">✓</span>
+          </label>
 
           <!--
             The score, edited in place. Closed it is a button showing the number; open it is a
@@ -782,7 +834,7 @@ async function savePicks(): Promise<void> {
           </div>
           <div>
             <label for="joox-acc-score" class="block text-sm font-medium mb-1">
-              คะแนน <span class="text-gray-400 font-normal">(ไม่บังคับ)</span>
+              คะแนนวันนี้ <span class="text-gray-400 font-normal">(ไม่บังคับ)</span>
             </label>
             <input
               id="joox-acc-score"
@@ -999,6 +1051,17 @@ async function savePicks(): Promise<void> {
   background: #ffde59;
   @apply flex items-end justify-between gap-3 rounded-2xl px-4 py-3 mb-3 text-gray-900 shadow-sm;
 }
+
+/* The tick. A label rather than a box with text beside it, so the whole strip is the target. */
+.collect-row {
+  @apply mb-2 flex cursor-pointer items-center gap-2.5 rounded-lg border border-gray-200
+    bg-gray-50 px-3 text-sm text-gray-700 hover:bg-gray-100;
+  min-height: 48px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.collect-row-on { @apply border-green-300 bg-green-50 text-green-800; }
+.collect-row:has(input:disabled) { @apply opacity-60; }
 
 .score-row { @apply flex items-center gap-2 mb-3; }
 /* Closed: the number and its invitation, filling the row so the whole strip is the target. */
