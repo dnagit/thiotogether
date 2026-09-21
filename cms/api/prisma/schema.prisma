@@ -1142,3 +1142,41 @@ model JooxAccountVote {
   @@index([voteAccountId])
   @@map("joox_account_votes")
 }
+
+/// A DJ who hosts on air. The picture is what the website's ON AIR panel shows.
+model Dj {
+  id    Int     @id @default(autoincrement())
+  name  String  @db.VarChar(100)
+  image String? @db.VarChar(500)
+  note  String? @db.VarChar(500)
+
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  slots DjSlot[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("djs")
+}
+
+/// One stretch of air time for one DJ. May cross midnight — `endsAt` is on whatever day it ends.
+model DjSlot {
+  id       Int      @id @default(autoincrement())
+  djId     Int      @map("dj_id")
+  startsAt DateTime @map("starts_at")
+  endsAt   DateTime @map("ends_at")
+  note     String?  @db.VarChar(300)
+
+  dj Dj @relation(fields: [djId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([startsAt])
+  @@index([djId])
+  @@map("dj_slots")
+}

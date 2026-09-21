@@ -65,6 +65,9 @@ export const PERMISSIONS = {
   JOOX_VOTERS_VIEW: 'joox-voters.view',
   JOOX_VOTERS_MANAGE: 'joox-voters.manage',
 
+  DJ_SCHEDULE_VIEW: 'dj-schedule.view',
+  DJ_SCHEDULE_MANAGE: 'dj-schedule.manage',
+
   AUDIT_LOGS_VIEW: 'audit-logs.view',
 } as const;
 
@@ -91,5 +94,6 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.GAMES_VIEW,
     PERMISSIONS.BIRTHDAY_VIEW,
     PERMISSIONS.PROJECTS_VIEW,
+    PERMISSIONS.DJ_SCHEDULE_VIEW,
   ],
 };

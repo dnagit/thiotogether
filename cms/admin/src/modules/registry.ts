@@ -211,6 +211,18 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'dj-schedule',
+    menu: { label: 'ตาราง DJ', icon: 'Microphone', order: 7.7, permission: PERMISSIONS.DJ_SCHEDULE_VIEW },
+    routes: [
+      {
+        path: 'dj-schedule',
+        name: 'dj-schedule',
+        component: () => import('@/views/dj-schedule/DjScheduleView.vue'),
+        meta: { title: 'ตาราง DJ', permission: PERMISSIONS.DJ_SCHEDULE_VIEW },
+      },
+    ],
+  },
+  {
     name: 'tokens',
     menu: { label: 'Token', icon: 'Coin', order: 8, permission: PERMISSIONS.TOKENS_VIEW },
     routes: [

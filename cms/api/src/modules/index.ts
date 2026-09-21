@@ -22,6 +22,8 @@ import { projectsModule } from './projects/projects.module.js';
 import { publicJooxVotesModule } from './public-joox-votes/publicJooxVotes.module.js';
 import { jooxVotersModule } from './joox-voters/jooxVoters.module.js';
 import { publicJooxAuthModule } from './joox-voters/publicJooxAuth.module.js';
+import { djScheduleModule } from './dj-schedule/djSchedule.module.js';
+import { publicDjScheduleModule } from './public-dj-schedule/publicDjSchedule.module.js';
 import { publicJooxAccountsModule } from './public-joox-accounts/publicJooxAccounts.module.js';
 
 /**
@@ -48,10 +50,12 @@ export const modules: FeatureModule[] = [
   tokensModule,
   birthdayModule,
   jooxVotersModule,
+  djScheduleModule,
   publicModule,
   publicGamesModule,
   publicBirthdayModule,
   publicJooxAuthModule,
   publicJooxVotesModule,
   publicJooxAccountsModule,
+  publicDjScheduleModule,
 ];

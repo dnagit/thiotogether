@@ -13,6 +13,13 @@ const props = defineProps<{
   busy?: boolean;
   /** `lg` widens the panel for content that is a picture rather than a prompt. */
   size?: 'md' | 'lg';
+  /**
+   * Extra class and inline style for the panel, for a caller that gives its popup its own
+   * look (the DJ calendar's dark stage). The panel is teleported to <body>, so a caller's
+   * scoped styles cannot reach it any other way.
+   */
+  panelClass?: string;
+  panelStyle?: Record<string, string>;
 }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -88,7 +95,8 @@ onBeforeUnmount(() => {
           :aria-label="title"
           class="relative w-full bg-white rounded-t-2xl sm:rounded-2xl shadow-xl p-6
                  max-h-[92vh] overflow-y-auto"
-          :class="size === 'lg' ? 'sm:max-w-lg' : 'sm:max-w-md'"
+          :class="[size === 'lg' ? 'sm:max-w-lg' : 'sm:max-w-md', panelClass]"
+          :style="panelStyle"
         >
           <h2 class="text-lg font-bold mb-3">{{ title }}</h2>
           <slot />
