@@ -12,10 +12,11 @@
  * 23:00 Thai-time reset. Picking here changes nothing on the checklist — this page only keeps
  * track.
  *
- * Each account also carries a score the voter keeps by hand, and a tick for having collected
- * it — see {@link JooxAccount.score}. Neither has anything to do with the votes, but both are
- * on the same clock: they come back to zero and off at the 23:00 reset, like everything else
- * on these two pages. The page adds the scores up and shows today's total at the top.
+ * Each account also carries a score the voter keeps by hand, and a tick for having put today's
+ * in — see {@link JooxAccount.score}. The two keep different clocks on purpose: the score is a
+ * running total that only an edit changes, while the tick is a daily mark and comes off at the
+ * 23:00 reset with everything else on these two pages. The page adds the scores up and shows
+ * the total at the top, with the day's ticks counted beside it.
  *
  * Laid out for a phone like the checklist: search and a filter on top, one card per account,
  * and add / edit / delete / pick votes each in a dialog. The score is the one thing edited
@@ -188,8 +189,8 @@ const votesToday = computed(() => accounts.value.reduce((sum, a) => sum + a.vote
  * of accounts it covers, which is what makes the two agree.
  */
 const totalScore = computed(() => accounts.value.reduce((sum, a) => sum + a.score, 0));
-/** How many accounts have today's score ticked off. */
-const collectedCount = computed(() => accounts.value.filter((a) => a.scoreDone).length);
+/** How many accounts have had today's score put in. Back to zero after the 23:00 reset. */
+const enteredCount = computed(() => accounts.value.filter((a) => a.scoreDone).length);
 
 /** Grouped thousands, which is the only way a seven-figure total is read at a glance. */
 function formatScore(value: number): string {
@@ -283,7 +284,7 @@ async function saveScore(): Promise<void> {
 }
 
 /**
- * The "เก็บคะแนนแล้ว" tick, which saves the moment it is tapped.
+ * The "ใส่คะแนนแล้ว" tick, which saves the moment it is tapped.
  *
  * Shown ticked straight away and put back if the save fails: a checkbox that waits on the
  * network before it moves reads as broken, and the one thing that must not happen is a voter
@@ -292,7 +293,7 @@ async function saveScore(): Promise<void> {
  */
 const toggling = ref<number[]>([]);
 
-async function toggleCollected(account: JooxAccount, next: boolean): Promise<void> {
+async function toggleEntered(account: JooxAccount, next: boolean): Promise<void> {
   if (toggling.value.includes(account.id)) return;
   toggling.value = [...toggling.value, account.id];
   put({ ...account, scoreDone: next });
@@ -548,21 +549,19 @@ async function savePicks(): Promise<void> {
 
     <template v-else-if="accounts.length > 0">
       <!--
-        The headline number, and the one the page is asked for most: today's score across every
-        account. Always the whole list, never what a search has narrowed it to — and "วันนี้"
-        is said out loud, because a total that empties itself overnight has to explain why.
+        The headline number, and the one the page is asked for most: every account's score
+        added up. Always the whole list, never what a search has narrowed it to — the heading
+        says "ทุกบัญชี" and means it, and the tally beside it says how far today has got.
       -->
       <div class="score-total" role="status" aria-live="polite">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-wide opacity-70">
-            คะแนนรวมทุกบัญชีวันนี้
-          </p>
+          <p class="text-xs font-semibold uppercase tracking-wide opacity-70">คะแนนรวมทุกบัญชี</p>
           <p class="text-4xl font-extrabold tabular-nums leading-tight">
             {{ formatScore(totalScore) }}
           </p>
         </div>
         <p class="text-sm opacity-70 text-right leading-snug">
-          เก็บแล้ว<br /><b class="tabular-nums">{{ collectedCount }}</b> / {{ accounts.length }} บัญชี
+          วันนี้ใส่แล้ว<br /><b class="tabular-nums">{{ enteredCount }}</b> / {{ accounts.length }} บัญชี
         </p>
       </div>
 
@@ -654,8 +653,9 @@ async function savePicks(): Promise<void> {
           </p>
 
           <!--
-            Collected today. A real checkbox, so a screen reader and a keyboard get it for
-            free, dressed as a full-width row because a bare 16px box is not a phone target.
+            Today's mark for having put the score in. A real checkbox, so a screen reader and a
+            keyboard get it for free, dressed as a full-width row because a bare 16px box is
+            not a phone target. Only this comes off at 23:00 — the number below it stays.
           -->
           <label class="collect-row" :class="{ 'collect-row-on': a.scoreDone }">
             <input
@@ -663,9 +663,9 @@ async function savePicks(): Promise<void> {
               class="h-5 w-5 shrink-0 accent-green-600"
               :checked="a.scoreDone"
               :disabled="toggling.includes(a.id)"
-              @change="toggleCollected(a, ($event.target as HTMLInputElement).checked)"
+              @change="toggleEntered(a, ($event.target as HTMLInputElement).checked)"
             />
-            <span class="font-semibold">เก็บคะแนนแล้ววันนี้</span>
+            <span class="font-semibold">ใส่คะแนนแล้ววันนี้</span>
             <span v-if="a.scoreDone" class="ml-auto text-green-700" aria-hidden="true">✓</span>
           </label>
 
@@ -834,7 +834,7 @@ async function savePicks(): Promise<void> {
           </div>
           <div>
             <label for="joox-acc-score" class="block text-sm font-medium mb-1">
-              คะแนนวันนี้ <span class="text-gray-400 font-normal">(ไม่บังคับ)</span>
+              คะแนน <span class="text-gray-400 font-normal">(ไม่บังคับ)</span>
             </label>
             <input
               id="joox-acc-score"

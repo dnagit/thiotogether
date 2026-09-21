@@ -36,11 +36,11 @@ import { requireJooxVoter } from '../joox-voters/jooxVoterAuth.js';
  * checklist's own counts — the two pages are kept apart on purpose. The 23:00 Thai-time reset
  * is the same as there: each vote carries its voting day, and reads ask for today's.
  *
- * The score an account carries is on that same clock, and by the checklist's method rather
- * than the votes': one column for the number, one for the tick, and one for the day the two
- * belong to. {@link toPublic} reports a day gone by as 0 and false, and {@link writeScore}
- * starts the day over in the same UPDATE that writes to it — so nothing has to run at 23:00,
- * and a server restarted across it cannot miss the reset.
+ * The score an account carries is *not* on that clock: it is a running total the voter keeps,
+ * and only an edit changes it. What is daily is the tick beside it, which says today's score
+ * has been put in — that follows the checklist's method, carrying the day it belongs to, so
+ * {@link toPublic} reports a day gone by as unticked and the next write stamps the new day.
+ * Nothing has to run at 23:00, and a server restarted across it cannot miss the reset.
  */
 
 const router = Router();
@@ -68,11 +68,12 @@ const scoreField = z.coerce
 const scoreShape = { score: scoreField.default(0) };
 
 /**
- * The card's own box, which sends whichever of the two it changed.
+ * The card, which sends whichever of the two it changed.
  *
  * Both optional and neither implied: the tick and the number sit next to each other on the
  * card but are tapped separately, and a request carrying only one must leave the other where
- * it is. Sending neither is the one thing that is not a request at all.
+ * it is — the more so now that they keep different clocks. Sending neither is the one thing
+ * that is not a request at all.
  */
 const scorePatchSchema = z
   .object({
@@ -121,7 +122,7 @@ function accountSelect(today: number) {
     note: true,
     score: true,
     scoreDone: true,
-    scoreDay: true,
+    scoreDoneDay: true,
     votes: {
       where: { voteDay: today },
       orderBy: { id: 'asc' },
@@ -135,16 +136,15 @@ function accountSelect(today: number) {
 
 type Row = Prisma.JooxAccountGetPayload<{ select: ReturnType<typeof accountSelect> }>;
 
-/** What leaves the API: today's score, or zero for a row not written to since the last reset. */
+/** What leaves the API. The score stands as stored; the tick is only ever today's. */
 function toPublic(row: Row, today: number): JooxAccount {
-  const current = row.scoreDay >= today;
   return {
     id: row.id,
     accountName: row.accountName,
     accountUser: row.accountUser,
     note: row.note,
-    score: current ? row.score : 0,
-    scoreDone: current ? row.scoreDone : false,
+    score: row.score,
+    scoreDone: row.scoreDoneDay >= today && row.scoreDone,
     votes: row.votes.map((v) => ({
       voteAccountId: v.voteAccountId,
       accountName: v.voteAccount.accountName,
@@ -154,36 +154,18 @@ function toPublic(row: Row, today: number): JooxAccount {
 }
 
 /**
- * Writes whichever of the score and the tick was sent, and starts the day over if it has.
+ * The columns a `{ score?, scoreDone? }` patch writes — a patch, so a field that was not sent
+ * is left alone rather than set to a default.
  *
- * Raw, and in one statement, because the reset has to happen in the same write: a tick
- * arriving on a stale row must not inherit yesterday's number, and reading the day first and
- * deciding in JavaScript would leave a gap across 23:00 for it to do exactly that.
- *
- * `COALESCE` is what makes it a patch — a parameter that was sent wins, and one that was not
- * falls through to today's stored value, or to nothing at all when the day has turned. The
- * casts are needed because both parameters can be null, which Postgres cannot type on its own.
- *
- * Scoped by `voterId` like every other query here, so somebody else's id writes nothing and
- * is answered as a row that does not exist.
+ * The tick carries the day it was made on, which is what the 23:00 reset is built out of:
+ * {@link toPublic} reads a stamp older than today as unticked, so there is nothing to clear.
+ * The score is written as it stands, because it is not on that clock at all.
  */
-async function writeScore(
-  id: number,
-  voterId: number,
-  patch: { score?: number; scoreDone?: boolean },
-  today: number,
-): Promise<number> {
-  const rows = await prisma.$queryRaw<Array<{ id: number }>>`
-    UPDATE joox_accounts
-    SET score      = COALESCE(${patch.score ?? null}::int,
-                              CASE WHEN score_day >= ${today} THEN score ELSE 0 END),
-        score_done = COALESCE(${patch.scoreDone ?? null}::boolean,
-                              CASE WHEN score_day >= ${today} THEN score_done ELSE false END),
-        score_day  = GREATEST(score_day, ${today}),
-        updated_at = NOW() AT TIME ZONE 'UTC'
-    WHERE id = ${id} AND voter_id = ${voterId} AND deleted_at IS NULL
-    RETURNING id`;
-  return rows.length;
+function scoreData(patch: { score?: number; scoreDone?: boolean }, today: number) {
+  return {
+    ...(patch.score !== undefined && { score: patch.score }),
+    ...(patch.scoreDone !== undefined && { scoreDone: patch.scoreDone, scoreDoneDay: today }),
+  };
 }
 
 function gone(): AppError {
@@ -226,9 +208,7 @@ router.post(
           accountName,
           accountUser,
           note,
-          // A row written now is today's, so there is no stale day for the score to inherit.
           score,
-          scoreDay: today,
           userKey: jooxAccountUserKey(accountUser),
         },
         select: accountSelect(today),
@@ -247,24 +227,20 @@ router.patch(
   validate({ params: idParams, body: accountSchema }),
   asyncHandler(async (req, res) => {
     const { accountName, accountUser, note, score } = req.body as z.infer<typeof accountSchema>;
-    const id = Number(req.params.id);
-    const voterId = req.jooxVoter!.id;
-    const where = { id, voterId, deletedAt: null };
+    const where = { id: Number(req.params.id), voterId: req.jooxVoter!.id, deletedAt: null };
     const today = jooxVoteDay();
     try {
       const { count } = await prisma.jooxAccount.updateMany({
         where,
-        data: { accountName, accountUser, note, userKey: jooxAccountUserKey(accountUser) },
+        // The tick is left alone: it is the card's, and a form that does not show it must not
+        // turn it off.
+        data: { accountName, accountUser, note, score, userKey: jooxAccountUserKey(accountUser) },
       });
       if (count === 0) throw gone();
     } catch (err) {
       if (duplicate(err)) throw new ConflictError(DUPLICATE_MESSAGE);
       throw err;
     }
-    // The score goes through the same statement as the card's box, so the form cannot be the
-    // one path that writes a number without moving the day on with it. The tick is left alone:
-    // it is the card's, and a form that does not show it must not turn it off.
-    if ((await writeScore(id, voterId, { score }, today)) === 0) throw gone();
 
     const row = await prisma.jooxAccount.findFirst({ where, select: accountSelect(today) });
     if (!row) throw gone();
@@ -286,15 +262,15 @@ router.patch(
   validate({ params: idParams, body: scorePatchSchema }),
   asyncHandler(async (req, res) => {
     const patch = req.body as z.infer<typeof scorePatchSchema>;
-    const id = Number(req.params.id);
-    const voterId = req.jooxVoter!.id;
+    const where = { id: Number(req.params.id), voterId: req.jooxVoter!.id, deletedAt: null };
     const today = jooxVoteDay();
 
-    if ((await writeScore(id, voterId, patch, today)) === 0) throw gone();
-    const row = await prisma.jooxAccount.findFirst({
-      where: { id, voterId, deletedAt: null },
-      select: accountSelect(today),
+    const { count } = await prisma.jooxAccount.updateMany({
+      where,
+      data: scoreData(patch, today),
     });
+    if (count === 0) throw gone();
+    const row = await prisma.jooxAccount.findFirst({ where, select: accountSelect(today) });
     if (!row) throw gone();
     ok(res, toPublic(row, today), patch.score === undefined ? 'บันทึกแล้ว' : 'บันทึกคะแนนแล้ว');
   }),
