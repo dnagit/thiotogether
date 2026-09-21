@@ -39,3 +39,115 @@ body,
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
+
+/*
+ * Phones. Element Plus sizes dialogs and message boxes in px through CSS variables; on a
+ * narrow screen they are made to fit it instead, which reaches every dialog in the admin.
+ */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 12px;
+  }
+  .page-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .page-header h1 {
+    font-size: 18px;
+  }
+  .el-card {
+    --el-card-padding: 12px;
+  }
+  .toolbar > .el-input,
+  .toolbar > .el-select {
+    width: 100% !important;
+  }
+  .el-dialog {
+    --el-dialog-width: calc(100vw - 16px) !important;
+    --el-dialog-margin-top: 4vh !important;
+    --el-dialog-padding-primary: 14px;
+  }
+  .el-dialog__footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .el-dialog__footer .el-button + .el-button {
+    margin-left: 0;
+  }
+  .el-message-box {
+    --el-messagebox-width: calc(100vw - 32px) !important;
+    max-width: 420px;
+  }
+  /* 16px stops iOS Safari zooming the page in whenever a field is tapped. */
+  .el-input__inner,
+  .el-textarea__inner,
+  .el-select__selected-item,
+  input,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/*
+ * Card lists: what list pages show on a phone in place of a table. One row per record, the
+ * title first, the details under it, the actions in a row that wraps.
+ */
+.m-list {
+  display: flex;
+  flex-direction: column;
+}
+.m-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+.m-card:last-child {
+  border-bottom: 0;
+}
+.m-card.tappable {
+  cursor: pointer;
+}
+.m-card.tappable:active {
+  background: var(--el-fill-color-light);
+}
+.m-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.m-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.m-card-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.m-card-meta {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  overflow-wrap: anywhere;
+}
+.m-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.m-card-actions .el-button + .el-button {
+  margin-left: 0;
+}
+.m-empty {
+  text-align: center;
+  padding: 24px 0;
+  color: var(--el-text-color-secondary);
+}
+

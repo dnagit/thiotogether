@@ -3,7 +3,8 @@
  * Page Builder: drag-sortable block list + palette + data-driven props editor.
  * Saves the whole block set atomically via PUT /pages/:id/blocks.
  */
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useIsMobile } from '@/composables/useIsMobile';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import draggable from 'vuedraggable';
@@ -30,6 +31,16 @@ const blocks = ref<EditableBlock[]>([]);
 const selectedKey = ref<string | null>(null);
 const saving = ref(false);
 const paletteOpen = ref(false);
+
+/*
+ * Phones: no room for the inspector beside the block list, so it becomes a sheet that slides
+ * up over the list when a block is picked, and down again when closed.
+ */
+const isMobile = useIsMobile();
+const inspectorOpen = ref(false);
+watch(selectedKey, (key) => {
+  if (key) inspectorOpen.value = true;
+});
 
 const selected = computed(() => blocks.value.find((b) => b._key === selectedKey.value) ?? null);
 const selectedDef = computed(() => (selected.value ? blockByType.get(selected.value.type) : null));
@@ -108,7 +119,7 @@ async function save(): Promise<void> {
       <div>
         <ElButton text @click="router.push({ name: 'pages' })">← Pages</ElButton>
         <b>{{ page?.title }}</b>
-        <code class="text-muted">{{ page?.path }}</code>
+        <code v-if="!isMobile" class="text-muted">{{ page?.path }}</code>
       </div>
       <div>
         <ElButton @click="paletteOpen = true">+ Add Block</ElButton>
@@ -140,10 +151,18 @@ async function save(): Promise<void> {
         <ElEmpty v-if="!blocks.length" description="No blocks — click “Add Block” to start building" />
       </div>
 
-      <!-- Inspector -->
-      <div class="inspector">
+      <!-- Inspector (a bottom sheet on phones) -->
+      <div
+        v-if="isMobile && inspectorOpen && selected"
+        class="sheet-backdrop"
+        @click="inspectorOpen = false"
+      />
+      <div class="inspector" :class="{ sheet: isMobile, open: isMobile && inspectorOpen && selected }">
         <template v-if="selected && selectedDef">
-          <h3>{{ selectedDef.icon }} {{ selectedDef.label }}</h3>
+          <div class="inspector-head">
+            <h3>{{ selectedDef.icon }} {{ selectedDef.label }}</h3>
+            <ElButton v-if="isMobile" circle aria-label="ปิด" @click="inspectorOpen = false">✕</ElButton>
+          </div>
           <ElTabs>
             <ElTabPane label="Content">
               <BlockPropsEditor v-model="selected.props" :fields="selectedDef.fields" />
@@ -189,7 +208,7 @@ async function save(): Promise<void> {
     </div>
 
     <!-- Palette -->
-    <ElDrawer v-model="paletteOpen" title="Add Block" size="360px">
+    <ElDrawer v-model="paletteOpen" title="Add Block" :size="isMobile ? '100%' : '360px'">
       <div class="palette">
         <div v-for="def in blockDefinitions" :key="def.type" class="palette-item" @click="addBlock(def.type)">
           <span class="palette-icon">{{ def.icon }}</span>
@@ -225,6 +244,44 @@ async function save(): Promise<void> {
 .block-label { font-weight: 600; }
 .block-summary { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .palette { display: flex; flex-direction: column; gap: 6px; }
+.inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* ── Phones ── */
+@media (max-width: 768px) {
+  .builder-toolbar { flex-wrap: wrap; padding: 8px 12px; }
+  .canvas { padding: 12px; }
+  .block-row { padding: 12px 10px; }
+  .drag-handle { font-size: 20px; padding: 4px 6px; touch-action: none; }
+  .block-summary { display: none; }
+  .block-actions { margin-left: auto; }
+}
+.inspector.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Below Element Plus's popups (2000 and up): dropdowns and the media picker open over it. */
+  z-index: 1500;
+  width: auto;
+  max-height: 80vh;
+  border-left: 0;
+  border-top: 1px solid var(--el-border-color-light);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+  transform: translateY(100%);
+  visibility: hidden;
+  transition: transform 0.25s ease, visibility 0.25s;
+}
+.inspector.sheet.open {
+  transform: translateY(0);
+  visibility: visible;
+}
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1499;
+  background: rgba(0, 0, 0, 0.4);
+}
 .palette-item {
   display: flex; gap: 12px; align-items: center; padding: 10px;
   border: 1px solid var(--el-border-color-light); border-radius: 8px; cursor: pointer;

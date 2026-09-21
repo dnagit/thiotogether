@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { http } from '@/api/http';
+import { useIsMobile } from '@/composables/useIsMobile';
 import { formatCurrency, type ApiResponse, type DonationDashboard } from '@cms/shared';
 
 const data = ref<DonationDashboard | null>(null);
 const loading = ref(true);
+const isMobile = useIsMobile();
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -36,7 +38,25 @@ void load();
       </ElRow>
 
       <ElCard class="mt" header="Per Project">
-        <ElTable :data="data.perProject">
+        <!-- Phones: one card per project -->
+        <div v-if="isMobile" class="m-list">
+          <div v-for="row in data.perProject" :key="row.project.id" class="m-card">
+            <div class="m-card-body">
+              <span class="m-card-title">{{ row.project.name }}</span>
+              <ElProgress :percentage="row.progressPercent" />
+              <span class="m-card-meta">
+                {{ formatCurrency(row.currentAmount, row.project.currency) }} /
+                {{ formatCurrency(row.targetAmount, row.project.currency) }} · เหลือ
+                {{ formatCurrency(row.remainingAmount, row.project.currency) }}
+              </span>
+              <span class="m-card-meta">
+                Donors {{ row.donorCount }} · Pending {{ row.pendingCount }} · Verified
+                {{ row.verifiedCount }} · Rejected {{ row.rejectedCount }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <ElTable v-else :data="data.perProject">
           <ElTableColumn label="Project" min-width="200">
             <template #default="{ row }"><b>{{ row.project.name }}</b></template>
           </ElTableColumn>

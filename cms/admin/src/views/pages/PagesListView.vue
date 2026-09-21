@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { tagMapper } from '@/utils/elementTypes';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useIsMobile } from '@/composables/useIsMobile';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { confirmDelete } from '@/utils/confirm';
@@ -39,6 +40,20 @@ async function duplicate(row: PageTreeNode): Promise<void> {
   await load();
 }
 
+/** Phones get the tree as a flat list of cards, each indented by how deep it sits. */
+const isMobile = useIsMobile();
+const flat = computed(() => {
+  const out: Array<{ node: PageTreeNode; depth: number }> = [];
+  const walk = (nodes: PageTreeNode[], depth: number) => {
+    for (const n of nodes) {
+      out.push({ node: n, depth });
+      walk(n.children ?? [], depth + 1);
+    }
+  };
+  walk(tree.value, 0);
+  return out;
+});
+
 const statusTag = tagMapper({ PUBLISHED: 'success', DRAFT: 'info', ARCHIVED: 'warning' });
 </script>
 
@@ -52,7 +67,53 @@ const statusTag = tagMapper({ PUBLISHED: 'success', DRAFT: 'info', ARCHIVED: 'wa
     </div>
 
     <ElCard>
-      <ElTable v-loading="loading" :data="tree" row-key="id" default-expand-all>
+      <div v-if="isMobile" v-loading="loading" class="m-list">
+        <div
+          v-for="{ node, depth } in flat"
+          :key="node.id"
+          class="m-card"
+          :style="{ paddingLeft: `${4 + depth * 16}px` }"
+        >
+          <div class="m-card-body">
+            <div class="m-card-top">
+              <span class="m-card-title"
+                ><span v-if="depth" class="text-muted">↳ </span>{{ node.title }}</span
+              >
+              <ElTag size="small" :type="statusTag(node.status)">{{ node.status }}</ElTag>
+            </div>
+            <code class="m-card-meta">{{ node.path }}</code>
+            <div class="m-card-actions">
+              <ElButton
+                v-permission="PERMISSIONS.PAGES_UPDATE"
+                size="small"
+                @click="router.push({ name: 'page-edit', params: { id: node.id } })"
+                >Edit</ElButton
+              >
+              <ElButton
+                v-permission="PERMISSIONS.PAGES_UPDATE"
+                size="small"
+                type="primary"
+                plain
+                @click="router.push({ name: 'page-builder', params: { id: node.id } })"
+                >Builder</ElButton
+              >
+              <ElButton v-permission="PERMISSIONS.PAGES_CREATE" size="small" plain @click="duplicate(node)"
+                >Copy</ElButton
+              >
+              <ElButton
+                v-permission="PERMISSIONS.PAGES_DELETE"
+                size="small"
+                type="danger"
+                text
+                @click="remove(node)"
+                >Delete</ElButton
+              >
+            </div>
+          </div>
+        </div>
+        <div v-if="!loading && !flat.length" class="m-empty">No pages yet</div>
+      </div>
+      <ElTable v-else v-loading="loading" :data="tree" row-key="id" default-expand-all>
         <ElTableColumn prop="title" label="Title" min-width="220" />
         <ElTableColumn prop="path" label="URL" min-width="220">
           <template #default="{ row }"><code>{{ row.path }}</code></template>

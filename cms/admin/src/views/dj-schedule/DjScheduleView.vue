@@ -4,9 +4,14 @@
  *
  * Clicking a day adds a slot starting that day; clicking a slot on the calendar edits it.
  * A slot may run past midnight — it then shows on both days, as it does on the website.
+ *
+ * On a phone the month grid is too narrow to read, so the calendar becomes a list of the
+ * month's days that have DJs, the DJs a list of cards, and the date fields the phone's own
+ * date-and-time pickers.
  */
 import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { useIsMobile } from '@/composables/useIsMobile';
 import { http } from '@/api/http';
 import { useCrud } from '@/composables/useCrud';
 import { useAuthStore } from '@/stores/auth';
@@ -42,6 +47,7 @@ const auth = useAuthStore();
 const canManage = computed(() => auth.can(PERMISSIONS.DJ_SCHEDULE_MANAGE));
 
 const tab = ref<'calendar' | 'djs' | 'settings' | 'social'>('calendar');
+const isMobile = useIsMobile();
 
 // ── DJs ─────────────────────────────────────────────────────
 
@@ -179,6 +185,58 @@ const slotsByDay = computed(() => {
   return map;
 });
 
+// ── Phone: the month as a list ──────────────────────────────
+
+const monthLabel = computed(() =>
+  month.value.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }),
+);
+function shiftMonth(by: number): void {
+  const m = month.value;
+  month.value = new Date(m.getFullYear(), m.getMonth() + by, 1);
+}
+
+/** This month's days that have DJs, in order, each with its slots sorted by start. */
+const agenda = computed(() => {
+  const m = month.value;
+  const days: Array<{ key: string; label: string; isToday: boolean; slots: Slot[] }> = [];
+  const last = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  const todayKey = dayKey(new Date());
+  for (let d = 1; d <= last; d++) {
+    const date = new Date(m.getFullYear(), m.getMonth(), d);
+    const key = dayKey(date);
+    const list = slotsByDay.value.get(key);
+    if (!list?.length) continue;
+    days.push({
+      key,
+      label: date.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }),
+      isToday: key === todayKey,
+      slots: [...list].sort(
+        (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+      ),
+    });
+  }
+  return days;
+});
+
+/** "09:00–12:00", with the end's day when it runs past midnight. */
+function slotRange(s: Slot): string {
+  const a = new Date(s.startsAt);
+  const b = new Date(s.endsAt);
+  const sameDay = dayKey(a) === dayKey(b);
+  const end = sameDay
+    ? timeText(s.endsAt)
+    : `${b.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} ${timeText(s.endsAt)}`;
+  return `${timeText(s.startsAt)}–${end}`;
+}
+
+/** New slot from the list: today when looking at this month, else the 1st. */
+function openNewSlotFromList(): void {
+  const now = new Date();
+  const m = month.value;
+  const sameMonth = now.getFullYear() === m.getFullYear() && now.getMonth() === m.getMonth();
+  openNewSlot(dayKey(sameMonth ? now : new Date(m.getFullYear(), m.getMonth(), 1)));
+}
+
 // ── Slot form ───────────────────────────────────────────────
 
 const slotDialog = ref(false);
@@ -192,6 +250,21 @@ const slotForm = reactive({
   repeatCount: 1,
 });
 const savingSlot = ref(false);
+
+/** A Date as `<input type="datetime-local">` wants it: local time, to the minute. */
+const toLocalInput = (d: Date | null) =>
+  d
+    ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    : '';
+const fromLocalInput = (v: string) => (v ? new Date(v) : null);
+const startsAtInput = computed({
+  get: () => toLocalInput(slotForm.startsAt),
+  set: (v: string) => (slotForm.startsAt = fromLocalInput(v)),
+});
+const endsAtInput = computed({
+  get: () => toLocalInput(slotForm.endsAt),
+  set: (v: string) => (slotForm.endsAt = fromLocalInput(v)),
+});
 
 function openNewSlot(day: string): void {
   if (!canManage.value) return;
@@ -283,7 +356,52 @@ async function deleteSlot(): Promise<void> {
 
     <ElTabs v-model="tab">
       <ElTabPane label="ปฏิทิน" name="calendar">
-        <ElCard v-loading="loadingSlots">
+        <!-- Phone: the month as a list of days with DJs -->
+        <ElCard v-if="isMobile" v-loading="loadingSlots">
+          <div class="agenda-head">
+            <ElButton circle aria-label="เดือนก่อนหน้า" @click="shiftMonth(-1)">‹</ElButton>
+            <strong>{{ monthLabel }}</strong>
+            <ElButton circle aria-label="เดือนถัดไป" @click="shiftMonth(1)">›</ElButton>
+          </div>
+          <ElButton v-if="canManage" type="primary" class="agenda-add" @click="openNewSlotFromList">
+            + เพิ่มช่วงเวลา
+          </ElButton>
+          <p v-if="!agenda.length && !loadingSlots" class="hint agenda-empty">
+            เดือนนี้ยังไม่มีคิว DJ · วันที่ไม่มี DJ จะแสดงเป็น Closed บนเว็บ
+          </p>
+          <section v-for="d in agenda" :key="d.key" class="agenda-day">
+            <div class="agenda-date" :class="{ today: d.isToday }">
+              <span>{{ d.label }}</span>
+              <ElButton
+                v-if="canManage"
+                size="small"
+                text
+                type="primary"
+                @click="openNewSlot(d.key)"
+              >
+                + เพิ่ม
+              </ElButton>
+            </div>
+            <button
+              v-for="s in d.slots"
+              :key="s.id"
+              type="button"
+              class="agenda-slot"
+              @click="openSlot(s)"
+            >
+              <img v-if="s.dj.image" :src="s.dj.image" alt="" class="agenda-avatar" />
+              <span v-else class="agenda-avatar blank">🎙️</span>
+              <span class="agenda-body">
+                <span class="agenda-name">{{ s.dj.name }}</span>
+                <span class="agenda-time">{{ slotRange(s) }}</span>
+                <span v-if="s.note" class="agenda-note">{{ s.note }}</span>
+              </span>
+              <span v-if="canManage" class="agenda-chevron" aria-hidden="true">›</span>
+            </button>
+          </section>
+        </ElCard>
+
+        <ElCard v-else v-loading="loadingSlots">
           <p class="hint">
             คลิกที่วันเพื่อเพิ่มช่วงเวลา · คลิกที่ชื่อ DJ เพื่อแก้ไขหรือลบ · วันที่ไม่มี DJ
             จะแสดงเป็น Closed บนเว็บ
@@ -318,7 +436,26 @@ async function deleteSlot(): Promise<void> {
               style="width: 240px"
             />
           </div>
-          <ElTable v-loading="djCrud.loading.value" :data="djCrud.items.value">
+          <!-- Phone: one card per DJ instead of a table too wide to read -->
+          <div v-if="isMobile" v-loading="djCrud.loading.value" class="dj-cards">
+            <div v-for="row in djCrud.items.value" :key="row.id" class="dj-card">
+              <img v-if="row.image" :src="row.image" alt="" class="agenda-avatar" />
+              <span v-else class="agenda-avatar blank">🎙️</span>
+              <span class="agenda-body">
+                <span class="agenda-name">{{ row.name }}</span>
+                <span v-if="row.note" class="agenda-note">{{ row.note }}</span>
+                <ElTag size="small" :type="row.isActive ? 'success' : 'info'" class="dj-card-tag">
+                  {{ row.isActive ? 'แสดง' : 'ซ่อน' }}
+                </ElTag>
+              </span>
+              <span v-if="canManage" class="dj-card-actions">
+                <ElButton size="small" @click="openDj(row)">แก้ไข</ElButton>
+                <ElButton size="small" type="danger" text @click="deleteDj(row)">ลบ</ElButton>
+              </span>
+            </div>
+            <p v-if="!djCrud.items.value.length" class="hint">ยังไม่มี DJ</p>
+          </div>
+          <ElTable v-else v-loading="djCrud.loading.value" :data="djCrud.items.value">
             <ElTableColumn label="รูป" width="80" align="center">
               <template #default="{ row }">
                 <ElImage
@@ -443,7 +580,12 @@ async function deleteSlot(): Promise<void> {
     >
       <ElForm label-position="top">
         <ElFormItem label="DJ" required>
-          <ElSelect v-model="slotForm.djId" filterable placeholder="เลือก DJ" style="width: 100%">
+          <ElSelect
+            v-model="slotForm.djId"
+            :filterable="!isMobile"
+            placeholder="เลือก DJ"
+            style="width: 100%"
+          >
             <ElOption
               v-for="d in allDjs"
               :key="d.id"
@@ -462,7 +604,14 @@ async function deleteSlot(): Promise<void> {
         </ElFormItem>
         <div class="two">
           <ElFormItem label="เริ่ม" required>
+            <input
+              v-if="isMobile"
+              v-model="startsAtInput"
+              type="datetime-local"
+              class="native-dt"
+            />
             <ElDatePicker
+              v-else
               v-model="slotForm.startsAt"
               type="datetime"
               format="DD/MM/YYYY HH:mm"
@@ -470,7 +619,9 @@ async function deleteSlot(): Promise<void> {
             />
           </ElFormItem>
           <ElFormItem label="ถึง" required>
+            <input v-if="isMobile" v-model="endsAtInput" type="datetime-local" class="native-dt" />
             <ElDatePicker
+              v-else
               v-model="slotForm.endsAt"
               type="datetime"
               format="DD/MM/YYYY HH:mm"
@@ -581,6 +732,123 @@ async function deleteSlot(): Promise<void> {
 }
 .settings-form .section-title:not(:first-child) {
   margin-top: 24px;
+}
+/* ── Phone ── */
+.agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.agenda-add {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.agenda-empty {
+  text-align: center;
+  padding: 16px 0;
+}
+.agenda-day {
+  margin-top: 14px;
+}
+.agenda-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.agenda-date.today {
+  color: var(--el-color-primary);
+}
+.agenda-slot,
+.dj-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.agenda-slot {
+  cursor: pointer;
+  min-height: 56px;
+}
+.agenda-slot:active {
+  background: var(--el-fill-color-light);
+}
+.agenda-avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--el-fill-color);
+}
+.agenda-avatar.blank {
+  display: grid;
+  place-items: center;
+}
+.agenda-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.agenda-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.agenda-time {
+  font-size: 13px;
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+.agenda-note {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.agenda-chevron {
+  font-size: 20px;
+  color: var(--el-text-color-placeholder);
+}
+.dj-card-tag {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.dj-card-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.dj-card-actions .el-button + .el-button {
+  margin-left: 0;
+}
+.native-dt {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
+  background: var(--el-fill-color-blank);
+  color: var(--el-text-color-regular);
+  font: inherit;
+  font-size: 16px;
+}
+@media (max-width: 768px) {
+  .two {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }
 .dj-option {
   display: inline-flex;

@@ -16,6 +16,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import { useIsMobile } from '@/composables/useIsMobile';
 import { http } from '@/api/http';
 import MediaPicker from '@/components/MediaPicker.vue';
 import { PERMISSIONS, type ApiResponse, type DjScheduleSettings } from '@cms/shared';
@@ -36,7 +37,7 @@ interface Slot {
  */
 const ZONES = {
   left: { x: 0.05, y: 0.565, w: 0.22 },
-  right: { x: 0.73, y: 0.49, w: 0.22 },
+  right: { x: 0.73, y: 0.525, w: 0.22 },
 };
 /** Both sides may run down to here, just above the date band. */
 const ZONE_BOTTOM = 0.765;
@@ -80,6 +81,8 @@ const settings = ref<DjScheduleSettings | null>(null);
 const template = ref<string | null>(null);
 const savingTemplate = ref(false);
 const day = ref(bkkTodayKey());
+/** Phones get their own date picker rather than Element's, which is built for a mouse. */
+const isMobile = useIsMobile();
 const slots = ref<Slot[]>([]);
 const rendering = ref(false);
 const error = ref('');
@@ -336,7 +339,10 @@ function download(): void {
   }, 'image/png');
 }
 
-watch(day, refresh);
+// A phone's date field can be cleared; wait for a date rather than fetching nothing.
+watch(day, (value) => {
+  if (value) void refresh();
+});
 onMounted(async () => {
   await loadSettings();
   await refresh();
@@ -511,7 +517,9 @@ async function copyCaption(): Promise<void> {
       </p>
 
       <ElFormItem label="วันที่" class="mt">
+        <input v-if="isMobile" v-model="day" type="date" class="native-date" required />
         <ElDatePicker
+          v-else
           v-model="day"
           type="date"
           value-format="YYYY-MM-DD"
@@ -656,6 +664,18 @@ async function copyCaption(): Promise<void> {
 }
 .mt {
   margin-top: 16px;
+}
+.native-date {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
+  background: var(--el-fill-color-blank);
+  color: var(--el-text-color-regular);
+  font: inherit;
+  font-size: 16px;
 }
 .summary {
   font-size: 13px;

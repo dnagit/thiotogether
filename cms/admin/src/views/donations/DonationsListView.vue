@@ -2,6 +2,7 @@
 import { tagMapper } from '@/utils/elementTypes';
 import { ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { useIsMobile } from '@/composables/useIsMobile';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { http } from '@/api/http';
 import { useCrud } from '@/composables/useCrud';
@@ -11,6 +12,8 @@ import {
 } from '@cms/shared';
 
 const route = useRoute();
+/** Phones: cards instead of the table, and the review drawer full-screen. */
+const isMobile = useIsMobile();
 const crud = useCrud<any>({ endpoint: '/donations' });
 if (route.query.status) crud.query.filters.status = String(route.query.status);
 if (route.query.search) crud.query.search = String(route.query.search);
@@ -133,7 +136,39 @@ function exportFile(format: 'csv' | 'xlsx'): void {
         </ElSelect>
       </div>
 
+      <div v-if="isMobile" v-loading="crud.loading.value" class="m-list">
+        <div
+          v-for="row in crud.items.value"
+          :key="row.id"
+          class="m-card tappable status-card"
+          :class="`status-${String(row.status).toLowerCase()}`"
+          @click="openDetail(row)"
+        >
+          <div class="m-card-body">
+            <div class="m-card-top">
+              <span class="m-card-title">{{ row.accountName }}</span>
+              <b class="amount">{{ formatCurrency(Number(row.amount), row.project?.currency) }}</b>
+            </div>
+            <div class="m-card-meta">{{ row.donationCode }} · {{ row.project?.name }}</div>
+            <div class="m-card-top">
+              <span class="m-card-meta"
+                >{{ formatDate(row.transferDate) }} {{ row.transferTime }}
+                <template v-if="row.verification">
+                  · {{ row.verification.isSlip ? '🧾' : '❔' }}
+                  {{ (row.verification.confidence * 100).toFixed(0) }}%</template
+                ></span
+              >
+              <ElTag size="small" :type="statusTag(row.status)">{{ row.status }}</ElTag>
+            </div>
+          </div>
+        </div>
+        <div v-if="!crud.loading.value && !crud.items.value.length" class="m-empty">
+          No donations
+        </div>
+      </div>
+
       <ElTable
+        v-else
         v-loading="crud.loading.value"
         :data="crud.items.value"
         :row-class-name="rowClass"
@@ -169,21 +204,23 @@ function exportFile(format: 'csv' | 'xlsx'): void {
       <ElPagination
         v-model:current-page="crud.query.page"
         class="mt"
-        layout="prev, pager, next, total"
+        :layout="isMobile ? 'prev, pager, next' : 'prev, pager, next, total'"
+        :pager-count="isMobile ? 5 : 7"
         :total="crud.meta.value.total"
         :page-size="crud.query.limit"
       />
     </ElCard>
 
     <!-- Review drawer -->
-    <ElDrawer v-model="drawer" title="Donation Review" size="640px">
+    <ElDrawer v-model="drawer" title="Donation Review" :size="isMobile ? '100%' : '640px'">
       <template v-if="detail">
         <ElRow :gutter="16">
-          <ElCol :span="12">
+          <ElCol :xs="24" :sm="12">
             <h4>Transfer Slip</h4>
-            <ElImage :src="detail.slipUrl" fit="contain" style="width: 100%; max-height: 420px" :preview-src-list="[detail.slipUrl]" />
+            <!-- Shorter on a phone so the details start on the first screen; tap to open it full size. -->
+            <ElImage :src="detail.slipUrl" fit="contain" :style="{ width: '100%', maxHeight: isMobile ? '45vh' : '420px' }" :preview-src-list="[detail.slipUrl]" preview-teleported />
           </ElCol>
-          <ElCol :span="12">
+          <ElCol :xs="24" :sm="12">
             <h4>Declared by Donor</h4>
             <ElDescriptions :column="1" border size="small">
               <ElDescriptionsItem label="Code">{{ detail.donationCode }}</ElDescriptionsItem>
@@ -256,6 +293,29 @@ function exportFile(format: 'csv' | 'xlsx'): void {
 <style scoped>
 .mt { margin-top: 16px; }
 .actions { margin-top: 20px; display: flex; gap: 8px; }
+
+/* ── Phones ── */
+.amount { white-space: nowrap; }
+/* The status as a bar down the card's edge, as the table does with row tints. */
+.status-card { border-left: 3px solid var(--status-accent, transparent); padding-left: 10px; }
+.status-card.status-verified,
+.status-card.status-auto_verified { --status-accent: var(--el-color-success); }
+.status-card.status-pending { --status-accent: var(--el-color-warning); }
+.status-card.status-needs_review { --status-accent: var(--el-color-danger); background: var(--el-color-danger-light-9); }
+.status-card.status-rejected,
+.status-card.status-cancelled { --status-accent: var(--el-color-info); }
+@media (max-width: 768px) {
+  /* Approve / reject stay in reach at the bottom of the review, however long it scrolls. */
+  .actions {
+    position: sticky;
+    bottom: 0;
+    margin: 20px -20px -20px;
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+    background: var(--el-bg-color);
+    border-top: 1px solid var(--el-border-color-light);
+  }
+  .actions .el-button { flex: 1; }
+}
 
 /**
  * Row tinting by status.

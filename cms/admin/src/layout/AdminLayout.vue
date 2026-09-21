@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useDark, useToggle } from '@vueuse/core';
+import { useIsMobile } from '@/composables/useIsMobile';
 import { ElMessage } from 'element-plus';
 import * as Icons from '@element-plus/icons-vue';
 import { adminModules } from '@/modules/registry';
@@ -10,10 +11,26 @@ import { http } from '@/api/http';
 import type { ApiResponse } from '@cms/shared';
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 const isDark = useDark();
 const toggleDark = useToggle(isDark);
 const collapsed = ref(false);
+
+/*
+ * Phones: the sidebar would take half the screen, so it becomes a drawer behind the menu
+ * button instead, and closes itself once a page is picked.
+ */
+const isMobile = useIsMobile();
+const drawer = ref(false);
+watch(
+  () => route.fullPath,
+  () => (drawer.value = false),
+);
+function toggleMenu(): void {
+  if (isMobile.value) drawer.value = !drawer.value;
+  else collapsed.value = !collapsed.value;
+}
 
 const menuItems = computed(() =>
   adminModules
@@ -82,7 +99,33 @@ async function logout(): Promise<void> {
 
 <template>
   <ElContainer class="admin-shell">
-    <ElAside :width="collapsed ? '64px' : 'var(--app-sidebar-width)'" class="sidebar">
+    <ElDrawer
+      v-if="isMobile"
+      v-model="drawer"
+      direction="ltr"
+      size="260px"
+      :with-header="false"
+      class="nav-drawer"
+    >
+      <div class="logo" @click="router.push({ name: 'dashboard' })">⚡ CMS Admin</div>
+      <ElMenu :default-active="String($route.name)" class="sidebar-menu">
+        <ElMenuItem
+          v-for="item in menuItems"
+          :key="item.name"
+          :index="item.route"
+          @click="router.push({ name: item.route })"
+        >
+          <ElIcon><component :is="item.icon" /></ElIcon>
+          <template #title>{{ item.label }}</template>
+        </ElMenuItem>
+      </ElMenu>
+    </ElDrawer>
+
+    <ElAside
+      v-if="!isMobile"
+      :width="collapsed ? '64px' : 'var(--app-sidebar-width)'"
+      class="sidebar"
+    >
       <div class="logo" @click="router.push({ name: 'dashboard' })">
         <span v-if="!collapsed">⚡ CMS Admin</span>
         <span v-else>⚡</span>
@@ -105,10 +148,13 @@ async function logout(): Promise<void> {
     <ElContainer>
       <ElHeader class="header" height="var(--app-header-height)">
         <div class="header-left">
-          <ElButton text @click="collapsed = !collapsed">
-            <ElIcon><component :is="collapsed ? Icons.Expand : Icons.Fold" /></ElIcon>
+          <ElButton text aria-label="เมนู" @click="toggleMenu">
+            <ElIcon
+              ><component :is="isMobile ? Icons.Expand : collapsed ? Icons.Expand : Icons.Fold"
+            /></ElIcon>
           </ElButton>
           <ElAutocomplete
+            v-if="!isMobile"
             v-model="searchQuery"
             :fetch-suggestions="searchEverything"
             placeholder="Search pages, donations…  (min 2 chars)"
@@ -208,11 +254,14 @@ async function logout(): Promise<void> {
   background: var(--el-bg-color-page);
 }
 @media (max-width: 768px) {
-  .global-search {
-    width: 160px;
+  .header {
+    padding: 0 8px;
   }
   .user-name {
     display: none;
   }
+}
+.nav-drawer :deep(.el-drawer__body) {
+  padding: 0;
 }
 </style>
