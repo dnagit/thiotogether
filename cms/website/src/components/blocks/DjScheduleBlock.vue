@@ -605,7 +605,7 @@ const bgStyle = computed(() => {
 }
 /* Artwork: x 1120–1440, y 700–930. */
 /*
- * The on-air DJ's picture: a square at the right of the ON AIR lines, from the top of the
+ * The on-air DJ's picture: at the right of the ON AIR lines, in a square from the top of the
  * badge to just below NEXT DJ. Sized off the block's width, so it scales like the rest.
  */
 .air-photo {
@@ -614,14 +614,12 @@ const bgStyle = computed(() => {
   top: -0.5cqw;
   width: 19cqw;
   height: 19cqw;
-  object-fit: cover;
-  object-position: center 20%;
-  border-radius: 1.5cqw;
-  border: max(1.5px, 0.25cqw) solid #fff;
-  box-shadow:
-    0 0 1cqw var(--accent),
-    0 0 2.5cqw color-mix(in srgb, var(--accent) 55%, transparent);
-  background: rgba(0, 0, 0, 0.4);
+  /*
+   * No frame: the picture as uploaded, whole and unframed, so a cut-out stands on the
+   * artwork the way the mascot does. Fitted inside the square rather than cropped to it.
+   */
+  object-fit: contain;
+  object-position: center bottom;
   pointer-events: none;
 }
 /* The ON AIR lines stop short of the picture rather than running under it. */
