@@ -12,7 +12,13 @@ import { useCrud } from '@/composables/useCrud';
 import { useAuthStore } from '@/stores/auth';
 import { confirmDelete } from '@/utils/confirm';
 import MediaPicker from '@/components/MediaPicker.vue';
-import { PERMISSIONS, type ApiResponse, type DjScheduleSettings } from '@cms/shared';
+import SocialImagePanel from './SocialImagePanel.vue';
+import {
+  PERMISSIONS,
+  type ApiResponse,
+  type DjScheduleAppearance,
+  type DjScheduleSettings,
+} from '@cms/shared';
 
 interface Dj {
   id: number;
@@ -35,7 +41,7 @@ interface Slot {
 const auth = useAuthStore();
 const canManage = computed(() => auth.can(PERMISSIONS.DJ_SCHEDULE_MANAGE));
 
-const tab = ref<'calendar' | 'djs' | 'settings'>('calendar');
+const tab = ref<'calendar' | 'djs' | 'settings' | 'social'>('calendar');
 
 // ── DJs ─────────────────────────────────────────────────────
 
@@ -88,7 +94,8 @@ async function deleteDj(row: Dj): Promise<void> {
 
 // ── Settings ────────────────────────────────────────────────
 
-const settings = reactive<DjScheduleSettings>({
+/** The block's look. The social-post template is saved from its own tab. */
+const settings = reactive<DjScheduleAppearance>({
   backgroundImage: null,
   backgroundColor: null,
   textColor: null,
@@ -104,9 +111,15 @@ async function saveSettings(): Promise<void> {
   savingSettings.value = true;
   try {
     const { data } = await http.put<ApiResponse<DjScheduleSettings>>('/dj-schedule/settings', {
-      ...settings,
+      backgroundImage: settings.backgroundImage,
+      backgroundColor: settings.backgroundColor,
+      textColor: settings.textColor,
     });
-    Object.assign(settings, data.data);
+    Object.assign(settings, {
+      backgroundImage: data.data.backgroundImage,
+      backgroundColor: data.data.backgroundColor,
+      textColor: data.data.textColor,
+    });
     ElMessage.success(data.message ?? 'บันทึกแล้ว');
   } finally {
     savingSettings.value = false;
@@ -384,6 +397,11 @@ async function deleteSlot(): Promise<void> {
               บันทึกการตั้งค่า
             </ElButton>
           </ElForm>
+        </ElCard>
+      </ElTabPane>
+      <ElTabPane label="รูปโพสต์" name="social" lazy>
+        <ElCard>
+          <SocialImagePanel />
         </ElCard>
       </ElTabPane>
     </ElTabs>

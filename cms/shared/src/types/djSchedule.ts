@@ -40,6 +40,23 @@ export interface DjScheduleSettings {
   backgroundColor: string | null;
   /** The heading above the ON AIR panel, which sits on the background. */
   textColor: string | null;
+  /**
+   * The artwork the admin's social-post image is drawn on: the poster without a date, with a
+   * band near the bottom for DATE/TIME and room either side of the artist for the DJs.
+   * Admin-only; the public API never sends it.
+   */
+  socialTemplate: string | null;
+  /**
+   * The caption to post with it, with placeholders the admin fills from a day's line-up:
+   * `{lineup}`, `{start}`, `{end}`, `{date}`, `{dateLong}`. Admin-only.
+   */
+  socialCaption: string | null;
+  /** One line of `{lineup}`: `{clock}`, `{start}`, `{end}`, `{name}`. Admin-only. */
+  socialCaptionLine: string | null;
 }
 
-export type DjScheduleAppearance = DjScheduleSettings;
+/** The settings only the admin uses — never sent to the public site. */
+export type DjScheduleAdminOnly = 'socialTemplate' | 'socialCaption' | 'socialCaptionLine';
+
+/** What the public calendar block gets of the settings. */
+export type DjScheduleAppearance = Omit<DjScheduleSettings, DjScheduleAdminOnly>;

@@ -53,7 +53,7 @@ router.get(
     }
     const now = new Date();
 
-    const [slots, onAir, next, appearance] = await Promise.all([
+    const [slots, onAir, next, settings] = await Promise.all([
       prisma.djSlot.findMany({
         where: { ...visible, startsAt: { lt: to }, endsAt: { gt: from } },
         select: slotSelect,
@@ -71,6 +71,15 @@ router.get(
       }),
       getDjScheduleSettings(),
     ]);
+
+    // The social-post template and caption are the admin's; the public page gets only how
+    // it looks.
+    const {
+      socialTemplate: _template,
+      socialCaption: _caption,
+      socialCaptionLine: _line,
+      ...appearance
+    } = settings;
 
     // Short: the ON AIR panel changes hands on the hour and should not lag it by much.
     res.setHeader('Cache-Control', config.isProd ? 'public, max-age=30' : 'no-store');

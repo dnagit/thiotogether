@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { prisma } from '../../core/database/prisma.js';
 import { BaseRepository } from '../../core/base/BaseRepository.js';
 import { BaseService } from '../../core/base/BaseService.js';
@@ -11,6 +13,7 @@ import { audit } from '../../core/middleware/audit.js';
 import { validate } from '../../core/middleware/validate.js';
 import { asyncHandler } from '../../core/utils/asyncHandler.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../core/errors/AppError.js';
+import { config } from '../../core/config/index.js';
 import { PERMISSIONS, type DjScheduleSettings } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
 
@@ -22,7 +25,9 @@ import type { FeatureModule } from '../../core/modules.js';
  *   POST   /dj-schedule/slots           → add one, or a run of them with `repeatEvery`/`repeatCount`
  *   PUT    /dj-schedule/slots/:id
  *   DELETE /dj-schedule/slots/:id       → soft delete
- *   GET/PUT /dj-schedule/settings       → the block's background
+ *   GET/PUT /dj-schedule/settings       → the block's background, the social-post template and caption
+ *   GET    /dj-schedule/assets/template  → the social-post template's bytes
+ *   GET    /dj-schedule/assets/dj/:id    → a DJ's picture's bytes
  *
  * Slots may not overlap: the website's ON AIR panel names one DJ, and two slots at once would
  * leave it picking one at random.
@@ -234,6 +239,9 @@ const SETTING_FIELDS: Array<keyof DjScheduleSettings> = [
   'backgroundImage',
   'backgroundColor',
   'textColor',
+  'socialTemplate',
+  'socialCaption',
+  'socialCaptionLine',
 ];
 
 export async function getDjScheduleSettings(): Promise<DjScheduleSettings> {
@@ -247,6 +255,9 @@ export async function getDjScheduleSettings(): Promise<DjScheduleSettings> {
     backgroundImage: read('backgroundImage'),
     backgroundColor: read('backgroundColor'),
     textColor: read('textColor'),
+    socialTemplate: read('socialTemplate'),
+    socialCaption: read('socialCaption'),
+    socialCaptionLine: read('socialCaptionLine'),
   };
 }
 
@@ -254,6 +265,9 @@ const settingsSchema = z.object({
   backgroundImage: z.string().max(500).nullish(),
   backgroundColor: z.string().max(30).nullish(),
   textColor: z.string().max(30).nullish(),
+  socialTemplate: z.string().max(500).nullish(),
+  socialCaption: z.string().max(5000).nullish(),
+  socialCaptionLine: z.string().max(300).nullish(),
 });
 
 const settingsRouter = Router();
@@ -270,8 +284,10 @@ settingsRouter.put(
   validate({ body: settingsSchema }),
   asyncHandler(async (req, res) => {
     const body = req.body as z.infer<typeof settingsSchema>;
+    // Only the fields sent are written: the admin saves the block's background and the
+    // social-post template from different tabs, and neither may clear the other's.
     await prisma.$transaction(
-      SETTING_FIELDS.map((field) => {
+      SETTING_FIELDS.filter((field) => field in body).map((field) => {
         const value = body[field]?.trim() || '';
         return prisma.setting.upsert({
           where: { key: settingKey(field) },
@@ -284,8 +300,87 @@ settingsRouter.put(
   }),
 );
 
+// ── Assets for the social-post image ────────────────────────
+
+/*
+ * The admin draws the social-post image in a <canvas> and saves it as a PNG. A canvas that has
+ * drawn a picture from another origin without CORS headers refuses to be saved, and in
+ * production the uploads are served by nginx, which sends none. So the pictures come through
+ * here instead: same bytes, from the API's own origin, which the admin may read.
+ *
+ * Only pictures the schedule already names are served — the template and DJs' pictures, looked
+ * up by id — never an arbitrary URL.
+ */
+const MAX_ASSET_BYTES = 15 * 1024 * 1024;
+const uploadsDir = path.resolve(process.cwd(), config.UPLOAD_DIR);
+
+async function readImage(url: string): Promise<{ bytes: Buffer; type: string }> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url, config.APP_URL);
+  } catch {
+    throw new BadRequestError('Invalid image URL');
+  }
+
+  // Our own local upload: read it from disk rather than over the network.
+  if (config.STORAGE_DRIVER === 'local' && parsed.pathname.startsWith('/uploads/')) {
+    const key = decodeURIComponent(parsed.pathname.slice('/uploads/'.length));
+    const file = path.resolve(uploadsDir, key);
+    if (file.startsWith(uploadsDir + path.sep)) {
+      try {
+        const bytes = await fs.readFile(file);
+        const ext = path.extname(file).slice(1).toLowerCase();
+        const type = ext === 'jpg' ? 'image/jpeg' : `image/${ext === 'svg' ? 'svg+xml' : ext}`;
+        return { bytes, type };
+      } catch {
+        // Not on this disk (a URL copied from elsewhere): fall through and fetch it.
+      }
+    }
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new BadRequestError('Invalid image URL');
+  }
+  const res = await fetch(parsed, { signal: AbortSignal.timeout(10_000) }).catch(() => null);
+  if (!res || !res.ok) throw new NotFoundError('Image');
+  const type = res.headers.get('content-type') ?? '';
+  if (!type.startsWith('image/')) throw new BadRequestError('Not an image');
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (bytes.length > MAX_ASSET_BYTES) throw new BadRequestError('Image too large');
+  return { bytes, type };
+}
+
+function sendImage(res: Response, img: { bytes: Buffer; type: string }): void {
+  res.setHeader('Content-Type', img.type);
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.send(img.bytes);
+}
+
+const assetRouter = Router();
+
+assetRouter.get(
+  '/template',
+  authorize(PERMISSIONS.DJ_SCHEDULE_VIEW),
+  asyncHandler(async (_req, res) => {
+    const { socialTemplate } = await getDjScheduleSettings();
+    if (!socialTemplate) throw new NotFoundError('Template');
+    sendImage(res, await readImage(socialTemplate));
+  }),
+);
+
+assetRouter.get(
+  '/dj/:id(\\d+)',
+  authorize(PERMISSIONS.DJ_SCHEDULE_VIEW),
+  asyncHandler(async (req, res) => {
+    const dj = await prisma.dj.findFirst({ where: { id: Number(req.params.id) } });
+    if (!dj?.image) throw new NotFoundError('DJ image');
+    sendImage(res, await readImage(dj.image));
+  }),
+);
+
 const router = Router();
 router.use('/djs', djRouter);
+router.use('/assets', authenticate, assetRouter);
 router.use('/settings', authenticate, audit('dj-schedule-settings'), settingsRouter);
 router.use('/slots', authenticate, audit('dj-slots'), slotRouter);
 
