@@ -460,6 +460,7 @@ export const blockDefinitions: BlockDefinition[] = [
           },
           { key: 'icon', label: 'Icon (optional — a dash is shown without one)', type: 'image' },
           { key: 'text', label: 'Text', type: 'textarea' },
+          { key: 'photo', label: 'Photo (optional, entry rows only — shown under the text)', type: 'image' },
         ],
       },
       {

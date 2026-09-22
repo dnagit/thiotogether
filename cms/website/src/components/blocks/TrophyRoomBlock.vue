@@ -12,6 +12,8 @@ import { computed, ref } from 'vue';
 interface Entry {
   icon?: string;
   text?: string;
+  /** A picture of the award, shown under its line. Entry rows only. */
+  photo?: string;
   /** `group` turns the row into a heading for the rows that follow it. */
   kind?: 'entry' | 'group';
   /** The short label this group gets on the timeline — a year, usually. Group rows only. */
@@ -49,7 +51,7 @@ const props = withDefaults(
 /** Ties each section to the rail marker that scrolls to it. */
 const uid = `trophy-${Math.random().toString(36).slice(2, 9)}`;
 
-const rows = computed(() => props.entries.filter((e) => e?.text || e?.icon));
+const rows = computed(() => props.entries.filter((e) => e?.text || e?.icon || e?.photo));
 
 /**
  * The flat list of rows, folded into the sections it describes.
@@ -150,12 +152,25 @@ const shell = computed(() => ({
 
           <ul v-if="s.items.length" class="list" role="list">
             <li v-for="(e, i) in s.items" :key="i">
+              <span class="row">
               <span class="mark">
                 <img v-if="e.icon" :src="e.icon" alt="" loading="lazy" />
                 <!-- The stand-in for a missing icon: decoration, so it is hidden from readers. -->
                 <span v-else class="dash" aria-hidden="true">–</span>
               </span>
               <span class="text">{{ e.text }}</span>
+              </span>
+              <!--
+                Outside the icon-and-text grid: inside it, the photo's width would stretch the
+                text column and leave the text floating away from its icon.
+              -->
+              <img
+                v-if="e.photo"
+                class="photo"
+                :src="e.photo"
+                :alt="e.text || ''"
+                loading="lazy"
+              />
             </li>
           </ul>
         </section>
@@ -420,15 +435,29 @@ const shell = computed(() => ({
   line-height: 1.7;
 }
 
+/* The line and, under it, the photo if there is one. */
+.list li {
+  display: flex;
+  flex-direction: column;
+}
+.align-center li {
+  align-items: center;
+}
+.align-left li {
+  align-items: flex-start;
+}
+
 /*
  * Each row is icon-then-text, and the icon column is fixed at its own width. A wrapped line
  * then runs under the text rather than under the marker, which is what keeps a long entry
  * looking like one entry.
  */
-.list li {
+.list .row {
   display: grid;
   gap: 0.5rem;
   align-items: start;
+  /* Full width, as the row was before it had a photo under it: the columns are laid out in it. */
+  align-self: stretch;
 }
 
 /*
@@ -437,14 +466,14 @@ const shell = computed(() => ({
  * centred in. At `1fr` there is no slack: the column fills the line, the marker is pinned to
  * the far left, and centring the text only floats it away from its own marker.
  */
-.align-center li {
+.align-center .row {
   grid-template-columns: auto minmax(0, max-content);
   justify-content: center;
   text-align: center;
 }
 
 /* Ranged left: the text takes the rest of the line, so wrapped lines share one left edge. */
-.align-left li {
+.align-left .row {
   grid-template-columns: auto minmax(0, 1fr);
   justify-content: start;
   text-align: left;
@@ -468,5 +497,21 @@ const shell = computed(() => ({
 
 .text {
   overflow-wrap: anywhere;
+}
+
+/*
+ * The award's photo, under its line. Capped in width so a large upload does not become a
+ * banner, and kept at its own shape — a trophy shot and a stage shot are not the same ratio,
+ * and cropping either to fit would cut off what the picture is of.
+ */
+.photo {
+  display: block;
+  width: 100%;
+  max-width: min(22rem, 100%);
+  height: auto;
+  max-height: 22rem;
+  object-fit: contain;
+  margin-block: 0.35rem 0.5rem;
+  border-radius: 0.75rem;
 }
 </style>
