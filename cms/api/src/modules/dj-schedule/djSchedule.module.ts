@@ -352,7 +352,8 @@ async function readImage(url: string): Promise<{ bytes: Buffer; type: string }> 
 
 function sendImage(res: Response, img: { bytes: Buffer; type: string }): void {
   res.setHeader('Content-Type', img.type);
-  res.setHeader('Cache-Control', 'private, max-age=300');
+  // Never cached: a template or DJ picture swapped in the admin has to show on the next draw.
+  res.setHeader('Cache-Control', 'no-store');
   res.send(img.bytes);
 }
 

@@ -57,6 +57,21 @@ const PICTURE_GAP = 0.015;
  * touch smaller or larger. Fixed values, not random, so the same day always comes out the
  * same; the right side takes them mirrored, so the two sides still answer each other.
  */
+/**
+ * Hand-placed spots for a given number of DJs, in on-air order, read left to right across the
+ * poster: each picture's centre (shares of W and H), its size (a share of H) and its turn.
+ * A count with no entry here falls back to the grid above.
+ */
+const PLACEMENTS: Record<number, { cx: number; cy: number; size: number; turn: number }[]> = {
+  // Two outer pictures under "THI-O'S SONGS" and "UNBOUND"; two smaller inner ones low
+  // either side of the artist, just above the band.
+  4: [
+    { cx: 0.14, cy: 0.605, size: 0.15, turn: -7 },
+    { cx: 0.34, cy: 0.68, size: 0.12, turn: 5 },
+    { cx: 0.665, cy: 0.685, size: 0.12, turn: -5 },
+    { cx: 0.85, cy: 0.58, size: 0.15, turn: 7 },
+  ],
+};
 const SCATTER = [
   { dx: -0.55, turn: -7, scale: 1 },
   { dx: 0.6, turn: 6, scale: 0.9 },
@@ -143,25 +158,38 @@ async function loadSlots(): Promise<void> {
   });
 }
 
-/** Mitr, from Google Fonts, loaded once and awaited before any text is drawn. */
+/**
+ * Mitr bold, from Google Fonts' files, loaded once and awaited before any text is drawn.
+ * Added through FontFace rather than a stylesheet so the load can be waited on for sure —
+ * Safari would otherwise draw (and measure) the line before the font had arrived.
+ */
+const MITR_700 = [
+  // Thai
+  {
+    url: 'https://fonts.gstatic.com/s/mitr/v13/pxiEypw5ucZF8YcdJIPecnFHGPezSQ.woff2',
+    range: 'U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC',
+  },
+  // Latin
+  {
+    url: 'https://fonts.gstatic.com/s/mitr/v13/pxiEypw5ucZF8YcdJJfecnFHGPc.woff2',
+    range: 'U+0000-00FF, U+2000-206F',
+  },
+];
 let fontReady: Promise<void> | null = null;
 function loadFont(): Promise<void> {
   if (!fontReady) {
-    if (!document.querySelector('link[data-font="mitr"]')) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://fonts.googleapis.com/css2?family=Mitr:wght@600;700&display=swap';
-      link.dataset.font = 'mitr';
-      document.head.appendChild(link);
-    }
-    fontReady = (async () => {
-      // The stylesheet has to arrive before the font can be asked for; retry briefly.
-      for (let i = 0; i < 20; i++) {
-        const faces = await document.fonts.load(`700 48px "${FONT_FAMILY}"`, 'DATE 0 น.');
-        if (faces.length) return;
-        await new Promise((r) => setTimeout(r, 150));
-      }
-    })();
+    fontReady = Promise.all(
+      MITR_700.map(async ({ url, range }) => {
+        const face = new FontFace(FONT_FAMILY, `url(${url}) format('woff2')`, {
+          weight: '700',
+          unicodeRange: range,
+        });
+        document.fonts.add(await face.load());
+      }),
+    )
+      .then(() => undefined)
+      // Offline or blocked: draw in the fallback face rather than not at all.
+      .catch(() => undefined);
   }
   return fontReady;
 }
@@ -169,7 +197,8 @@ function loadFont(): Promise<void> {
 /** A picture through the API, as something a canvas may draw and still save. */
 const objectUrls: string[] = [];
 async function loadImage(path: string): Promise<HTMLImageElement> {
-  const { data } = await http.get<Blob>(path, { responseType: 'blob' });
+  // A fresh query each time, so a picture swapped since the last draw is never served stale.
+  const { data } = await http.get<Blob>(path, { responseType: 'blob', params: { t: Date.now() } });
   const url = URL.createObjectURL(data);
   objectUrls.push(url);
   const img = new Image();
@@ -220,11 +249,16 @@ function drawContain(
   ctx.restore();
 }
 
+/** Counts renders, so one overtaken by a newer (another day picked meanwhile) draws nothing. */
+let renderId = 0;
+
 async function render(): Promise<void> {
   error.value = '';
   ready.value = false;
+  pngBlob = null;
   const el = canvas.value;
   if (!el || !template.value) return;
+  const id = ++renderId;
   rendering.value = true;
   try {
     const [bg, pictures] = await Promise.all([
@@ -232,6 +266,7 @@ async function render(): Promise<void> {
       Promise.all(djs.value.map((dj) => loadImage(`/dj-schedule/assets/dj/${dj.id}`))),
       loadFont(),
     ]);
+    if (id !== renderId) return;
     const W = bg.naturalWidth;
     const H = bg.naturalHeight;
     el.width = W;
@@ -240,13 +275,27 @@ async function render(): Promise<void> {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(bg, 0, 0, W, H);
 
-    // DJs alternate right, left, right…. Each side lays its own out in the grid that gives its
+    const placed = PLACEMENTS[pictures.length];
+    if (placed) {
+      pictures.forEach((img, i) => {
+        const p = placed[i];
+        const size = p.size * H;
+        drawContain(
+          ctx,
+          img,
+          { x: p.cx * W - size / 2, y: p.cy * H - size / 2, w: size, h: size },
+          p.turn,
+        );
+      });
+    }
+
+    // Otherwise DJs alternate right, left, right…. Each side lays its own out in the grid that gives its
     // pictures the most room between its line of text and the date band; then both sides draw
     // at the smaller of the two sizes, so the pictures match across the artist, with a gap
     // between each. However many there are, they shrink to fit and never reach the text.
     const sides: Record<'left' | 'right', HTMLImageElement[]> = { left: [], right: [] };
     // Alternate, starting on the right: an odd count leaves the right side one ahead.
-    pictures.forEach((img, i) => sides[i % 2 === 0 ? 'right' : 'left'].push(img));
+    if (!placed) pictures.forEach((img, i) => sides[i % 2 === 0 ? 'right' : 'left'].push(img));
     const rightFuller = sides.right.length > sides.left.length;
     const gap = PICTURE_GAP * H;
     const layouts = (['left', 'right'] as const)
@@ -294,28 +343,41 @@ async function render(): Promise<void> {
         ctx.font = `700 ${size}px "${FONT_FAMILY}", sans-serif`;
       }
       ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      // Placed by hand from the measured letters rather than by textAlign/textBaseline
+      // 'center'/'middle', which Safari works out differently from Chrome: centred across on
+      // their width, and down on the ink itself (cap tops to the lowest descender), so the line
+      // sits in the band the same on an iPad as on a desktop.
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      const m = ctx.measureText(text);
+      const width = Math.min(m.width, maxWidth);
+      const ascent = m.actualBoundingBoxAscent || size * 0.72;
+      const descent = m.actualBoundingBoxDescent || 0;
+      const x = (W - width) / 2;
+      const y = TEXT.y * H + (ascent - descent) / 2;
       // A red neon glow round the white letters, as on the poster: a wide soft pass, a tight
-      // bright one, then the letters again on top without any, so they stay crisp.
-      const x = W / 2;
-      const y = TEXT.y * H;
+      // bright one, then the letters again on top without any, so they stay crisp. The width
+      // cap makes sure the line never runs off the picture, whatever the browser measured.
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
       ctx.shadowColor = GLOW;
       ctx.shadowBlur = size * 0.35;
-      ctx.fillText(text, x, y);
+      ctx.fillText(text, x, y, maxWidth);
       ctx.shadowBlur = size * 0.12;
-      ctx.fillText(text, x, y);
+      ctx.fillText(text, x, y, maxWidth);
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
-      ctx.fillText(text, x, y);
+      ctx.fillText(text, x, y, maxWidth);
     }
+    // Made now, not on the button: iOS only opens the share sheet straight from a tap, and
+    // waiting on toBlob there would lose it.
+    pngBlob = await new Promise<Blob | null>((r) => el.toBlob(r, 'image/png'));
+    if (id !== renderId) return;
     ready.value = true;
   } catch {
-    error.value = 'วาดรูปไม่สำเร็จ — ตรวจว่ารูปแม่แบบและรูป DJ ยังเปิดได้';
+    if (id === renderId) error.value = 'วาดรูปไม่สำเร็จ — ตรวจว่ารูปแม่แบบและรูป DJ ยังเปิดได้';
   } finally {
-    rendering.value = false;
+    if (id === renderId) rendering.value = false;
   }
 }
 
@@ -339,15 +401,34 @@ async function saveTemplate(): Promise<void> {
   }
 }
 
-function download(): void {
-  canvas.value?.toBlob((blob) => {
-    if (!blob) return;
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `dj-schedule-${day.value}.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }, 'image/png');
+/** The finished picture as a PNG, ready to save. */
+let pngBlob: Blob | null = null;
+/** Phones and tablets: a touch screen, where a download lands in Files rather than Photos. */
+const isTouch = window.matchMedia('(pointer: coarse)').matches;
+
+/**
+ * Save the picture. On a phone or tablet, open the share sheet with it — its "Save Image"
+ * puts it in the photo library, which a plain download can't; elsewhere, download the file.
+ */
+async function download(): Promise<void> {
+  if (!pngBlob) return;
+  const name = `dj-schedule-${day.value}.png`;
+  if (isTouch) {
+    const file = new File([pngBlob], name, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+      } catch {
+        // Closed without choosing anything: nothing to do.
+      }
+      return;
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(pngBlob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // A phone's date field can be cleared; wait for a date rather than fetching nothing.
@@ -565,8 +646,9 @@ async function copyCaption(): Promise<void> {
         class="mt"
         @click="download"
       >
-        ดาวน์โหลด PNG
+        {{ isTouch ? 'บันทึกรูปลงคลังภาพ' : 'ดาวน์โหลด PNG' }}
       </ElButton>
+      <p v-if="isTouch" class="hint">กดแล้วเลือก “บันทึกรูปภาพ” (Save Image)</p>
       <p v-if="error" class="error">{{ error }}</p>
     </ElForm>
 

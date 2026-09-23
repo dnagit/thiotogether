@@ -536,8 +536,9 @@ async function deleteSlot(): Promise<void> {
           </ElForm>
         </ElCard>
       </ElTabPane>
-      <ElTabPane label="รูปโพสต์" name="social" lazy>
-        <ElCard>
+      <ElTabPane label="รูปโพสต์" name="social">
+        <!-- Mounted afresh each time the tab opens, so DJ pictures changed meanwhile show. -->
+        <ElCard v-if="tab === 'social'">
           <SocialImagePanel />
         </ElCard>
       </ElTabPane>
