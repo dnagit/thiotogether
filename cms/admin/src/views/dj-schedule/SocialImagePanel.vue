@@ -407,22 +407,36 @@ let pngBlob: Blob | null = null;
 const isTouch = window.matchMedia('(pointer: coarse)').matches;
 
 /**
- * Save the picture. On a phone or tablet, open the share sheet with it — its "Save Image"
- * puts it in the photo library, which a plain download can't; elsewhere, download the file.
+ * On a phone or tablet, the picture shown full-size in a dialog: pressing and holding it gives
+ * "Save to Photos" (iOS) or "Download image" (Android, which lands in the gallery) — the one way
+ * that works in every mobile browser, in-app ones (LINE, Facebook) included. A share button
+ * sits beside it for browsers that can share files.
  */
-async function download(): Promise<void> {
+const saveOpen = ref(false);
+const saveSrc = ref('');
+const canShareFiles =
+  typeof navigator.canShare === 'function' &&
+  navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] });
+
+async function sharePicture(): Promise<void> {
+  if (!pngBlob) return;
+  const file = new File([pngBlob], `dj-schedule-${day.value}.png`, { type: 'image/png' });
+  try {
+    await navigator.share({ files: [file] });
+  } catch {
+    // Closed without choosing anything, or sharing refused: the hold-to-save still works.
+  }
+}
+
+/** Save the picture: the hold-to-save dialog on a touch screen, a PNG download elsewhere. */
+function download(): void {
   if (!pngBlob) return;
   const name = `dj-schedule-${day.value}.png`;
-  if (isTouch) {
-    const file = new File([pngBlob], name, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file] });
-      } catch {
-        // Closed without choosing anything: nothing to do.
-      }
-      return;
-    }
+  if (isTouch && canvas.value) {
+    // A data URL, not a blob one: iOS offers "Save to Photos" on it reliably.
+    saveSrc.value = canvas.value.toDataURL('image/png');
+    saveOpen.value = true;
+    return;
   }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(pngBlob);
@@ -648,7 +662,22 @@ async function copyCaption(): Promise<void> {
       >
         {{ isTouch ? 'บันทึกรูปลงคลังภาพ' : 'ดาวน์โหลด PNG' }}
       </ElButton>
-      <p v-if="isTouch" class="hint">กดแล้วเลือก “บันทึกรูปภาพ” (Save Image)</p>
+      <ElDialog
+        v-model="saveOpen"
+        title="บันทึกรูปลงคลังภาพ"
+        width="92%"
+        append-to-body
+        @closed="saveSrc = ''"
+      >
+        <p class="save-help">
+          <b>กดค้างที่รูป</b> แล้วเลือก “บันทึกไปยังรูปภาพ” (Save to Photos)<br />
+          Android: กดค้าง แล้วเลือก “ดาวน์โหลดรูปภาพ”
+        </p>
+        <img :src="saveSrc" alt="รูปโพสต์ DJ" class="save-img" />
+        <ElButton v-if="canShareFiles" type="primary" class="mt share-btn" @click="sharePicture">
+          แชร์ / บันทึกรูป
+        </ElButton>
+      </ElDialog>
       <p v-if="error" class="error">{{ error }}</p>
     </ElForm>
 
@@ -777,6 +806,23 @@ async function copyCaption(): Promise<void> {
 .error {
   color: var(--el-color-danger);
   font-size: 13px;
+}
+.save-help {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.save-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  /* Let iOS show its own press-and-hold menu with "Save to Photos". */
+  -webkit-touch-callout: default;
+  user-select: auto;
+}
+.share-btn {
+  width: 100%;
 }
 .preview {
   display: flex;
