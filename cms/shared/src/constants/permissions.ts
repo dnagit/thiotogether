@@ -68,6 +68,9 @@ export const PERMISSIONS = {
   DJ_SCHEDULE_VIEW: 'dj-schedule.view',
   DJ_SCHEDULE_MANAGE: 'dj-schedule.manage',
 
+  TRACKING_VIEW: 'tracking.view',
+  TRACKING_MANAGE: 'tracking.manage',
+
   AUDIT_LOGS_VIEW: 'audit-logs.view',
 } as const;
 
@@ -95,5 +98,6 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.BIRTHDAY_VIEW,
     PERMISSIONS.PROJECTS_VIEW,
     PERMISSIONS.DJ_SCHEDULE_VIEW,
+    PERMISSIONS.TRACKING_VIEW,
   ],
 };

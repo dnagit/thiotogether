@@ -588,6 +588,28 @@ export const blockDefinitions: BlockDefinition[] = [
     ],
   },
   {
+    type: 'tracking-lookup',
+    label: 'Tracking Lookup',
+    icon: '📦',
+    category: 'interactive',
+    defaultProps: {
+      heading: 'เช็กเลข Tracking',
+      description: 'กรอกชื่อ account X ที่ใช้ลงทะเบียน',
+      projectId: 0,
+      showAll: true,
+      buttonLabel: 'ค้นหา',
+      accentColor: '',
+    },
+    fields: [
+      { key: 'heading', label: 'Heading', type: 'text' },
+      { key: 'description', label: 'Text under the heading', type: 'textarea' },
+      { key: 'projectId', label: 'Tracking project ID (0 = search every project shown on the web)', type: 'number' },
+      { key: 'showAll', label: 'Show the whole list (off = fans must type their exact account to see anything)', type: 'switch' },
+      { key: 'buttonLabel', label: 'Button text (lookup only)', type: 'text' },
+      { key: 'accentColor', label: 'Colour of the button and copy links (blank = site orange)', type: 'color' },
+    ],
+  },
+  {
     type: 'song',
     label: 'Song',
     icon: '🎵',

@@ -1180,3 +1180,44 @@ model DjSlot {
   @@index([djId])
   @@map("dj_slots")
 }
+
+/// A batch of parcels sent out together — a round of gifts, a merch drop — whose tracking
+/// numbers fans look up by their X account.
+model TrackingProject {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(200)
+  description String? @db.VarChar(1000)
+
+  /// Hidden projects stay in the admin but drop out of the website's lookup.
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  entries TrackingEntry[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([isActive, sortOrder])
+  @@map("tracking_projects")
+}
+
+/// One parcel: whose X account it is for and its tracking number. An account may have
+/// several in the same project.
+model TrackingEntry {
+  id         Int    @id @default(autoincrement())
+  projectId  Int    @map("project_id")
+  /// Stored without the leading "@"; looked up ignoring case.
+  xAccount   String @map("x_account") @db.VarChar(100)
+  trackingNo String @map("tracking_no") @db.VarChar(100)
+
+  project TrackingProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([projectId])
+  @@index([xAccount])
+  @@map("tracking_entries")
+}

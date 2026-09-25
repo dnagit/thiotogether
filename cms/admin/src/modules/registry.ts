@@ -223,6 +223,24 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'tracking',
+    menu: { label: 'Tracking', icon: 'Van', order: 7.8, permission: PERMISSIONS.TRACKING_VIEW },
+    routes: [
+      {
+        path: 'tracking',
+        name: 'tracking',
+        component: () => import('@/views/tracking/TrackingProjectsView.vue'),
+        meta: { title: 'Tracking', permission: PERMISSIONS.TRACKING_VIEW },
+      },
+      {
+        path: 'tracking/:id(\\d+)',
+        name: 'tracking-entries',
+        component: () => import('@/views/tracking/TrackingEntriesView.vue'),
+        meta: { title: 'Tracking', permission: PERMISSIONS.TRACKING_VIEW },
+      },
+    ],
+  },
+  {
     name: 'tokens',
     menu: { label: 'Token', icon: 'Coin', order: 8, permission: PERMISSIONS.TOKENS_VIEW },
     routes: [

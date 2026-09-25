@@ -25,6 +25,8 @@ import { publicJooxAuthModule } from './joox-voters/publicJooxAuth.module.js';
 import { djScheduleModule } from './dj-schedule/djSchedule.module.js';
 import { publicDjScheduleModule } from './public-dj-schedule/publicDjSchedule.module.js';
 import { publicJooxAccountsModule } from './public-joox-accounts/publicJooxAccounts.module.js';
+import { trackingModule } from './tracking/tracking.module.js';
+import { publicTrackingModule } from './public-tracking/publicTracking.module.js';
 
 /**
  * Module registry. Adding a feature = create a folder in src/modules/<name>/
@@ -51,6 +53,7 @@ export const modules: FeatureModule[] = [
   birthdayModule,
   jooxVotersModule,
   djScheduleModule,
+  trackingModule,
   publicModule,
   publicGamesModule,
   publicBirthdayModule,
@@ -58,4 +61,5 @@ export const modules: FeatureModule[] = [
   publicJooxVotesModule,
   publicJooxAccountsModule,
   publicDjScheduleModule,
+  publicTrackingModule,
 ];
