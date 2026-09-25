@@ -71,6 +71,15 @@ const PLACEMENTS: Record<number, { cx: number; cy: number; size: number; turn: n
     { cx: 0.665, cy: 0.685, size: 0.12, turn: -5 },
     { cx: 0.85, cy: 0.58, size: 0.15, turn: 7 },
   ],
+  // Four in a row along the bottom, just above the band, and the fifth up on the right
+  // under "UNBOUND".
+  5: [
+    { cx: 0.13, cy: 0.675, size: 0.14, turn: -7 },
+    { cx: 0.33, cy: 0.725, size: 0.12, turn: 5 },
+    { cx: 0.545, cy: 0.725, size: 0.12, turn: -4 },
+    { cx: 0.79, cy: 0.71, size: 0.13, turn: 6 },
+    { cx: 0.875, cy: 0.56, size: 0.14, turn: 8 },
+  ],
 };
 const SCATTER = [
   { dx: -0.55, turn: -7, scale: 1 },
