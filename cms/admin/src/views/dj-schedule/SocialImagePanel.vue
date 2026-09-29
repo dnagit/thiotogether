@@ -63,6 +63,13 @@ const PICTURE_GAP = 0.015;
  * A count with no entry here falls back to the grid above.
  */
 const PLACEMENTS: Record<number, { cx: number; cy: number; size: number; turn: number }[]> = {
+  // One under "THI-O'S SONGS", one low in front of the artist just above the band, and one
+  // under "UNBOUND" by the red carpet.
+  3: [
+    { cx: 0.165, cy: 0.648, size: 0.15, turn: -7 },
+    { cx: 0.54, cy: 0.708, size: 0.12, turn: 4 },
+    { cx: 0.88, cy: 0.614, size: 0.12, turn: 7 },
+  ],
   // Two outer pictures under "THI-O'S SONGS" and "UNBOUND"; two smaller inner ones low
   // either side of the artist, just above the band.
   4: [
