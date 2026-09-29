@@ -8,6 +8,7 @@ export * from './types/donations.js';
 export * from './types/dashboard.js';
 export * from './types/djSchedule.js';
 export * from './types/tracking.js';
+export * from './types/streaming.js';
 export * from './types/jooxAccounts.js';
 export * from './types/jooxAuth.js';
 export * from './types/jooxVotes.js';

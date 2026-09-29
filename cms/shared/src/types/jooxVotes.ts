@@ -10,4 +10,9 @@ export interface JooxVoteAccount {
   link: string;
   clicks: number;
   isDone: boolean;
+  /**
+   * A running total anyone on the list keeps by hand. Unlike `clicks` and `isDone` it is not
+   * reset at 23:00 — only an edit changes it. Whole and never negative.
+   */
+  score: number;
 }

@@ -71,6 +71,9 @@ export const PERMISSIONS = {
   TRACKING_VIEW: 'tracking.view',
   TRACKING_MANAGE: 'tracking.manage',
 
+  STREAMING_VIEW: 'streaming.view',
+  STREAMING_MANAGE: 'streaming.manage',
+
   AUDIT_LOGS_VIEW: 'audit-logs.view',
 } as const;
 
@@ -99,5 +102,6 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.PROJECTS_VIEW,
     PERMISSIONS.DJ_SCHEDULE_VIEW,
     PERMISSIONS.TRACKING_VIEW,
+    PERMISSIONS.STREAMING_VIEW,
   ],
 };

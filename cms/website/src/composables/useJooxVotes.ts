@@ -10,6 +10,7 @@ import {
   markJooxVoteDone,
   messageOf,
   reportJooxVoteMissing,
+  setJooxVoteScore,
   statusOf,
   watchJooxVotes,
   type JooxVoteAccount,
@@ -142,6 +143,15 @@ export function useJooxVotes() {
     }
   }
 
+  async function setScore(id: number, score: number): Promise<string | null> {
+    try {
+      put(await write(() => setJooxVoteScore(id, score)));
+      return null;
+    } catch (err) {
+      return failed(err, id, 'บันทึกคะแนนไม่สำเร็จ กรุณาลองใหม่');
+    }
+  }
+
   async function remove(id: number): Promise<string | null> {
     try {
       await write(() => deleteJooxVote(id));
@@ -220,6 +230,7 @@ export function useJooxVotes() {
     countClick,
     markDone,
     reportMissing,
+    setScore,
     remove,
   };
 }

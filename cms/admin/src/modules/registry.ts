@@ -241,6 +241,24 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'streaming',
+    menu: { label: 'Streaming Awards', icon: 'Trophy', order: 7.9, permission: PERMISSIONS.STREAMING_VIEW },
+    routes: [
+      {
+        path: 'streaming',
+        name: 'streaming',
+        component: () => import('@/views/streaming/StreamingSessionsView.vue'),
+        meta: { title: 'Streaming Awards', permission: PERMISSIONS.STREAMING_VIEW },
+      },
+      {
+        path: 'streaming/:id(\\d+)',
+        name: 'streaming-session',
+        component: () => import('@/views/streaming/StreamingSessionView.vue'),
+        meta: { title: 'Streaming Awards', permission: PERMISSIONS.STREAMING_VIEW },
+      },
+    ],
+  },
+  {
     name: 'tokens',
     menu: { label: 'Token', icon: 'Coin', order: 8, permission: PERMISSIONS.TOKENS_VIEW },
     routes: [

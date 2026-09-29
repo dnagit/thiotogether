@@ -8,6 +8,7 @@
  *   POST   /public/joox-votes/:id/done   → finished for today
  *   POST   /public/joox-votes/:id/missing → { missing: 1–3 } votes short: open again, the
  *                                          count set back to 3 − missing
+ *   PATCH  /public/joox-votes/:id/score → { score }: the running total, as typed
  *   DELETE /public/joox-votes/:id
  *   GET    /public/joox-votes/events     → server-sent events: `account` (a row as it now
  *                                          stands, new ones included) and `removed` ({ id })
@@ -62,6 +63,14 @@ export async function reportJooxVoteMissing(
   const { data } = await api.post<ApiResponse<JooxVoteAccount>>(
     `/public/joox-votes/${id}/missing`,
     { missing },
+  );
+  return data.data;
+}
+
+export async function setJooxVoteScore(id: number, score: number): Promise<JooxVoteAccount> {
+  const { data } = await api.patch<ApiResponse<JooxVoteAccount>>(
+    `/public/joox-votes/${id}/score`,
+    { score },
   );
   return data.data;
 }

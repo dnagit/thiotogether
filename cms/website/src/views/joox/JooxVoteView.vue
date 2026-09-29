@@ -19,6 +19,9 @@
  * done, that button turns into "ยังขาด…", for when some taps never became votes: saying how
  * many are missing puts the account back on the "still to vote" list until taps make them up.
  *
+ * Each card also carries a score anyone can put in, edited in place like the one on
+ * `/joox-accounts`. It is a running total and the 23:00 reset leaves it alone.
+ *
  * All three — done, missing, delete — go through a dialog: the buttons sit side by side on a
  * small screen, and on a shared list a slip costs everybody.
  */
@@ -44,6 +47,7 @@ const {
   countClick,
   markDone,
   reportMissing,
+  setScore,
   remove,
 } = useJooxVotes();
 
@@ -149,6 +153,12 @@ const search = ref('');
 
 const doneCount = computed(() => accounts.value.filter((a) => a.isDone).length);
 
+/**
+ * Every account's score added up — the whole list, never the filtered one, so a search or
+ * a filter tab can't look like it changed the total.
+ */
+const totalScore = computed(() => accounts.value.reduce((sum, a) => sum + a.score, 0));
+
 /** Matched the way duplicate names are judged, so case and extra spaces don't matter. */
 const searchKey = computed(() => jooxNameKey(search.value));
 const matched = computed(() =>
@@ -206,6 +216,77 @@ function hostOf(url: string): string {
   } catch {
     return url;
   }
+}
+
+// ── The score ─────────────────────────────────────────────────────────────────
+/** Matches the API's own ceiling, so the two never disagree about what is too big. */
+const SCORE_MAX = 1_000_000_000;
+
+/** Grouped thousands, which is the only way a seven-figure score is read at a glance. */
+function formatScore(value: number): string {
+  return value.toLocaleString('th-TH');
+}
+
+/**
+ * A typed score as a number, or null when it is not one. Empty reads as 0; Thai digits and
+ * the commas a number pasted from the JOOX app arrives with are accepted — the same rules as
+ * the score on `/joox-accounts`.
+ */
+function readScore(text: string): number | null {
+  const normalised = text
+    .trim()
+    .replace(/[๐-๙]/g, (d) => String('๐๑๒๓๔๕๖๗๘๙'.indexOf(d)))
+    .replace(/[,\s]/g, '');
+  if (!normalised) return 0;
+  if (!/^\d+$/.test(normalised)) return null;
+  const value = Number(normalised);
+  return Number.isSafeInteger(value) && value <= SCORE_MAX ? value : null;
+}
+
+/** The one card whose score box is open, and what has been typed in it. */
+const scoring = ref<{ id: number; text: string } | null>(null);
+const scoreSaving = ref(false);
+const scoreError = ref<string | null>(null);
+
+function openScore(account: JooxVoteAccount): void {
+  scoring.value = { id: account.id, text: String(account.score) };
+  scoreError.value = null;
+}
+
+function closeScore(): void {
+  scoring.value = null;
+  scoreError.value = null;
+}
+
+async function saveScore(): Promise<void> {
+  const open = scoring.value;
+  if (!open || scoreSaving.value) return;
+  const score = readScore(open.text);
+  if (score === null) {
+    scoreError.value = 'คะแนนต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป';
+    return;
+  }
+  const account = accounts.value.find((a) => a.id === open.id);
+  if (!account || score === account.score) {
+    closeScore();
+    return;
+  }
+  scoreSaving.value = true;
+  scoreError.value = null;
+  const error = await setScore(open.id, score);
+  scoreSaving.value = false;
+  if (error) {
+    // Deleted by someone else meanwhile: the card is gone, so say it at the bottom instead.
+    if (!accounts.value.some((a) => a.id === open.id)) {
+      closeScore();
+      flash(error);
+    } else {
+      scoreError.value = error;
+    }
+    return;
+  }
+  closeScore();
+  flash(`บันทึกคะแนน ${account.accountName} เป็น ${formatScore(score)} แล้ว`);
 }
 
 // ── Dialog, shared by "done", "missing" and "delete" ──────────────────────────
@@ -291,6 +372,19 @@ async function confirm(missing = 0): Promise<void> {
 
     <!-- The list -->
     <template v-else-if="accounts.length > 0">
+      <!-- The scores added up across the whole list, whatever the search or filter shows. -->
+      <div class="score-total" role="status" aria-live="polite">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide opacity-70">คะแนนรวมทุกบัญชี</p>
+          <p class="text-4xl font-extrabold tabular-nums leading-tight">
+            {{ formatScore(totalScore) }}
+          </p>
+        </div>
+        <p class="text-sm opacity-70 text-right leading-snug">
+          จาก <b class="tabular-nums">{{ accounts.length }}</b> บัญชี
+        </p>
+      </div>
+
       <p class="text-sm text-gray-600 mb-3" role="status" aria-live="polite">
         ครบแล้ว <b>{{ doneCount }}</b> / {{ accounts.length }} บัญชี
       </p>
@@ -365,6 +459,61 @@ async function confirm(missing = 0): Promise<void> {
               </span>
             </div>
           </div>
+
+          <!-- The score, edited in place: a button showing the number, or a field with save and
+               cancel. Enter and Escape do the same two things. -->
+          <div class="score-row">
+            <span class="text-xs font-medium text-gray-500 shrink-0">คะแนน</span>
+            <template v-if="scoring?.id === a.id">
+              <input
+                v-model="scoring.text"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                maxlength="13"
+                class="score-input"
+                :aria-label="`คะแนนของ ${a.accountName}`"
+                :disabled="scoreSaving"
+                @keydown.enter.prevent="saveScore"
+                @keydown.esc.prevent="closeScore"
+              />
+              <button
+                type="button"
+                class="tap btn-done px-3"
+                :disabled="scoreSaving"
+                :aria-label="`บันทึกคะแนนของ ${a.accountName}`"
+                @click="saveScore"
+              >
+                {{ scoreSaving ? '…' : '✓' }}
+              </button>
+              <button
+                type="button"
+                class="tap btn-ghost px-3"
+                :disabled="scoreSaving"
+                aria-label="ยกเลิกการแก้คะแนน"
+                @click="closeScore"
+              >
+                ✕
+              </button>
+            </template>
+            <button
+              v-else
+              type="button"
+              class="tap score-value"
+              :aria-label="`แก้คะแนนของ ${a.accountName} ตอนนี้ ${formatScore(a.score)}`"
+              @click="openScore(a)"
+            >
+              <span class="tabular-nums font-bold text-lg">{{ formatScore(a.score) }}</span>
+              <span class="text-xs text-gray-400" aria-hidden="true">แตะเพื่อแก้</span>
+            </button>
+          </div>
+          <p
+            v-if="scoreError && scoring?.id === a.id"
+            class="text-sm text-red-600 mb-3"
+            role="alert"
+          >
+            {{ scoreError }}
+          </p>
 
           <!-- The button the page exists for: full width and tall enough for a thumb. -->
           <a
@@ -584,6 +733,22 @@ async function confirm(missing = 0): Promise<void> {
 .btn-primary {
   background: #ffde59;
   @apply text-gray-900;
+}
+
+.score-total {
+  background: #ffde59;
+  @apply flex items-end justify-between gap-3 rounded-2xl px-4 py-3 mb-3 text-gray-900 shadow-sm;
+}
+.score-row { @apply flex items-center gap-2 mb-3; }
+/* Closed: the number and its invitation, filling the row so the whole strip is the target. */
+.score-value {
+  @apply flex flex-1 items-baseline justify-between gap-2 rounded-lg border border-gray-200
+    bg-gray-50 px-3 text-left hover:bg-gray-100;
+}
+/* Open: `.input` is the whole width, which a field sharing a row with two buttons is not. */
+.score-input {
+  @apply min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-base tabular-nums
+    focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50;
 }
 
 .btn-vote {

@@ -792,11 +792,11 @@ model Media {
 /// the project that owns them — so a table would buy joins and an id per row and give
 /// nothing back. Same reasoning as `PageBlock.props`.
 model Project {
-  id      Int    @id @default(autoincrement())
-  title   String @db.VarChar(200)
-  slug    String @unique @db.VarChar(200)
+  id          Int     @id @default(autoincrement())
+  title       String  @db.VarChar(200)
+  slug        String  @unique @db.VarChar(200)
   /// One line under the title on the list page.
-  summary String? @db.VarChar(500)
+  summary     String? @db.VarChar(500)
   /// The long text on the detail page, as HTML from the editor.
   description String? @db.Text
 
@@ -810,8 +810,8 @@ model Project {
 
   /// The button under the write-up on the detail page — the way on to the activity itself.
   /// Both are needed for it to show: a label with nowhere to go is not a button.
-  ctaLabel String? @map("cta_label") @db.VarChar(100)
-  ctaUrl   String? @map("cta_url") @db.VarChar(500)
+  ctaLabel     String? @map("cta_label") @db.VarChar(100)
+  ctaUrl       String? @map("cta_url") @db.VarChar(500)
   /// Empty falls back to the site's own colours, so a project only carries what it overrides.
   ctaColor     String? @map("cta_color") @db.VarChar(30)
   ctaTextColor String? @map("cta_text_color") @db.VarChar(30)
@@ -920,7 +920,7 @@ model BirthdayCardBackground {
   eventId Int           @map("event_id")
   event   BirthdayEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  name String @db.VarChar(200)
+  name      String  @db.VarChar(200)
   /// Required, unlike a gift's: a background with no picture is not a choice.
   imageUrl  String  @map("image_url") @db.VarChar(500)
   sortOrder Int     @default(0) @map("sort_order")
@@ -968,7 +968,7 @@ model BirthdayWish {
   balloonShape String @default("round") @map("balloon_shape") @db.VarChar(20)
   balloonColor String @default("#0ea5e9") @map("balloon_color") @db.VarChar(20)
 
-  photoUrl  String? @map("photo_url") @db.VarChar(500)
+  photoUrl      String? @map("photo_url") @db.VarChar(500)
   /// A small WebP copy of the same picture, for the wall.
   ///
   /// The wall draws every photo a hundred-odd pixels wide but decodes whatever it is sent,
@@ -979,9 +979,9 @@ model BirthdayWish {
   /// How the photo sits inside the balloon: a zoom plus an x/y offset in the shape's
   /// 100×100 box. Stored beside the original upload rather than baked into it, so the
   /// picture can be reframed later without a re-upload.
-  photoZoom Float?  @map("photo_zoom")
-  photoX    Float?  @map("photo_x")
-  photoY    Float?  @map("photo_y")
+  photoZoom     Float?  @map("photo_zoom")
+  photoX        Float?  @map("photo_x")
+  photoY        Float?  @map("photo_y")
 
   /// SetNull, not Cascade: retiring a gift from the catalogue must not delete the
   /// wishes that chose it.
@@ -1071,6 +1071,11 @@ model JooxVoteAccount {
   /// `jooxVoteDay()` — days since the epoch, each starting at 23:00 Thai time.
   voteDay Int     @map("vote_day")
 
+  /// A score anyone on the list can put in for this account, as they keep it themselves.
+  /// Like `JooxAccount.score`, a running total: nothing computes it and the 23:00 reset
+  /// leaves it alone — only an edit changes it.
+  score Int @default(0)
+
   votesReceived JooxAccountVote[]
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -1154,6 +1159,7 @@ model Dj {
   sortOrder Int     @default(0) @map("sort_order")
 
   slots DjSlot[]
+  picks StreamPick[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -1220,4 +1226,134 @@ model TrackingEntry {
   @@index([projectId])
   @@index([xAccount])
   @@map("tracking_entries")
+}
+
+/// One round of streaming — usually a week. Fans send their proof of streams into it; the
+/// awards are worked out from the approved ones:
+///  - Streaming Star: the highest total.
+///  - Rising Streamer: the biggest rise over the round before (the one starting just earlier).
+///  - DJ's Pick: a DJ draws a lucky fan — see StreamPick.
+/// Every winner then draws a prize from the round's pool, once per round — see StreamDraw.
+model StreamSession {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(200)
+  description String?  @db.VarChar(1000)
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+
+  /// Closed rounds keep their awards on the website but take no new proof. Closing is also
+  /// what settles Streaming Star and Rising Streamer, so their winners may draw only then.
+  isOpen      Boolean @default(true) @map("is_open")
+  /// Hidden rounds stay in the admin but drop out of the website.
+  isActive    Boolean @default(true) @map("is_active")
+  /// How many win each award. Streaming Star and Rising Streamer take ties at the cut-off
+  /// too; DJ's Pick stops drawing once it has this many.
+  starCount   Int     @default(3) @map("star_count")
+  risingCount Int     @default(1) @map("rising_count")
+  pickCount   Int     @default(3) @map("pick_count")
+
+  proofs StreamProof[]
+  prizes StreamPrize[]
+  picks  StreamPick[]
+  draws  StreamDraw[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([startsAt])
+  @@map("stream_sessions")
+}
+
+enum StreamProofStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// A fan's screenshot of their streams for one round. The admin reads the number off it and
+/// approves; only approved proofs count. An account may send several — they add up.
+model StreamProof {
+  id        Int     @id @default(autoincrement())
+  sessionId Int     @map("session_id")
+  /// Stored without the leading "@"; grouped ignoring case.
+  xAccount  String  @map("x_account") @db.VarChar(100)
+  /// Null only for a row the admin typed in by hand.
+  imageUrl  String? @map("image_url") @db.VarChar(500)
+  note      String? @db.VarChar(300)
+
+  /// Set by the admin from the screenshot; required to approve.
+  streams    Int?
+  status     StreamProofStatus @default(PENDING)
+  reviewNote String?           @map("review_note") @db.VarChar(300)
+  ipAddress  String?           @map("ip_address") @db.VarChar(64)
+
+  session StreamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([sessionId, status])
+  @@index([xAccount])
+  @@map("stream_proofs")
+}
+
+/// Something a winner can draw. `quantity` is how many there are; each draw uses one.
+model StreamPrize {
+  id        Int     @id @default(autoincrement())
+  sessionId Int     @map("session_id")
+  name      String  @db.VarChar(200)
+  image     String? @db.VarChar(500)
+  quantity  Int     @default(1)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  session StreamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  draws   StreamDraw[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([sessionId])
+  @@map("stream_prizes")
+}
+
+/// A DJ's Pick winner, drawn by the DJ from the round's approved streamers.
+model StreamPick {
+  id        Int    @id @default(autoincrement())
+  sessionId Int    @map("session_id")
+  djId      Int?   @map("dj_id")
+  xAccount  String @map("x_account") @db.VarChar(100)
+
+  session StreamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  dj      Dj?           @relation(fields: [djId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([sessionId])
+  @@index([xAccount])
+  @@map("stream_picks")
+}
+
+/// A winner's prize: one per account per round, whichever awards and however many they won.
+/// Deleting one puts the prize back in the pool.
+model StreamDraw {
+  id        Int    @id @default(autoincrement())
+  sessionId Int    @map("session_id")
+  xAccount  String @map("x_account") @db.VarChar(100)
+  prizeId   Int    @map("prize_id")
+
+  session StreamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  prize   StreamPrize   @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([sessionId])
+  @@index([xAccount])
+  @@map("stream_draws")
 }

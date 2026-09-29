@@ -69,6 +69,16 @@ const missingSchema = z.object({
   missing: z.coerce.number().int().min(1).max(JOOX_VOTE_TARGET),
 });
 
+/** The same ceiling as the score on `/joox-accounts`, so a sum of them stays a number. */
+const SCORE_MAX = 1_000_000_000;
+const scoreSchema = z.object({
+  score: z.coerce
+    .number()
+    .int('คะแนนต้องเป็นจำนวนเต็ม')
+    .min(0, 'คะแนนต้องไม่ติดลบ')
+    .max(SCORE_MAX, 'คะแนนสูงเกินไป'),
+});
+
 interface Row {
   id: number;
   accountName: string;
@@ -76,6 +86,7 @@ interface Row {
   clicks: number;
   isDone: boolean;
   voteDay: number;
+  score: number;
 }
 
 /** What leaves the API: today's count, or zero for a row not touched since the last reset. */
@@ -87,6 +98,7 @@ function toPublic(row: Row, today: number): JooxVoteAccount {
     link: row.link,
     clicks: current ? row.clicks : 0,
     isDone: current ? row.isDone : false,
+    score: row.score,
   };
 }
 
@@ -102,6 +114,7 @@ const rowSelect = {
   clicks: true,
   isDone: true,
   voteDay: true,
+  score: true,
 } as const;
 
 /**
@@ -110,7 +123,7 @@ const rowSelect = {
  * every other timestamp in the table.
  */
 const RETURNING = Prisma.sql`RETURNING id, account_name AS "accountName", link, clicks,
-  is_done AS "isDone", vote_day AS "voteDay"`;
+  is_done AS "isDone", vote_day AS "voteDay", score`;
 
 /** The account as it now stands: to the phone that changed it, and to every phone watching. */
 function answer(res: Response, account: JooxVoteAccount): void {
@@ -241,6 +254,25 @@ router.post(
       SET is_done    = true,
           clicks     = CASE WHEN vote_day >= ${today} THEN clicks ELSE 0 END,
           vote_day   = GREATEST(vote_day, ${today}),
+          updated_at = NOW() AT TIME ZONE 'UTC'
+      WHERE id = ${Number(req.params.id)} AND deleted_at IS NULL
+      ${RETURNING}`;
+    if (!row) throw gone();
+    answer(res, toPublic(row, today));
+  }),
+);
+
+/** The score, as typed. Not on the 23:00 clock, so today's count and tick are left as they are. */
+router.patch(
+  '/joox-votes/:id/score',
+  jooxVoteLimiter,
+  validate({ params: idParams, body: scoreSchema }),
+  asyncHandler(async (req, res) => {
+    const { score } = req.body as z.infer<typeof scoreSchema>;
+    const today = jooxVoteDay();
+    const [row] = await prisma.$queryRaw<Row[]>`
+      UPDATE joox_vote_accounts
+      SET score      = ${score},
           updated_at = NOW() AT TIME ZONE 'UTC'
       WHERE id = ${Number(req.params.id)} AND deleted_at IS NULL
       ${RETURNING}`;
