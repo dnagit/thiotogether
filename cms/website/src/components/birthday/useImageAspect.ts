@@ -47,3 +47,27 @@ export function useImageAspect(url: () => string | null | undefined): Ref<number
 
   return aspect;
 }
+
+/**
+ * Measure a picture ahead of time, so a card mounted afterwards has its aspect at once.
+ *
+ * For drawing cards straight to an image: a card mounted and rasterised in the same moment
+ * would otherwise be drawn before its probe came back, with no photo in the balloon.
+ * Resolves either way — a photo that will not load is drawn without, as on screen.
+ */
+export function preloadImageAspect(url: string | null | undefined): Promise<void> {
+  if (!url || cache.has(url)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const probe = new Image();
+    probe.onload = () => {
+      const ratio = probe.naturalWidth / probe.naturalHeight;
+      if (Number.isFinite(ratio) && ratio > 0) {
+        if (cache.size >= CACHE_MAX) cache.clear();
+        cache.set(url, ratio);
+      }
+      resolve();
+    };
+    probe.onerror = () => resolve();
+    probe.src = url;
+  });
+}

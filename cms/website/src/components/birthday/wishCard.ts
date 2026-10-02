@@ -218,14 +218,37 @@ async function inlineImage(url: string): Promise<string | null> {
   }
 }
 
+/** Turns a remote image URL into a data URI, or null when it cannot be fetched. */
+export type ImageInliner = (url: string) => Promise<string | null>;
+
 /**
- * Rasterise a live `<svg>` element to a PNG blob at `scale`× its layout size.
+ * An inliner that fetches each URL once. For drawing many cards in one go, which share the
+ * card artwork, the backgrounds and the presents — without it every card refetches them.
+ */
+export function cachedInliner(): ImageInliner {
+  const seen = new Map<string, Promise<string | null>>();
+  return (url) => {
+    let hit = seen.get(url);
+    if (!hit) {
+      hit = inlineImage(url);
+      seen.set(url, hit);
+    }
+    return hit;
+  };
+}
+
+/**
+ * A live `<svg>` element as a loaded image, ready to draw into a canvas, with its size in
+ * card units.
  *
  * The element is cloned first: every remote `href` in the clone is swapped for a data URI,
  * because an SVG loaded into an `<img>` is an isolated document that is not allowed to
  * fetch anything of its own.
  */
-export async function svgToPng(svg: SVGSVGElement, scale = 2): Promise<Blob> {
+export async function svgToImage(
+  svg: SVGSVGElement,
+  inline: ImageInliner = inlineImage,
+): Promise<{ image: HTMLImageElement; width: number; height: number }> {
   const clone = svg.cloneNode(true) as SVGSVGElement;
 
   const viewBox = (svg.getAttribute('viewBox') ?? `0 0 ${CARD_WIDTH} ${CARD_HEIGHT}`)
@@ -241,7 +264,7 @@ export async function svgToPng(svg: SVGSVGElement, scale = 2): Promise<Blob> {
     [...clone.querySelectorAll('image')].map(async (node) => {
       const href = node.getAttribute('href') ?? node.getAttribute('xlink:href');
       if (!href || href.startsWith('data:')) return;
-      const inlined = await inlineImage(href);
+      const inlined = await inline(href);
       if (inlined) node.setAttribute('href', inlined);
       else node.remove();
     }),
@@ -258,6 +281,27 @@ export async function svgToPng(svg: SVGSVGElement, scale = 2): Promise<Blob> {
     image.onerror = () => reject(new Error('card svg failed to rasterise'));
     image.src = url;
   });
+  return { image, width, height };
+}
+
+/** A canvas as an image blob — PNG unless told otherwise. */
+export function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type = 'image/png',
+  quality?: number,
+): Promise<Blob> {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('canvas produced no blob'))),
+      type,
+      quality,
+    );
+  });
+}
+
+/** Rasterise a live `<svg>` element to a PNG blob at `scale`× its layout size. */
+export async function svgToPng(svg: SVGSVGElement, scale = 2): Promise<Blob> {
+  const { image, width, height } = await svgToImage(svg);
 
   const canvas = document.createElement('canvas');
   canvas.width = width * scale;
@@ -270,12 +314,7 @@ export async function svgToPng(svg: SVGSVGElement, scale = 2): Promise<Blob> {
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-  return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('canvas produced no blob'))),
-      'image/png',
-    );
-  });
+  return canvasToBlob(canvas);
 }
 
 /** Filename-safe slice of a name; `\p{M}` keeps Thai vowel signs and tone marks attached. */

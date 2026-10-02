@@ -16,7 +16,16 @@ import { inkColor, isLightColor, lighten, outlineColor } from './balloon';
 const props = withDefaults(
   defineProps<{
     /** Reached through a getter, because the card usually mounts after this does. */
-    svg: () => SVGSVGElement | null;
+    svg?: () => SVGSVGElement | null;
+    /**
+     * Makes the picture instead of `svg` — for something that is not one card, such as every
+     * card on one sheet. Everything after that, the saving itself, is the same.
+     */
+    render?: () => Promise<File | null>;
+    /** What the picture is called in the share sheet and the long-press preview. */
+    title?: string;
+    /** Replaces "Save image" / "Save to Photos" on the button. */
+    saveLabel?: string;
     /** Whose wish it is; the file is named after them. */
     name: string;
     /** Absolute link that reopens this card. Empty hides the copy button. */
@@ -26,14 +35,17 @@ const props = withDefaults(
     /** Centred under a card that is itself centred; left-aligned in the popup. */
     center?: boolean;
   }>(),
-  { link: '', themeColor: null, center: false },
+  { svg: undefined, render: undefined, title: '', saveLabel: '', link: '', themeColor: null, center: false },
 );
 
 const saving = ref(false);
 const note = ref<string | null>(null);
 
+const pictureTitle = computed(() => props.title || `Wish from ${props.name}`);
+
 async function renderPng(): Promise<File | null> {
-  const svg = props.svg();
+  if (props.render) return props.render();
+  const svg = props.svg?.();
   if (!svg) return null;
   const blob = await svgToPng(svg);
   return new File([blob], cardFileName(props.name), { type: 'image/png' });
@@ -149,7 +161,7 @@ async function save(): Promise<void> {
       try {
         // The picture alone, with no accompanying text: this is the save button, and a
         // sheet given something to say tends to offer to say it somewhere.
-        await navigator.share({ files: [file], title: `Wish from ${props.name}` });
+        await navigator.share({ files: [file], title: pictureTitle.value });
         return;
       } catch (err: any) {
         // Dismissing the sheet is a decision, not a failure — nothing more to do.
@@ -217,7 +229,7 @@ defineExpose({ saving });
   <div :style="buttonTheme">
     <div class="flex flex-wrap gap-2" :class="center ? 'justify-center' : ''">
       <button type="button" class="act act-primary" :disabled="saving" @click="save">
-        {{ saving ? 'Saving…' : toGallery ? '💾 Save to Photos' : '💾 Save image' }}
+        {{ saving ? 'Saving…' : saveLabel || (toGallery ? '💾 Save to Photos' : '💾 Save image') }}
       </button>
       <button v-if="link" type="button" class="act" @click="copyLink">🔗 Copy link</button>
     </div>
@@ -244,7 +256,7 @@ defineExpose({ saving });
     <div v-if="preview" class="sheet" role="dialog" aria-modal="true" @click.self="closePreview">
       <div class="sheet-body">
         <p class="sheet-hint">Press and hold the picture, then choose “Save Image”</p>
-        <img :src="preview" class="sheet-img" :alt="`Wish from ${name}`" />
+        <img :src="preview" class="sheet-img" :alt="pictureTitle" />
         <div class="sheet-actions">
           <button type="button" class="act act-primary" @click="closePreview">Done</button>
           <a v-if="externalLink" :href="externalLink" class="act">Open in browser</a>

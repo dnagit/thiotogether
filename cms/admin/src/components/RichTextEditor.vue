@@ -24,11 +24,15 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 
 const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '40px'];
 
+/**
+ * The four alignments, each drawn as the usual four lines of text — `lines` gives where each
+ * line starts and ends on a 16-wide grid, which is all that tells the icons apart.
+ */
 const ALIGNS = [
-  { value: 'left', label: 'ชิดซ้าย', icon: '⇤' },
-  { value: 'center', label: 'กึ่งกลาง', icon: '↔' },
-  { value: 'right', label: 'ชิดขวา', icon: '⇥' },
-  { value: 'justify', label: 'เต็มบรรทัด', icon: '☰' },
+  { value: 'left', label: 'ชิดซ้าย', lines: [[2, 14], [2, 10], [2, 14], [2, 10]] },
+  { value: 'center', label: 'จัดกึ่งกลาง', lines: [[2, 14], [4, 12], [2, 14], [4, 12]] },
+  { value: 'right', label: 'ชิดขวา', lines: [[2, 14], [6, 14], [2, 14], [6, 14]] },
+  { value: 'justify', label: 'เต็มบรรทัด', lines: [[2, 14], [2, 14], [2, 14], [2, 14]] },
 ] as const;
 
 const editor = useEditor({
@@ -129,7 +133,22 @@ async function setLink(): Promise<void> {
         :title="a.label"
         :class="{ on: editor.isActive({ textAlign: a.value }) }"
         @click="editor.chain().focus().setTextAlign(a.value).run()"
-      >{{ a.icon }}</button>
+      >
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <line
+            v-for="([x1, x2], row) in a.lines"
+            :key="row"
+            :x1="x1"
+            :x2="x2"
+            :y1="3 + row * 3.33"
+            :y2="3 + row * 3.33"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+        <span class="sr-only">{{ a.label }}</span>
+      </button>
 
       <span class="sep" />
       <button type="button" title="รายการแบบจุด" :class="{ on: editor.isActive('bulletList') }" @click="editor.chain().focus().toggleBulletList().run()">•</button>
@@ -181,6 +200,18 @@ async function setLink(): Promise<void> {
   border-color: var(--el-color-primary-light-5);
   background: var(--el-color-primary-light-9);
   color: var(--el-color-primary);
+}
+.toolbar button svg {
+  display: block;
+  margin: 0 auto;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .toolbar button:disabled {
   opacity: 0.35;

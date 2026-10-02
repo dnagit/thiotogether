@@ -11,11 +11,16 @@
  * enough that they have to be asked for rather than poured out — and a list that quietly
  * grew a row at the top while someone was reading would move the card under their eyes.
  */
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { applySeo } from '@/composables/useSeo';
 import { useBirthdayWall } from '@/composables/useBirthdayWall';
 import WishCard from '@/components/birthday/WishCard.vue';
+import WishCardActions from '@/components/birthday/WishCardActions.vue';
+import { inkColor, lighten } from '@/components/birthday/balloon';
+import { preloadImageAspect } from '@/components/birthday/useImageAspect';
+import { drawWishSheet } from '@/components/birthday/wishSheet';
+import type { Wish } from '@/api/birthday';
 
 /** How many more cards each press of the button is worth. */
 const PAGE = 9;
@@ -61,6 +66,54 @@ function wirePath(index: number): string {
   return `M0 10 Q50 ${(2 * depth - 10).toFixed(0)} 100 10`;
 }
 
+/* ── Save all ─────────────────────────────────────────────────────────────── */
+
+/**
+ * The cards being drawn into the sheet right now — a batch at a time, off screen, and empty
+ * the rest of the time. Every wish, not only the ones shown: the sheet is the whole wall,
+ * however far down the page someone has read.
+ */
+const drawing = ref<Wish[]>([]);
+const drawn = new Map<number, InstanceType<typeof WishCard>>();
+const progress = ref<number | null>(null);
+
+async function renderBatch(start: number, end: number): Promise<SVGSVGElement[]> {
+  const batch = wishes.value.slice(start, end);
+  // Measured first, so each card mounts with its photo already placed.
+  await Promise.all(batch.map((w) => preloadImageAspect(w.photoUrl)));
+  drawn.clear();
+  drawing.value = batch;
+  await nextTick();
+  return batch
+    .map((_, i) => drawn.get(i)?.svg)
+    .filter((svg): svg is SVGSVGElement => !!svg);
+}
+
+async function renderAll(): Promise<File | null> {
+  if (!wishes.value.length) return null;
+  progress.value = 0;
+  try {
+    await document.fonts?.ready;
+    const e = event.value;
+    const blob = await drawWishSheet({
+      count: wishes.value.length,
+      title: 'All wishes',
+      subtitle: [e?.celebrantName ? `For ${e.celebrantName}` : e?.title, countLabel.value]
+        .filter(Boolean)
+        .join(' · '),
+      background: lighten(themeColor.value, 0.9),
+      ink: inkColor(themeColor.value),
+      renderBatch,
+      onProgress: (done) => (progress.value = done),
+    });
+    return new File([blob], `wishes-${slug}.jpg`, { type: 'image/jpeg' });
+  } finally {
+    drawing.value = [];
+    drawn.clear();
+    progress.value = null;
+  }
+}
+
 watch(event, (e) => {
   if (!e) return;
   applySeo({
@@ -88,10 +141,41 @@ watch(event, (e) => {
       </p>
       <p v-if="wishes.length" class="mt-2 text-gray-700">{{ countLabel }} in total</p>
 
+      <div v-if="wishes.length" class="mt-4">
+        <WishCardActions
+          :render="renderAll"
+          :name="event?.celebrantName || 'everyone'"
+          :title="countLabel"
+          save-label="💾 Save all cards"
+          :theme-color="themeColor"
+          center
+        />
+        <p v-if="progress !== null" class="mt-2 text-sm text-gray-600" aria-live="polite">
+          Drawing card {{ progress }} of {{ wishes.length }}…
+        </p>
+      </div>
+
       <RouterLink :to="{ name: 'birthday-wall', params: { slug } }" class="back-link mt-4">
         <span aria-hidden="true">←</span> Back to the balloon wall
       </RouterLink>
     </header>
+
+    <!-- Where "Save all cards" mounts each batch to draw it. Never seen, never read out. -->
+    <div v-if="drawing.length" class="offstage" aria-hidden="true">
+      <WishCard
+        v-for="(wish, i) in drawing"
+        :key="wish.id"
+        :ref="(el) => el && drawn.set(i, el as InstanceType<typeof WishCard>)"
+        :name="wish.name"
+        :message="wish.message"
+        :balloon-shape="wish.balloonShape"
+        :balloon-color="wish.balloonColor"
+        :photo-url="wish.photoUrl"
+        :framing="wish.photoFraming"
+        :background-url="wish.background?.imageUrl"
+        :gift-image="wish.gift?.imageUrl"
+      />
+    </div>
 
     <p v-if="loadError" class="mb-6 text-center text-sm text-red-600" role="alert">{{ loadError }}</p>
 
@@ -199,6 +283,16 @@ watch(event, (e) => {
 </template>
 
 <style scoped>
+/* Laid out at a card's real width, but off the page and out of the way of everything. */
+.offstage {
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  width: 720px;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 /*
  * The cards are hung on a line and pegged, which is three pieces per cell: a length of wire
  * across the top, a peg over it, and the card swinging under the peg.
