@@ -159,9 +159,10 @@ const dateText = computed(() =>
 </template>
 
 <style scoped>
+/* Width is `container-site`'s, the same as every other page; only the spacing is set here. */
 .page {
-  padding: clamp(1.5rem, 4vw, 3.5rem) 1rem clamp(3rem, 8vw, 6rem);
-  max-width: 52rem;
+  padding-top: clamp(1.5rem, 4vw, 3.5rem);
+  padding-bottom: clamp(3rem, 8vw, 6rem);
 }
 .note {
   text-align: center;
