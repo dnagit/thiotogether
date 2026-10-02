@@ -804,6 +804,8 @@ model Project {
   coverImage String? @map("cover_image") @db.VarChar(500)
   /// `[{ "url": "…", "caption": "…" }]`
   images     Json    @default("[]")
+  /// The text under the gallery on the detail page, written the same way as `description`.
+  galleryText String? @map("gallery_text") @db.Text
 
   /// Shown under the title on the detail page — a date, a venue, whatever fits.
   eventDate DateTime? @map("event_date")

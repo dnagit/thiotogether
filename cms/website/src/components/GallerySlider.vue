@@ -31,8 +31,13 @@ const props = withDefaults(
     interval?: number | string;
     /** Used as the alt text on a picture that has no caption of its own. */
     label?: string;
+    /**
+     * Lay every picture out in rows of `perView` instead of a sliding row. Arrows, dots and
+     * autoplay go away; tapping still opens the lightbox.
+     */
+    grid?: boolean;
   }>(),
-  { perView: 3, ratio: '4 / 3', autoplay: false, interval: 4, label: '' },
+  { perView: 3, ratio: '4 / 3', autoplay: false, interval: 4, label: '', grid: false },
 );
 
 const slides = computed(() => props.images.filter((i) => i?.url));
@@ -100,7 +105,7 @@ function stopAutoplay(): void {
 
 function startAutoplay(): void {
   stopAutoplay();
-  if (!props.autoplay || !wantsMotion() || slides.value.length <= perView.value) return;
+  if (props.grid || !props.autoplay || !wantsMotion() || slides.value.length <= perView.value) return;
   const every = Math.max(1.5, Number(props.interval) || 4) * 1000;
   timer = setInterval(() => {
     if (paused.value) return;
@@ -200,7 +205,7 @@ watch(openAt, async (value) => {
 </script>
 
 <template>
-  <div v-if="slides.length" class="slider" @mouseenter="paused = true" @mouseleave="paused = false">
+  <div v-if="slides.length" class="slider" :class="{ 'is-grid': grid }" @mouseenter="paused = true" @mouseleave="paused = false">
     <ul
       ref="track"
       class="track"
@@ -236,7 +241,7 @@ watch(openAt, async (value) => {
       </li>
     </ul>
 
-    <template v-if="slides.length > perView">
+    <template v-if="!grid && slides.length > perView">
       <button
         type="button"
         class="arrow arrow-prev"
@@ -358,6 +363,18 @@ watch(openAt, async (value) => {
     flex-basis: calc(
       (100% - (var(--per-view) - 1) * clamp(0.75rem, 2vw, 1.5rem)) / var(--per-view)
     );
+  }
+}
+
+/* Grid mode: every picture at once, one column on a phone and `perView` from 480px. */
+.is-grid .track {
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow: visible;
+}
+@media (min-width: 480px) {
+  .is-grid .track {
+    grid-template-columns: repeat(var(--per-view), minmax(0, 1fr));
   }
 }
 

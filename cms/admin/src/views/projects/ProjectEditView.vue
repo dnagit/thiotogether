@@ -31,6 +31,7 @@ const project = reactive<Record<string, any>>({
   description: '',
   coverImage: '',
   images: [],
+  galleryText: '',
   eventDate: null,
   ctaLabel: '',
   ctaUrl: '',
@@ -73,6 +74,7 @@ async function load(): Promise<void> {
       images: Array.isArray(data.data.images) ? data.data.images : [],
       summary: data.data.summary ?? '',
       description: data.data.description ?? '',
+      galleryText: data.data.galleryText ?? '',
       coverImage: data.data.coverImage ?? '',
       ctaLabel: data.data.ctaLabel ?? '',
       ctaUrl: data.data.ctaUrl ?? '',
@@ -98,6 +100,7 @@ async function save(): Promise<void> {
       coverImage: project.coverImage || null,
       // Rows the editor added but nobody filled in never reach the site.
       images: (project.images ?? []).filter((i: any) => i?.url),
+      galleryText: project.galleryText || null,
       eventDate: project.eventDate || null,
       ctaLabel: project.ctaLabel || null,
       ctaUrl: project.ctaUrl || null,
@@ -166,6 +169,9 @@ async function copy(text: string): Promise<void> {
         <ElFormItem label="รายละเอียด (รองรับ HTML)">
           <ElInput v-model="project.description" type="textarea" :rows="10" class="mono" />
         </ElFormItem>
+        <div class="hint text-muted desc-hint">
+          พิมพ์ข้อความธรรมดาได้เลย การขึ้นบรรทัดใหม่จะแสดงบนเว็บตามที่พิมพ์ — เว้นบรรทัดว่างเพื่อขึ้นย่อหน้าใหม่
+        </div>
 
         <ElRow :gutter="16">
           <ElCol :span="8">
@@ -232,7 +238,7 @@ async function copy(text: string): Promise<void> {
     <ElCard class="mb">
       <template #header>
         <b>รูปปก</b>
-        <span class="text-muted"> — รูปที่ใช้ในหน้ารวมโปรเจกต์</span>
+        <span class="text-muted"> — รูปที่ใช้ในหน้ารวมโปรเจกต์ และแสดงบนสุดของหน้ารายละเอียด</span>
       </template>
       <ElForm label-position="top" :disabled="!canManage">
         <MediaPicker v-model="project.coverImage" />
@@ -243,7 +249,7 @@ async function copy(text: string): Promise<void> {
       <template #header>
         <b>แกลเลอรี</b>
         <span class="text-muted">
-          — รูปและวิดีโอทั้งหมดในหน้ารายละเอียด ใส่ได้มากกว่าหนึ่งไฟล์ (วิดีโอรองรับ MP4 และ WebM)
+          — แสดงใต้รายละเอียด แถวละ 2 รูป ใส่ได้มากกว่าหนึ่งไฟล์ (วิดีโอรองรับ MP4 และ WebM)
         </span>
       </template>
       <ElForm label-position="top" :disabled="!canManage">
@@ -252,6 +258,9 @@ async function copy(text: string): Promise<void> {
           :model-value="project"
           @update:model-value="Object.assign(project, $event)"
         />
+        <ElFormItem label="ข้อความใต้แกลเลอรี (รองรับ HTML)">
+          <ElInput v-model="project.galleryText" type="textarea" :rows="4" class="mono" />
+        </ElFormItem>
       </ElForm>
     </ElCard>
 
@@ -272,5 +281,6 @@ async function copy(text: string): Promise<void> {
 .link-row { display: flex; align-items: center; gap: 8px; }
 .link-label { width: 130px; flex: none; font-size: 13px; }
 .hint { font-size: 12px; margin-top: 8px; line-height: 1.6; }
+.desc-hint { margin: -10px 0 18px; }
 .mono :deep(textarea) { font-family: ui-monospace, monospace; font-size: 12px; }
 </style>

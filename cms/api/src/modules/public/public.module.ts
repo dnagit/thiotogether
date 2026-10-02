@@ -105,6 +105,7 @@ router.get(
         ...projectSelect,
         description: true,
         images: true,
+        galleryText: true,
         ctaLabel: true,
         ctaUrl: true,
         ctaColor: true,

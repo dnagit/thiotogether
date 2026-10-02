@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
- * One project: the cover, the write-up, and however many pictures it has.
+ * One project: the cover, the write-up, the gallery and the text under it.
  *
  * The list is a block that can sit on any page; this is a route, because a project is one
  * thing at one address — which is also what makes it shareable and indexable.
  *
  * The gallery and its lightbox live in {@link GallerySlider}, shared with the journey block.
+ * Both texts keep the line breaks the editor typed — see {@link textToHtml}.
  */
 import { computed, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
@@ -13,6 +14,7 @@ import { get } from '@/api/client';
 import { applySeo } from '@/composables/useSeo';
 import GallerySlider from '@/components/GallerySlider.vue';
 import type { SlideImage } from '@/components/gallery';
+import { textToHtml } from '@/utils/richText';
 
 interface Project {
   id: number;
@@ -22,6 +24,7 @@ interface Project {
   description: string | null;
   coverImage: string | null;
   images: SlideImage[] | null;
+  galleryText: string | null;
   eventDate: string | null;
   ctaLabel: string | null;
   ctaUrl: string | null;
@@ -54,22 +57,13 @@ void (async () => {
   }
 })();
 
-/**
- * What the slider shows: the gallery when there is one, and the cover only when there is not.
- *
- * The cover is chosen for the grid on the list page, where it has to stand for the whole
- * project in one square. A project that went to the trouble of a gallery has already said
- * which pictures belong on this page and in what order, so leading with the cover would
- * repeat a picture the visitor just clicked and push the author's real first choice second.
- * With no gallery the cover is all there is, and an empty page is worse than a single frame.
- */
-const gallery = computed<SlideImage[]>(() => {
-  const p = project.value;
-  if (!p) return [];
-  const own = (p.images ?? []).filter((i) => i?.url);
-  if (own.length) return own;
-  return p.coverImage ? [{ url: p.coverImage }] : [];
-});
+/** The gallery under the write-up, in the order the editor put it. */
+const gallery = computed<SlideImage[]>(() =>
+  (project.value?.images ?? []).filter((i) => i?.url),
+);
+
+const descriptionHtml = computed(() => textToHtml(project.value?.description));
+const galleryTextHtml = computed(() => textToHtml(project.value?.galleryText));
 
 /**
  * The button under the write-up — the way on to the activity this project is about.
@@ -121,18 +115,23 @@ const dateText = computed(() =>
        <!--<p v-if="project.summary" class="summary">{{ project.summary }}</p>--> 
       </header>
 
-      <!-- One picture at a time here: this page is about the project, not about the row. -->
+      <!-- The cover leads, whole and uncropped, the way it was designed. -->
+      <img v-if="project.coverImage" class="cover" :src="project.coverImage" :alt="project.title" />
+
+      <!-- Authored in the admin, so it is rendered as written — line breaks included. -->
+      <div v-if="descriptionHtml" class="prose-cms body" v-html="descriptionHtml"></div>
+
       <GallerySlider
         v-if="gallery.length"
         class="gallery"
         :images="gallery"
-        :per-view="1"
+        :per-view="2"
         ratio="4 / 3"
+        grid
         :label="project.title"
       />
 
-      <!-- Authored in the admin, so it is rendered as written. -->
-      <div v-if="project.description" class="prose-cms body" v-html="project.description"></div>
+      <div v-if="galleryTextHtml" class="prose-cms body gallery-text" v-html="galleryTextHtml"></div>
 
       <p v-if="cta" class="cta-row">
         <component :is="ctaTag" v-bind="ctaProps" class="cta" :style="ctaStyle">{{ cta.label }}</component>
@@ -186,12 +185,29 @@ const dateText = computed(() =>
   line-height: 1.7;
 }
 
+.cover {
+  display: block;
+  width: 100%;
+  max-width: 30rem;
+  height: auto;
+  margin: 0 auto clamp(1.5rem, 4vw, 2.5rem);
+  border-radius: 1rem;
+}
+
 .gallery {
-  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+  margin-top: clamp(1.5rem, 4vw, 2.5rem);
 }
 
 .body {
   line-height: 1.85;
+}
+/* The last paragraph's own margin would double the gap before the gallery or the button. */
+.body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.gallery-text {
+  margin-top: 1rem;
+  text-align: center;
 }
 
 .cta-row {

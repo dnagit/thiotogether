@@ -31,6 +31,8 @@ export const projectSchema = z.object({
   description: z.string().nullish(),
   coverImage: z.string().max(500).nullish(),
   images: z.array(imageSchema).default([]),
+  /** The text under the gallery on the detail page. */
+  galleryText: z.string().nullish(),
   /** Accepts a date or a plain `YYYY-MM-DD`, and an empty field means "no date". */
   eventDate: z.coerce.date().nullish(),
   /** The button under the write-up on the detail page. It needs both a label and a link. */
