@@ -100,6 +100,28 @@ export function isVideoUrl(url?: string | null): boolean {
   return !!url && VIDEO_EXTENSIONS.test(url);
 }
 
+// ── Text written in the admin ────────────────────────────────────────────────
+
+/** Tags that already lay text out in blocks; text using them keeps its own layout. */
+const BLOCK_TAG = /<\/?(p|div|br|h[1-6]|ul|ol|li|table|blockquote|pre|section|figure)\b/i;
+
+/**
+ * Text from before the admin had a rich-text editor, made into the editor's own HTML.
+ *
+ * That text was typed into a plain textarea, where a line break is a line break. The editor
+ * writes one `<p>` per line and an empty `<p>` for a blank line, so each line becomes a
+ * paragraph and the text reads the same as it was typed. Inline tags such as `<b>` pass
+ * through. Text that already uses block tags is HTML and is returned as it is.
+ */
+export function plainTextToHtml(text?: string | null): string {
+  const src = (text ?? '').replace(/\r\n?/g, '\n').trim();
+  if (!src || BLOCK_TAG.test(src)) return src;
+  return src
+    .split('\n')
+    .map((line) => `<p>${line.trim()}</p>`)
+    .join('');
+}
+
 // ── JOOX voting day ──────────────────────────────────────────────────────────
 
 const DAY_MS = 24 * 60 * 60 * 1000;

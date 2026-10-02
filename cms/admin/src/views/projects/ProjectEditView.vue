@@ -11,6 +11,7 @@ import { ElMessage } from 'element-plus';
 import { http } from '@/api/http';
 import MediaPicker from '@/components/MediaPicker.vue';
 import BlockPropsEditor from '@/components/BlockPropsEditor.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import type { BlockField } from '@/blocks/definitions';
 import { PERMISSIONS, type ApiResponse } from '@cms/shared';
 import { useAuthStore } from '@/stores/auth';
@@ -168,12 +169,9 @@ async function copy(text: string): Promise<void> {
           <ElInput v-model="project.summary" type="textarea" :rows="2" />
         </ElFormItem>
 
-        <ElFormItem label="รายละเอียด (รองรับ HTML)">
-          <ElInput v-model="project.description" type="textarea" :rows="10" class="mono" />
+        <ElFormItem label="รายละเอียด">
+          <RichTextEditor v-model="project.description" :disabled="!canManage" />
         </ElFormItem>
-        <div class="hint text-muted desc-hint">
-          พิมพ์ข้อความธรรมดาได้เลย การขึ้นบรรทัดใหม่จะแสดงบนเว็บตามที่พิมพ์ — เว้นบรรทัดว่างเพื่อขึ้นย่อหน้าใหม่
-        </div>
 
         <ElRow :gutter="16">
           <ElCol :span="8">
@@ -277,8 +275,8 @@ async function copy(text: string): Promise<void> {
           :model-value="project"
           @update:model-value="Object.assign(project, $event)"
         />
-        <ElFormItem label="ข้อความใต้แกลเลอรีด้านล่าง (รองรับ HTML)">
-          <ElInput v-model="project.galleryText" type="textarea" :rows="4" class="mono" />
+        <ElFormItem label="ข้อความใต้แกลเลอรีด้านล่าง">
+          <RichTextEditor v-model="project.galleryText" :disabled="!canManage" />
         </ElFormItem>
       </ElForm>
     </ElCard>
@@ -300,6 +298,4 @@ async function copy(text: string): Promise<void> {
 .link-row { display: flex; align-items: center; gap: 8px; }
 .link-label { width: 130px; flex: none; font-size: 13px; }
 .hint { font-size: 12px; margin-top: 8px; line-height: 1.6; }
-.desc-hint { margin: -10px 0 18px; }
-.mono :deep(textarea) { font-family: ui-monospace, monospace; font-size: 12px; }
 </style>

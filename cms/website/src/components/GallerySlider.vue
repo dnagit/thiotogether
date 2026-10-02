@@ -71,6 +71,40 @@ function onScroll(): void {
   current.value = nearest;
 }
 
+/**
+ * How many places the row can come to rest — one dot each.
+ *
+ * Not one per slide: with three slides two at a time the row stops twice, on the first pair
+ * and on the last, and a third dot would point at a position the row cannot reach. Measured
+ * rather than worked out from `perView`, because how many slides fit depends on the screen
+ * (one on a phone, up to two on a tablet) and the stylesheet is what decides that.
+ */
+const stops = ref(Math.max(1, slides.value.length - perView.value + 1));
+let resizeObserver: ResizeObserver | undefined;
+
+function measureStops(): void {
+  const el = track.value;
+  const first = el?.children[0] as HTMLElement | undefined;
+  if (!el || !first) return;
+  const maxScroll = el.scrollWidth - el.clientWidth;
+  let count = 0;
+  for (let i = 0; i < el.children.length; i += 1) {
+    // Within a pixel: rounding can leave the last stop a fraction past the end.
+    if ((el.children[i] as HTMLElement).offsetLeft - first.offsetLeft <= maxScroll + 1) count += 1;
+  }
+  stops.value = Math.max(1, count);
+  if (current.value > stops.value - 1) current.value = stops.value - 1;
+}
+
+onMounted(() => {
+  measureStops();
+  if (track.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(measureStops);
+    resizeObserver.observe(track.value);
+  }
+});
+watch(() => slides.value.length, () => nextTick(measureStops));
+
 function slideTo(index: number): void {
   const el = track.value;
   const slide = el?.children[index] as HTMLElement | undefined;
@@ -80,7 +114,7 @@ function slideTo(index: number): void {
 }
 
 const step = (by: number): void =>
-  slideTo(Math.min(slides.value.length - 1, Math.max(0, current.value + by)));
+  slideTo(Math.min(stops.value - 1, Math.max(0, current.value + by)));
 
 /* ── Autoplay ─────────────────────────────────────────────────────────────── */
 const paused = ref(false);
@@ -100,20 +134,21 @@ function stopAutoplay(): void {
 
 function startAutoplay(): void {
   stopAutoplay();
-  if (!props.autoplay || !wantsMotion() || slides.value.length <= perView.value) return;
+  if (!props.autoplay || !wantsMotion() || stops.value <= 1) return;
   const every = Math.max(1.5, Number(props.interval) || 4) * 1000;
   timer = setInterval(() => {
     if (paused.value) return;
     // Wraps: an autoplay that stops at the end leaves the row parked and looking broken.
-    const next = current.value + 1 >= slides.value.length ? 0 : current.value + 1;
+    const next = current.value + 1 >= stops.value ? 0 : current.value + 1;
     slideTo(next);
   }, every);
 }
 
 onMounted(startAutoplay);
-watch(() => [props.autoplay, props.interval, slides.value.length, perView.value], startAutoplay);
+watch(() => [props.autoplay, props.interval, stops.value], startAutoplay);
 onBeforeUnmount(() => {
   stopAutoplay();
+  resizeObserver?.disconnect();
   document.body.style.overflow = '';
 });
 
@@ -236,7 +271,7 @@ watch(openAt, async (value) => {
       </li>
     </ul>
 
-    <template v-if="slides.length > perView">
+    <template v-if="stops > 1">
       <button
         type="button"
         class="arrow arrow-prev"
@@ -248,20 +283,20 @@ watch(openAt, async (value) => {
         type="button"
         class="arrow arrow-next"
         aria-label="ถัดไป"
-        :disabled="current >= slides.length - 1"
+        :disabled="current >= stops - 1"
         @click="step(1)"
       >›</button>
 
       <div class="dots">
         <button
-          v-for="(_, i) in slides"
-          :key="i"
+          v-for="i in stops"
+          :key="i - 1"
           type="button"
           class="dot"
-          :class="{ on: i === current }"
-          :aria-label="`ไปที่รูปที่ ${i + 1}`"
-          :aria-current="i === current"
-          @click="slideTo(i)"
+          :class="{ on: i - 1 === current }"
+          :aria-label="`ไปที่ตำแหน่งที่ ${i}`"
+          :aria-current="i - 1 === current"
+          @click="slideTo(i - 1)"
         />
       </div>
     </template>

@@ -137,7 +137,7 @@ const dateText = computed(() =>
         :label="project.title"
       />
 
-      <!-- Authored in the admin, so it is rendered as written — line breaks included. -->
+      <!-- Written in the admin's editor, so it is rendered as written: sizes, alignment, line breaks. -->
       <div v-if="descriptionHtml" class="prose-cms body" v-html="descriptionHtml"></div>
 
       <GallerySlider
@@ -214,13 +214,22 @@ const dateText = computed(() =>
 .body {
   line-height: 1.85;
 }
-/* The last paragraph's own margin would double the gap before the gallery or the button. */
-.body :deep(p:last-child) {
-  margin-bottom: 0;
+/*
+ * Spaced the way the admin's editor shows it: Enter is a new line, not a new paragraph with a
+ * gap, and an empty line is a blank line. Without a height an empty paragraph would vanish.
+ */
+.body :deep(p) {
+  margin: 0;
+}
+.body :deep(p:empty) {
+  min-height: 1.85em;
+}
+.body :deep(ul),
+.body :deep(ol) {
+  margin: 0;
 }
 .gallery-text {
   margin-top: 1rem;
-  text-align: center;
 }
 
 .cta-row {
