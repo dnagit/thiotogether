@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * One project: the cover, the write-up, the gallery and the text under it.
+ * One project: a gallery on top, the write-up, a second gallery under it, and its text.
  *
  * The list is a block that can sit on any page; this is a route, because a project is one
  * thing at one address — which is also what makes it shareable and indexable.
@@ -24,6 +24,7 @@ interface Project {
   description: string | null;
   coverImage: string | null;
   images: SlideImage[] | null;
+  bottomImages: SlideImage[] | null;
   galleryText: string | null;
   eventDate: string | null;
   ctaLabel: string | null;
@@ -57,9 +58,21 @@ void (async () => {
   }
 })();
 
-/** The gallery under the write-up, in the order the editor put it. */
-const gallery = computed<SlideImage[]>(() =>
-  (project.value?.images ?? []).filter((i) => i?.url),
+/**
+ * The top gallery: one picture at a time. With no gallery the cover stands in, since an empty
+ * page is worse than a single frame.
+ */
+const gallery = computed<SlideImage[]>(() => {
+  const p = project.value;
+  if (!p) return [];
+  const own = (p.images ?? []).filter((i) => i?.url);
+  if (own.length) return own;
+  return p.coverImage ? [{ url: p.coverImage }] : [];
+});
+
+/** The gallery under the write-up: two at a time on a tablet or wider, one on a phone. */
+const bottomGallery = computed<SlideImage[]>(() =>
+  (project.value?.bottomImages ?? []).filter((i) => i?.url),
 );
 
 const descriptionHtml = computed(() => textToHtml(project.value?.description));
@@ -115,19 +128,24 @@ const dateText = computed(() =>
        <!--<p v-if="project.summary" class="summary">{{ project.summary }}</p>--> 
       </header>
 
-      <!-- The cover leads, whole and uncropped, the way it was designed. -->
-      <img v-if="project.coverImage" class="cover" :src="project.coverImage" :alt="project.title" />
+      <GallerySlider
+        v-if="gallery.length"
+        class="gallery-top"
+        :images="gallery"
+        :per-view="1"
+        ratio="4 / 3"
+        :label="project.title"
+      />
 
       <!-- Authored in the admin, so it is rendered as written — line breaks included. -->
       <div v-if="descriptionHtml" class="prose-cms body" v-html="descriptionHtml"></div>
 
       <GallerySlider
-        v-if="gallery.length"
-        class="gallery"
-        :images="gallery"
+        v-if="bottomGallery.length"
+        class="gallery-bottom"
+        :images="bottomGallery"
         :per-view="2"
         ratio="4 / 3"
-        grid
         :label="project.title"
       />
 
@@ -185,16 +203,11 @@ const dateText = computed(() =>
   line-height: 1.7;
 }
 
-.cover {
-  display: block;
-  width: 100%;
-  max-width: 30rem;
-  height: auto;
+.gallery-top {
+  max-width: 36rem;
   margin: 0 auto clamp(1.5rem, 4vw, 2.5rem);
-  border-radius: 1rem;
 }
-
-.gallery {
+.gallery-bottom {
   margin-top: clamp(1.5rem, 4vw, 2.5rem);
 }
 

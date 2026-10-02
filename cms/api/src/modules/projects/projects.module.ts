@@ -31,7 +31,9 @@ export const projectSchema = z.object({
   description: z.string().nullish(),
   coverImage: z.string().max(500).nullish(),
   images: z.array(imageSchema).default([]),
-  /** The text under the gallery on the detail page. */
+  /** The second gallery, under the write-up on the detail page. */
+  bottomImages: z.array(imageSchema).default([]),
+  /** The text under the bottom gallery. */
   galleryText: z.string().nullish(),
   /** Accepts a date or a plain `YYYY-MM-DD`, and an empty field means "no date". */
   eventDate: z.coerce.date().nullish(),

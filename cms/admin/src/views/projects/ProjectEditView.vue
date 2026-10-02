@@ -31,6 +31,7 @@ const project = reactive<Record<string, any>>({
   description: '',
   coverImage: '',
   images: [],
+  bottomImages: [],
   galleryText: '',
   eventDate: null,
   ctaLabel: '',
@@ -50,16 +51,15 @@ const project = reactive<Record<string, any>>({
  * it is from the file itself, so the two never need separate rows or a type to be chosen by
  * hand.
  */
+const galleryItemFields: BlockField[] = [
+  { key: 'url', label: 'รูปหรือวิดีโอ', type: 'media' },
+  { key: 'caption', label: 'คำบรรยาย', type: 'text' },
+];
 const galleryFields: BlockField[] = [
-  {
-    key: 'images',
-    label: 'รูป/วิดีโอในแกลเลอรี',
-    type: 'items',
-    itemFields: [
-      { key: 'url', label: 'รูปหรือวิดีโอ', type: 'media' },
-      { key: 'caption', label: 'คำบรรยาย', type: 'text' },
-    ],
-  },
+  { key: 'images', label: 'รูป/วิดีโอในแกลเลอรีด้านบน', type: 'items', itemFields: galleryItemFields },
+];
+const bottomGalleryFields: BlockField[] = [
+  { key: 'bottomImages', label: 'รูป/วิดีโอในแกลเลอรีด้านล่าง', type: 'items', itemFields: galleryItemFields },
 ];
 
 const siteUrl = computed(() => import.meta.env.VITE_SITE_URL || window.location.origin);
@@ -74,6 +74,7 @@ async function load(): Promise<void> {
       images: Array.isArray(data.data.images) ? data.data.images : [],
       summary: data.data.summary ?? '',
       description: data.data.description ?? '',
+      bottomImages: Array.isArray(data.data.bottomImages) ? data.data.bottomImages : [],
       galleryText: data.data.galleryText ?? '',
       coverImage: data.data.coverImage ?? '',
       ctaLabel: data.data.ctaLabel ?? '',
@@ -100,6 +101,7 @@ async function save(): Promise<void> {
       coverImage: project.coverImage || null,
       // Rows the editor added but nobody filled in never reach the site.
       images: (project.images ?? []).filter((i: any) => i?.url),
+      bottomImages: (project.bottomImages ?? []).filter((i: any) => i?.url),
       galleryText: project.galleryText || null,
       eventDate: project.eventDate || null,
       ctaLabel: project.ctaLabel || null,
@@ -238,7 +240,7 @@ async function copy(text: string): Promise<void> {
     <ElCard class="mb">
       <template #header>
         <b>รูปปก</b>
-        <span class="text-muted"> — รูปที่ใช้ในหน้ารวมโปรเจกต์ และแสดงบนสุดของหน้ารายละเอียด</span>
+        <span class="text-muted"> — รูปที่ใช้ในหน้ารวมโปรเจกต์</span>
       </template>
       <ElForm label-position="top" :disabled="!canManage">
         <MediaPicker v-model="project.coverImage" />
@@ -247,9 +249,10 @@ async function copy(text: string): Promise<void> {
 
     <ElCard class="mb">
       <template #header>
-        <b>แกลเลอรี</b>
+        <b>แกลเลอรีด้านบน</b>
         <span class="text-muted">
-          — แสดงใต้รายละเอียด แถวละ 2 รูป ใส่ได้มากกว่าหนึ่งไฟล์ (วิดีโอรองรับ MP4 และ WebM)
+          — สไลด์ทีละ 1 รูป เหนือรายละเอียด ใส่ได้มากกว่าหนึ่งไฟล์ (วิดีโอรองรับ MP4 และ WebM)
+          ถ้าไม่ใส่จะใช้รูปปกแทน
         </span>
       </template>
       <ElForm label-position="top" :disabled="!canManage">
@@ -258,7 +261,23 @@ async function copy(text: string): Promise<void> {
           :model-value="project"
           @update:model-value="Object.assign(project, $event)"
         />
-        <ElFormItem label="ข้อความใต้แกลเลอรี (รองรับ HTML)">
+      </ElForm>
+    </ElCard>
+
+    <ElCard class="mb">
+      <template #header>
+        <b>แกลเลอรีด้านล่าง</b>
+        <span class="text-muted">
+          — สไลด์ทีละ 2 รูป ใต้รายละเอียด (มือถือทีละ 1 รูป)
+        </span>
+      </template>
+      <ElForm label-position="top" :disabled="!canManage">
+        <BlockPropsEditor
+          :fields="bottomGalleryFields"
+          :model-value="project"
+          @update:model-value="Object.assign(project, $event)"
+        />
+        <ElFormItem label="ข้อความใต้แกลเลอรีด้านล่าง (รองรับ HTML)">
           <ElInput v-model="project.galleryText" type="textarea" :rows="4" class="mono" />
         </ElFormItem>
       </ElForm>
