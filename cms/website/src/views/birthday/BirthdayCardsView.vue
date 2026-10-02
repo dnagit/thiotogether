@@ -141,7 +141,7 @@ watch(event, (e) => {
       </p>
       <p v-if="wishes.length" class="mt-2 text-gray-700">{{ countLabel }} in total</p>
 
-      <div v-if="wishes.length" class="mt-4">
+     <!-- <div v-if="wishes.length" class="mt-4">
         <WishCardActions
           :render="renderAll"
           :name="event?.celebrantName || 'everyone'"
@@ -153,7 +153,7 @@ watch(event, (e) => {
         <p v-if="progress !== null" class="mt-2 text-sm text-gray-600" aria-live="polite">
           Drawing card {{ progress }} of {{ wishes.length }}…
         </p>
-      </div>
+      </div>-->
 
       <RouterLink :to="{ name: 'birthday-wall', params: { slug } }" class="back-link mt-4">
         <span aria-hidden="true">←</span> Back to the balloon wall
