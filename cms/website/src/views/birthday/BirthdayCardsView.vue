@@ -68,6 +68,9 @@ function wirePath(index: number): string {
 
 /* ── Save all ─────────────────────────────────────────────────────────────── */
 
+/** Hidden for now. Set to `true` to bring the "Save all cards" button back. */
+const SAVE_ALL_ENABLED = false;
+
 /**
  * The cards being drawn into the sheet right now — a batch at a time, off screen, and empty
  * the rest of the time. Every wish, not only the ones shown: the sheet is the whole wall,
@@ -141,15 +144,15 @@ watch(event, (e) => {
       </p>
       <p v-if="wishes.length" class="mt-2 text-gray-700">{{ countLabel }} in total</p>
 
-      <div v-if="wishes.length" class="mt-4">
-        <!-- <WishCardActions
+      <div v-if="SAVE_ALL_ENABLED && wishes.length" class="mt-4">
+        <WishCardActions
           :render="renderAll"
           :name="event?.celebrantName || 'everyone'"
           :title="countLabel"
           save-label="💾 Save all cards"
           :theme-color="themeColor"
           center
-        /> -->
+        />
         <p v-if="progress !== null" class="mt-2 text-sm text-gray-600" aria-live="polite">
           Drawing card {{ progress }} of {{ wishes.length }}…
         </p>
