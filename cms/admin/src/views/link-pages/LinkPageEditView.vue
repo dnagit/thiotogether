@@ -192,6 +192,14 @@ async function copy(text: string): Promise<void> {
             <ElButton plain :disabled="!qrPng" @click="downloadSvg">ดาวน์โหลด SVG (สำหรับพิมพ์)</ElButton>
           </div>
           <ElAlert
+            v-if="!loading && !publicUrl"
+            type="error"
+            :closable="false"
+            show-icon
+            title="API ไม่ได้ส่งลิงก์หน้าเว็บมา — API บนเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า ให้ build แล้ว restart API (pm2 reload cms-api)"
+            class="mt"
+          />
+          <ElAlert
             v-if="slugChanged"
             type="warning"
             :closable="false"
