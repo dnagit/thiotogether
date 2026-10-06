@@ -61,6 +61,10 @@ export const PERMISSIONS = {
   PROJECTS_VIEW: 'projects.view',
   PROJECTS_MANAGE: 'projects.manage',
 
+  /// Link pages: one address for every service and social account, made to be a QR code.
+  LINK_PAGES_VIEW: 'link-pages.view',
+  LINK_PAGES_MANAGE: 'link-pages.manage',
+
   /// The fan accounts that unlock `/joox-vote` on the website — not admin users.
   JOOX_VOTERS_VIEW: 'joox-voters.view',
   JOOX_VOTERS_MANAGE: 'joox-voters.manage',
@@ -103,5 +107,6 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.DJ_SCHEDULE_VIEW,
     PERMISSIONS.TRACKING_VIEW,
     PERMISSIONS.STREAMING_VIEW,
+    PERMISSIONS.LINK_PAGES_VIEW,
   ],
 };

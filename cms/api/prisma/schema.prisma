@@ -1361,3 +1361,33 @@ model StreamDraw {
   @@index([xAccount])
   @@map("stream_draws")
 }
+
+/// A link page: a cover, a title and a list of buttons out to every service and social
+/// account — one address to print as a QR code instead of a dozen.
+model LinkPage {
+  id       Int     @id @default(autoincrement())
+  title    String  @db.VarChar(200)
+  slug     String  @unique @db.VarChar(200)
+  /// The line under the title, e.g. "Choose music service".
+  subtitle String? @db.VarChar(300)
+
+  /// Shown square at the top, and blurred to fill the page behind it.
+  coverImage String? @map("cover_image") @db.VarChar(500)
+  /// `[{ "platform": "spotify", "label": "…", "url": "…", "action": "…", "icon": "…" }]`, in
+  /// the order the page lists them. `platform` is a key from `LINK_PLATFORMS` in @cms/shared;
+  /// the rest are optional overrides of what that platform would show on its own.
+  links      Json    @default("[]")
+  /// The page behind the card. Empty means the cover, blurred, on a dark ground.
+  backgroundColor String? @map("background_color") @db.VarChar(30)
+
+  isActive Boolean @default(true) @map("is_active")
+
+  metaTitle       String? @map("meta_title") @db.VarChar(255)
+  metaDescription String? @map("meta_description") @db.VarChar(500)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("link_pages")
+}

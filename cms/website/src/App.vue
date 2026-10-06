@@ -10,12 +10,13 @@ import { computed, onErrorCaptured, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import DefaultLayout from '@/layouts/DefaultLayout.vue';
 import BirthdayLayout from '@/layouts/BirthdayLayout.vue';
+import BareLayout from '@/layouts/BareLayout.vue';
 import { useSiteStore } from '@/stores/site';
 
 const site = useSiteStore();
 const route = useRoute();
 
-const layouts = { default: DefaultLayout, birthday: BirthdayLayout };
+const layouts = { default: DefaultLayout, birthday: BirthdayLayout, bare: BareLayout };
 const layout = computed(() => layouts[route.meta.layout ?? 'default']);
 
 const ready = ref(false);

@@ -170,6 +170,24 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'link-pages',
+    menu: { label: 'ลิงก์รวม / QR', icon: 'Link', order: 7.45, permission: PERMISSIONS.LINK_PAGES_VIEW },
+    routes: [
+      {
+        path: 'link-pages',
+        name: 'link-pages',
+        component: () => import('@/views/link-pages/LinkPagesListView.vue'),
+        meta: { title: 'ลิงก์รวม / QR', permission: PERMISSIONS.LINK_PAGES_VIEW },
+      },
+      {
+        path: 'link-pages/:id/edit',
+        name: 'link-page-edit',
+        component: () => import('@/views/link-pages/LinkPageEditView.vue'),
+        meta: { title: 'ตั้งค่าลิงก์รวม', permission: PERMISSIONS.LINK_PAGES_MANAGE },
+      },
+    ],
+  },
+  {
     name: 'birthday',
     menu: { label: 'อวยพรวันเกิด', icon: 'Sunny', order: 7.5, permission: PERMISSIONS.BIRTHDAY_VIEW },
     routes: [

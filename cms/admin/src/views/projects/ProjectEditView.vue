@@ -63,7 +63,7 @@ const bottomGalleryFields: BlockField[] = [
   { key: 'bottomImages', label: 'รูป/วิดีโอในแกลเลอรีด้านล่าง', type: 'items', itemFields: galleryItemFields },
 ];
 
-const siteUrl = computed(() => import.meta.env.VITE_SITE_URL || window.location.origin);
+const siteUrl = computed(() => import.meta.env.VITE_WEBSITE_URL || window.location.origin);
 const publicUrl = computed(() => `${siteUrl.value}/projects/${project.slug}`);
 
 async function load(): Promise<void> {

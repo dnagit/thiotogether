@@ -19,6 +19,7 @@ import { publicGamesModule } from './public-games/publicGames.module.js';
 import { birthdayModule } from './birthday/birthday.module.js';
 import { publicBirthdayModule } from './public-birthday/publicBirthday.module.js';
 import { projectsModule } from './projects/projects.module.js';
+import { linkPagesModule } from './link-pages/linkPages.module.js';
 import { publicJooxVotesModule } from './public-joox-votes/publicJooxVotes.module.js';
 import { jooxVotersModule } from './joox-voters/jooxVoters.module.js';
 import { publicJooxAuthModule } from './joox-voters/publicJooxAuth.module.js';
@@ -44,6 +45,7 @@ export const modules: FeatureModule[] = [
   formsModule,
   donationProjectsModule,
   projectsModule,
+  linkPagesModule,
   bankAccountsModule,
   donationsModule,
   mediaModule,

@@ -121,6 +121,30 @@ router.get(
   }),
 );
 
+// ── Link pages ──────────────────────────────────────────────
+
+router.get(
+  '/link-pages/:slug',
+  asyncHandler(async (req, res) => {
+    const page = await prisma.linkPage.findFirst({
+      where: { slug: req.params.slug, isActive: true },
+      select: {
+        title: true,
+        slug: true,
+        subtitle: true,
+        coverImage: true,
+        links: true,
+        backgroundColor: true,
+        metaTitle: true,
+        metaDescription: true,
+      },
+    });
+    if (!page) throw new NotFoundError('Link page');
+    publicCache(res, 60);
+    ok(res, page);
+  }),
+);
+
 // ── Settings / theme ────────────────────────────────────────
 
 router.get(

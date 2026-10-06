@@ -4,7 +4,7 @@ import { jooxToken } from '@/api/jooxAuth';
 declare module 'vue-router' {
   interface RouteMeta {
     /** Chrome to wrap the page in; see `src/layouts`. Absent means the site's own. */
-    layout?: 'default' | 'birthday';
+    layout?: 'default' | 'birthday' | 'bare';
     /** Page opens with a full-bleed banner and runs under the transparent site header. */
     underHeader?: boolean;
   }
@@ -109,6 +109,13 @@ export const router = createRouter({
       name: 'birthday-wall',
       component: () => import('@/views/birthday/BirthdayWallView.vue'),
       meta: { layout: 'birthday' },
+    },
+    {
+      // A link page: one address, printed as a QR code, out to every service. Stands alone.
+      path: '/link/:slug',
+      name: 'link-page',
+      component: () => import('@/views/links/LinkPageView.vue'),
+      meta: { layout: 'bare' },
     },
     {
       // The list lives in a page built in the CMS — see `ProjectsBlock` — so only the detail
