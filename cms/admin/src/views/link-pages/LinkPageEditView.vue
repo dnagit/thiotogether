@@ -42,6 +42,8 @@ const page = reactive<Record<string, any>>({
 
 /** The slug as last saved — the QR code has to point at an address that already works. */
 const savedSlug = ref('');
+/** The page's address on the website, from the API — see `withPublicUrl` there. */
+const publicUrl = ref('');
 
 const linkFields: BlockField[] = [
   {
@@ -63,9 +65,6 @@ const linkFields: BlockField[] = [
   },
 ];
 
-const siteUrl = computed(() => import.meta.env.VITE_WEBSITE_URL || window.location.origin);
-const publicUrl = computed(() => `${siteUrl.value}/link/${savedSlug.value}`);
-
 async function load(): Promise<void> {
   loading.value = true;
   try {
@@ -80,6 +79,7 @@ async function load(): Promise<void> {
       metaDescription: data.data.metaDescription ?? '',
     });
     savedSlug.value = data.data.slug;
+    publicUrl.value = data.data.publicUrl;
   } finally {
     loading.value = false;
   }
@@ -112,6 +112,7 @@ async function save(): Promise<void> {
     });
     page.links = links;
     savedSlug.value = data.data.slug;
+    publicUrl.value = data.data.publicUrl;
     ElMessage.success('บันทึกแล้ว');
   } finally {
     saving.value = false;
@@ -127,7 +128,7 @@ const qrPng = ref('');
 watch(
   publicUrl,
   async (url) => {
-    if (!savedSlug.value) return;
+    if (!url) return;
     qrPng.value = await QRCode.toDataURL(url, { ...QR_OPTIONS, width: 1024 });
   },
   { immediate: true },

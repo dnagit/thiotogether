@@ -6,6 +6,9 @@ import { BaseService } from '../../core/base/BaseService.js';
 import { BaseController } from '../../core/base/BaseController.js';
 import { crudRouter } from '../../core/base/crudRouter.js';
 import { ConflictError } from '../../core/errors/AppError.js';
+import { config } from '../../core/config/index.js';
+import type { FindAllResult } from '../../core/base/BaseRepository.js';
+import type { ParsedListQuery } from '../../core/utils/pagination.js';
 import { PERMISSIONS, slugify } from '@cms/shared';
 import type { FeatureModule } from '../../core/modules.js';
 
@@ -50,9 +53,37 @@ class LinkPageRepository extends BaseRepository<any> {
   protected defaultOrderBy: Record<string, 'asc' | 'desc'> = { createdAt: 'desc' };
 }
 
+/**
+ * Where the page lives on the website — what the admin shows and turns into a QR code.
+ *
+ * Built here rather than in the admin because the API is the one that is sure to know the
+ * website's address: `WEBSITE_URL` has to be right for CORS, while the admin's own copy is
+ * baked in at build time and falls back to the admin's origin when it is missing — which
+ * printed QR codes pointing at the admin.
+ */
+const withPublicUrl = (row: any): any =>
+  row && { ...row, publicUrl: `${config.WEBSITE_URL.replace(/\/+$/, '')}/link/${row.slug}` };
+
 class LinkPageService extends BaseService<any> {
   protected repository = new LinkPageRepository();
   protected resourceName = 'Link page';
+
+  async list(query: ParsedListQuery): Promise<FindAllResult<any>> {
+    const result = await super.list(query);
+    return { ...result, items: result.items.map(withPublicUrl) };
+  }
+
+  async getById(id: number): Promise<any> {
+    return withPublicUrl(await super.getById(id));
+  }
+
+  async create(data: any, actorId?: number): Promise<any> {
+    return withPublicUrl(await super.create(data, actorId));
+  }
+
+  async update(id: number, data: any, actorId?: number): Promise<any> {
+    return withPublicUrl(await super.update(id, data, actorId));
+  }
 
   protected async beforeCreate(data: any): Promise<any> {
     data.slug = data.slug || slugify(data.title);

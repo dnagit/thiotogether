@@ -40,7 +40,6 @@ async function create(): Promise<void> {
   }
 }
 
-const siteUrl = import.meta.env.VITE_WEBSITE_URL || window.location.origin;
 const linkCount = (row: any): number => (Array.isArray(row.links) ? row.links.length : 0);
 </script>
 
@@ -85,7 +84,7 @@ const linkCount = (row: any): number => (Array.isArray(row.links) ? row.links.le
         <ElTableColumn label="หน้า" min-width="260" prop="title" sortable="custom">
           <template #default="{ row }">
             <b>{{ row.title }}</b>
-            <div class="text-muted">{{ siteUrl }}/link/{{ row.slug }}</div>
+            <div class="text-muted">{{ row.publicUrl }}</div>
           </template>
         </ElTableColumn>
 
