@@ -18,11 +18,12 @@ import type { FeatureModule } from '../../core/modules.js';
  *
  *   GET  /public/streaming?sessionId=      → a round's awards; the newest round without an id
  *   GET  /public/streaming/sessions        → the rounds, newest first, to browse back through
- *   POST /public/streaming/proofs          → multipart: sessionId, xAccount, note, image
+ *   POST /public/streaming/proofs          → multipart: sessionId, xAccount, streams, note, image
  *   POST /public/streaming/claim           → { xAccount }: a winner draws their prize
  *
- * Hidden and deleted rounds are left out everywhere. Proofs arrive PENDING and count for
- * nothing until the admin approves them with a number.
+ * Hidden and deleted rounds are left out everywhere. Proofs arrive PENDING with the fan's own
+ * count, which the admin checks against the screenshot (and corrects) before approving; until
+ * then they count for nothing.
  */
 
 const router = Router();
@@ -63,6 +64,11 @@ router.get(
 const proofSchema = z.object({
   sessionId: z.coerce.number().int().positive(),
   xAccount: xAccountSchema,
+  /** As the fan typed it; "1,234" is 1234. */
+  streams: z.preprocess(
+    (v) => (typeof v === 'string' ? v.replace(/[,\s]/g, '') : v),
+    z.coerce.number({ invalid_type_error: 'กรุณากรอกยอดสตรีมเป็นตัวเลข' }).int().min(0).max(10_000_000),
+  ),
   note: z
     .string()
     .trim()
@@ -78,7 +84,7 @@ router.post(
   uploadSlip.single('image'),
   validate({ body: proofSchema }),
   asyncHandler(async (req, res) => {
-    const { sessionId, xAccount, note } = req.body as z.infer<typeof proofSchema>;
+    const { sessionId, xAccount, streams, note } = req.body as z.infer<typeof proofSchema>;
     if (!req.file) throw new BadRequestError('กรุณาแนบภาพหน้าจอยอดสตรีม');
 
     const session = await prisma.streamSession.findFirst({
@@ -91,7 +97,7 @@ router.post(
     const imageUrl = (await getStorage().put(req.file.buffer, key, req.file.mimetype)).url;
 
     const proof = await prisma.streamProof.create({
-      data: { sessionId, xAccount, note, imageUrl, ipAddress: req.ip ?? null },
+      data: { sessionId, xAccount, streams, note, imageUrl, ipAddress: req.ip ?? null },
     });
     created(res, { id: proof.id }, 'ส่งหลักฐานแล้ว รอแอดมินตรวจสอบนะคะ');
   }),

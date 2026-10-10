@@ -631,7 +631,7 @@ export const blockDefinitions: BlockDefinition[] = [
       { key: 'showCounts', label: 'Show the stream numbers next to the names', type: 'switch' },
       { key: 'showPastRounds', label: 'Let fans look back at earlier rounds', type: 'switch' },
       { key: 'showSubmit', label: 'Form for fans to send proof of their streams (while the round is open)', type: 'switch' },
-      { key: 'showClaim', label: 'Form for winners to draw their prize', type: 'switch' },
+      { key: 'showClaim', label: 'Form for winners to draw their prize (appears once the round is closed)', type: 'switch' },
       { key: 'accentColor', label: 'Colour of the buttons and rank numbers (blank = site orange)', type: 'color' },
     ],
   },

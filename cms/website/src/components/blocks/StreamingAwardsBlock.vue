@@ -14,7 +14,7 @@
  *
  * Below the awards, two forms the block can switch off: sending a screenshot of your streams
  * into the round (while it is open), and a winner drawing their prize by entering their
- * account.
+ * account (once it is closed and the winners announced).
  */
 import { computed, ref, watch } from 'vue';
 import { api } from '@/api/client';
@@ -103,6 +103,7 @@ const dates = computed(() =>
 
 // ── Send proof ────────────────────────────────────────────────────────────────
 const proofAccount = ref('');
+const proofStreams = ref('');
 const proofNote = ref('');
 const proofFile = ref<File | null>(null);
 const proofPreview = ref<string | null>(null);
@@ -129,8 +130,13 @@ async function pickFile(e: Event): Promise<void> {
 
 async function sendProof(): Promise<void> {
   const xAccount = stripAt(proofAccount.value);
-  if (!xAccount || !proofFile.value || !shownId.value) {
-    proofMessage.value = { ok: false, text: 'กรุณากรอก account X และแนบภาพหน้าจอ' };
+  const streams = proofStreams.value.replace(/[,\s]/g, '');
+  if (!xAccount || !streams || !proofFile.value || !shownId.value) {
+    proofMessage.value = { ok: false, text: 'กรุณากรอก account X ยอดสตรีม และแนบภาพหน้าจอ' };
+    return;
+  }
+  if (!/^\d+$/.test(streams)) {
+    proofMessage.value = { ok: false, text: 'กรุณากรอกยอดสตรีมเป็นตัวเลข' };
     return;
   }
   sending.value = true;
@@ -139,10 +145,12 @@ async function sendProof(): Promise<void> {
     const form = new FormData();
     form.append('sessionId', String(shownId.value));
     form.append('xAccount', xAccount);
+    form.append('streams', streams);
     if (proofNote.value.trim()) form.append('note', proofNote.value.trim());
     form.append('image', proofFile.value);
     const { data } = await api.post<ApiResponse<{ id: number }>>('/public/streaming/proofs', form);
     proofMessage.value = { ok: true, text: data.message ?? 'ส่งหลักฐานแล้ว' };
+    proofStreams.value = '';
     proofNote.value = '';
     proofFile.value = null;
     if (proofPreview.value) URL.revokeObjectURL(proofPreview.value);
@@ -238,7 +246,7 @@ async function claim(): Promise<void> {
         <!-- ── Send proof ── -->
         <form v-if="showSubmit && awards.session.isOpen" class="card form" @submit.prevent="sendProof">
           <h3>📸 ส่งหลักฐานยอดสตรีม</h3>
-          <p class="muted">แคปหน้าจอยอดสตรีมของรอบนี้ แอดมินจะตรวจแล้วนับยอดให้</p>
+          <p class="muted">กรอกยอดสตรีมและแนบภาพหน้าจอของรอบนี้ แอดมินจะตรวจแล้วนับยอดให้</p>
           <label class="field">
             <span class="at" aria-hidden="true">@</span>
             <span class="sr-only">Account X</span>
@@ -250,6 +258,17 @@ async function claim(): Promise<void> {
               autocapitalize="off"
               spellcheck="false"
               placeholder="account X"
+            />
+          </label>
+          <label class="plain">
+            <span class="sr-only">ยอดสตรีม</span>
+            <input
+              v-model="proofStreams"
+              type="text"
+              inputmode="numeric"
+              maxlength="12"
+              autocomplete="off"
+              placeholder="ยอดสตรีม (ตัวเลข)"
             />
           </label>
           <label class="file">
@@ -265,8 +284,8 @@ async function claim(): Promise<void> {
           <p v-if="proofMessage" :class="proofMessage.ok ? 'success' : 'error'" role="status">{{ proofMessage.text }}</p>
         </form>
 
-        <!-- ── Claim ── -->
-        <form v-if="showClaim" class="card form" @submit.prevent="claim">
+        <!-- ── Claim ── only once the round is closed, which is when its winners are announced. -->
+        <form v-if="showClaim && !awards.session.isOpen" class="card form" @submit.prevent="claim">
           <h3>🎁 ได้รางวัล? สุ่มของรางวัลเลย</h3>
           <p class="muted">
             ได้ Streaming Star, Rising Streamer หรือ DJ's Pick กรอก account X ของตัวเองแล้วกดสุ่มได้เลย
