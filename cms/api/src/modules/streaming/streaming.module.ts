@@ -65,6 +65,11 @@ const sessionSchema = z.object({
   starCount: z.number().int().min(1).max(50).default(3),
   risingCount: z.number().int().min(1).max(50).default(1),
   pickCount: z.number().int().min(1).max(50).default(3),
+  starMedal: z.string().max(500).nullish(),
+  risingMedal: z.string().max(500).nullish(),
+  pickMedal: z.string().max(500).nullish(),
+  starRankMedals: z.array(z.string().max(500)).max(50).optional(),
+  risingRankMedals: z.array(z.string().max(500)).max(50).optional(),
 });
 
 class StreamSessionRepository extends BaseRepository<any> {

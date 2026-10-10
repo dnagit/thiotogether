@@ -28,6 +28,8 @@ import { publicDjScheduleModule } from './public-dj-schedule/publicDjSchedule.mo
 import { publicJooxAccountsModule } from './public-joox-accounts/publicJooxAccounts.module.js';
 import { trackingModule } from './tracking/tracking.module.js';
 import { publicTrackingModule } from './public-tracking/publicTracking.module.js';
+import { foodTrailModule } from './food-trail/foodTrail.module.js';
+import { publicFoodTrailModule } from './public-food-trail/publicFoodTrail.module.js';
 import { streamingModule } from './streaming/streaming.module.js';
 import { publicStreamingModule } from './public-streaming/publicStreaming.module.js';
 
@@ -58,6 +60,7 @@ export const modules: FeatureModule[] = [
   jooxVotersModule,
   djScheduleModule,
   trackingModule,
+  foodTrailModule,
   streamingModule,
   publicModule,
   publicGamesModule,
@@ -67,5 +70,6 @@ export const modules: FeatureModule[] = [
   publicJooxAccountsModule,
   publicDjScheduleModule,
   publicTrackingModule,
+  publicFoodTrailModule,
   publicStreamingModule,
 ];

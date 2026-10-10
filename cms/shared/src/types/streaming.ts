@@ -11,6 +11,13 @@ export interface StreamSession {
   starCount: number;
   risingCount: number;
   pickCount: number;
+  /** Each award's medal picture; null keeps the drawn one. */
+  starMedal: string | null;
+  risingMedal: string | null;
+  pickMedal: string | null;
+  /** A medal picture per place, 1st first; "" leaves that place on the award's medal. */
+  starRankMedals: string[];
+  risingRankMedals: string[];
   createdAt: string;
   updatedAt: string;
   /** How many proofs are waiting to be checked. */
@@ -76,6 +83,11 @@ export interface StreamRankRow {
   streams: number;
 }
 
+/** A row of the Streaming Star leaderboard; `winner` marks those within the award's count. */
+export interface StreamStarRow extends StreamRankRow {
+  winner: boolean;
+}
+
 /** A Rising Streamer: this round's total and how far it rose over the round before. */
 export interface StreamRisingRow extends StreamRankRow {
   previous: number;
@@ -114,7 +126,14 @@ export interface StreamAwards {
   starCount: number;
   risingCount: number;
   pickCount: number;
+  /** Each award's medal picture; null keeps the drawn medal or icon. */
+  medals: { star: string | null; rising: string | null; pick: string | null };
+  /** A medal picture per place for the winners' rows, 1st first; "" for none. */
+  rankMedals: { star: string[]; rising: string[] };
+  /** Streaming Star's winners — ties at the cut-off included. */
   stars: StreamRankRow[];
+  /** Everyone with approved streams, in order, the winners marked — what the website lists. */
+  starBoard: StreamStarRow[];
   rising: StreamRisingRow[];
   picks: PublicStreamPick[];
   /** What each winner has drawn so far. */

@@ -9,7 +9,9 @@
 import { computed, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCrud } from '@/composables/useCrud';
-import { PERMISSIONS, type StreamSession } from '@cms/shared';
+import { http } from '@/api/http';
+import MediaPicker from '@/components/MediaPicker.vue';
+import { PERMISSIONS, type ApiResponse, type StreamSession } from '@cms/shared';
 
 const router = useRouter();
 const crud = useCrud<StreamSession>({ endpoint: '/streaming/sessions' });
@@ -30,7 +32,33 @@ function blankForm() {
     starCount: 3,
     risingCount: 1,
     pickCount: 3,
+    starMedal: null as string | null,
+    risingMedal: null as string | null,
+    pickMedal: null as string | null,
+    starRankMedals: [] as string[],
+    risingRankMedals: [] as string[],
   };
+}
+
+/** The latest round's medals, so a new round starts with the same pictures. */
+async function lastMedals(): Promise<Partial<StreamSession>> {
+  try {
+    const { data } = await http.get<ApiResponse<StreamSession[]>>('/streaming/sessions', {
+      params: { limit: 1, sortBy: 'startsAt', sortOrder: 'desc' },
+    });
+    const last = data.data[0];
+    return last
+      ? {
+          starMedal: last.starMedal,
+          risingMedal: last.risingMedal,
+          pickMedal: last.pickMedal,
+          starRankMedals: [...(last.starRankMedals ?? [])],
+          risingRankMedals: [...(last.risingRankMedals ?? [])],
+        }
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 const dialog = ref(false);
@@ -38,7 +66,7 @@ const form = reactive(blankForm());
 const isEdit = computed(() => form.id !== null);
 const canSave = computed(() => form.name.trim().length > 0 && form.range?.length === 2);
 
-function openDialog(row?: StreamSession | Record<string, any>): void {
+async function openDialog(row?: StreamSession | Record<string, any>): Promise<void> {
   Object.assign(
     form,
     blankForm(),
@@ -53,8 +81,13 @@ function openDialog(row?: StreamSession | Record<string, any>): void {
           starCount: row.starCount,
           risingCount: row.risingCount,
           pickCount: row.pickCount,
+          starMedal: row.starMedal ?? null,
+          risingMedal: row.risingMedal ?? null,
+          pickMedal: row.pickMedal ?? null,
+          starRankMedals: [...(row.starRankMedals ?? [])],
+          risingRankMedals: [...(row.risingRankMedals ?? [])],
         }
-      : {},
+      : await lastMedals(),
   );
   dialog.value = true;
 }
@@ -70,6 +103,11 @@ async function save(): Promise<void> {
     starCount: form.starCount,
     risingCount: form.risingCount,
     pickCount: form.pickCount,
+    starMedal: form.starMedal || null,
+    risingMedal: form.risingMedal || null,
+    pickMedal: form.pickMedal || null,
+    starRankMedals: rankList(form.starRankMedals, form.starCount),
+    risingRankMedals: rankList(form.risingRankMedals, form.risingCount),
   };
   if (form.id) {
     await crud.updateItem(form.id, payload as Partial<StreamSession>);
@@ -84,6 +122,32 @@ async function save(): Promise<void> {
 function openSession(row: StreamSession | Record<string, any>): void {
   void router.push({ name: 'streaming-session', params: { id: row.id } });
 }
+
+/** Places past the winner count are dropped, and so are empty places at the end. */
+function rankList(list: string[], count: number): string[] {
+  const out = Array.from({ length: count }, (_, i) => list[i] || '');
+  while (out.length && !out[out.length - 1]) out.pop();
+  return out;
+}
+
+/** One picker per winning place; `form.*RankMedals[i]` is place i + 1. */
+const RANK_MEDALS = [
+  { key: 'starRankMedals', countKey: 'starCount', label: '🏆 Streaming Star' },
+  { key: 'risingRankMedals', countKey: 'risingCount', label: '🔥 Rising Streamer' },
+] as const;
+
+function setRankMedal(key: 'starRankMedals' | 'risingRankMedals', i: number, url: string | null): void {
+  const list = [...form[key]];
+  while (list.length <= i) list.push('');
+  list[i] = url ?? '';
+  form[key] = list;
+}
+
+const MEDALS = [
+  { key: 'starMedal', label: '🏆 Streaming Star' },
+  { key: 'risingMedal', label: '🔥 Rising Streamer' },
+  { key: 'pickMedal', label: "🎧 DJ's Pick" },
+] as const;
 
 const dateFmt = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
 const range = (row: StreamSession | Record<string, any>) =>
@@ -202,6 +266,36 @@ const range = (row: StreamSession | Record<string, any>) =>
             DJ's Pick: สุ่มครบแล้วสุ่มเพิ่มไม่ได้
           </div>
         </ElFormItem>
+        <ElFormItem label="รูปเหรียญแต่ละรางวัล">
+          <div class="medals">
+            <div v-for="m in MEDALS" :key="m.key" class="medal">
+              <div class="medal-label">{{ m.label }}</div>
+              <MediaPicker v-model="form[m.key]" />
+            </div>
+          </div>
+          <div class="hint">
+            แสดงบนเว็บแทนเหรียญ/ไอคอนเดิมของรางวัลนั้น (หัวกระดาน แถบเลือกรางวัล และหน้าชื่อผู้ชนะ) ·
+            ไม่ใส่ = ใช้แบบเดิม · ใช้ PNG พื้นใสจะสวยสุด · รอบใหม่จะใช้รูปจากรอบล่าสุดให้ก่อน
+          </div>
+        </ElFormItem>
+        <ElFormItem label="รูปเหรียญแต่ละอันดับ (หน้าชื่อผู้ชนะ)">
+          <div v-for="r in RANK_MEDALS" :key="r.key" class="rank-group">
+            <div class="medal-label">{{ r.label }}</div>
+            <div class="medals">
+              <div v-for="i in form[r.countKey]" :key="i" class="medal">
+                <div class="rank-label">อันดับ {{ i }}</div>
+                <MediaPicker
+                  :model-value="form[r.key][i - 1] || null"
+                  @update:model-value="setRankMedal(r.key, i - 1, $event)"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="hint">
+            แสดงด้านซ้ายของชื่อผู้ชนะแต่ละอันดับ · จำนวนช่องตามจำนวนผู้ชนะด้านบน ·
+            อันดับที่ไม่ใส่ = ใช้รูปเหรียญของรางวัล (หรือเหรียญเดิม) · DJ's Pick ไม่มีอันดับจึงใช้รูปเดียว
+          </div>
+        </ElFormItem>
         <ElFormItem>
           <ElCheckbox v-model="form.isOpen">เปิดรับหลักฐานจากแฟน (ปิด = ประกาศผล ผู้ได้รางวัลสุ่มของได้)</ElCheckbox>
           <ElCheckbox v-model="form.isActive">แสดงบนเว็บ</ElCheckbox>
@@ -220,6 +314,10 @@ const range = (row: StreamSession | Record<string, any>) =>
 <style scoped>
 .mt { margin-top: 12px; }
 .counts { display: grid; gap: 6px; width: 100%; }
+.medals { display: grid; gap: 10px; width: 100%; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.rank-group { width: 100%; margin-bottom: 10px; }
+.rank-label { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 2px; }
+.medal-label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .counts label { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.5; }
 </style>

@@ -6,6 +6,7 @@ import type {
   StreamAwards,
   StreamRankRow,
   StreamRisingRow,
+  StreamStarRow,
   StreamWinner,
 } from '@cms/shared';
 
@@ -73,6 +74,9 @@ async function previousSession(session: { id: number; startsAt: Date }) {
   });
 }
 
+/** How long the Streaming Star leaderboard runs, winners included (all of them, past this). */
+const STAR_BOARD = 100;
+
 /** How long the Rising Streamer leaderboard runs, winners included. */
 const RISING_BOARD = 5;
 
@@ -89,10 +93,25 @@ export async function computeAwards(sessionId: number): Promise<StreamAwards> {
       starCount: true,
       risingCount: true,
       pickCount: true,
+      starMedal: true,
+      risingMedal: true,
+      pickMedal: true,
+      starRankMedals: true,
+      risingRankMedals: true,
     },
   });
   if (!session) throw new NotFoundError('Streaming session');
-  const { starCount, risingCount, pickCount, ...info } = session;
+  const {
+    starCount,
+    risingCount,
+    pickCount,
+    starMedal,
+    risingMedal,
+    pickMedal,
+    starRankMedals,
+    risingRankMedals,
+    ...info
+  } = session;
 
   const [current, previous, picks, draws] = await Promise.all([
     totals(session.id),
@@ -116,6 +135,13 @@ export async function computeAwards(sessionId: number): Promise<StreamAwards> {
     (r) => r.streams,
     starCount,
   );
+  // Everyone else in order below the winners, as a leaderboard; `stars` stays the winners.
+  const winners = new Set(stars.map((r) => r.xAccount));
+  const starBoard: StreamStarRow[] = [...current.values()]
+    .filter((r) => r.streams > 0)
+    .sort(byScore)
+    .slice(0, Math.max(stars.length, STAR_BOARD))
+    .map((r) => ({ ...r, winner: winners.has(r.xAccount) }));
 
   // Newcomers rise from 0; with no round before this one, everyone does.
   const before = previous ? await totals(previous.id) : new Map<string, StreamRankRow>();
@@ -144,7 +170,10 @@ export async function computeAwards(sessionId: number): Promise<StreamAwards> {
     starCount,
     risingCount,
     pickCount,
+    medals: { star: starMedal, rising: risingMedal, pick: pickMedal },
+    rankMedals: { star: starRankMedals, rising: risingRankMedals },
     stars,
+    starBoard,
     rising,
     picks,
     draws,

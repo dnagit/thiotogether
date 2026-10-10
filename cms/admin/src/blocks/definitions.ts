@@ -636,6 +636,24 @@ export const blockDefinitions: BlockDefinition[] = [
     ],
   },
   {
+    type: 'food-trail',
+    label: 'Food Trail Checklist',
+    icon: '🍜',
+    category: 'interactive',
+    defaultProps: {
+      heading: 'ตามรอยร้านอาหาร',
+      description: 'ติ๊กเมนูที่กินแล้ว ใส่ชื่อ account แล้วเซฟเป็นรูปไปอวดได้เลย',
+      trailId: 0,
+      accentColor: '',
+    },
+    fields: [
+      { key: 'heading', label: 'Heading', type: 'text' },
+      { key: 'description', label: 'Text under the heading', type: 'textarea' },
+      { key: 'trailId', label: 'Food trail ID (0 = the first trail shown on the web)', type: 'number' },
+      { key: 'accentColor', label: 'Colour of the ticks and button (blank = site orange)', type: 'color' },
+    ],
+  },
+  {
     type: 'song',
     label: 'Song',
     icon: '🎵',

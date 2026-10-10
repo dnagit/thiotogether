@@ -314,7 +314,7 @@ settingsRouter.put(
 const MAX_ASSET_BYTES = 15 * 1024 * 1024;
 const uploadsDir = path.resolve(process.cwd(), config.UPLOAD_DIR);
 
-async function readImage(url: string): Promise<{ bytes: Buffer; type: string }> {
+export async function readImage(url: string): Promise<{ bytes: Buffer; type: string }> {
   let parsed: URL;
   try {
     parsed = new URL(url, config.APP_URL);
@@ -350,7 +350,7 @@ async function readImage(url: string): Promise<{ bytes: Buffer; type: string }> 
   return { bytes, type };
 }
 
-function sendImage(res: Response, img: { bytes: Buffer; type: string }): void {
+export function sendImage(res: Response, img: { bytes: Buffer; type: string }): void {
   res.setHeader('Content-Type', img.type);
   // Never cached: a template or DJ picture swapped in the admin has to show on the next draw.
   res.setHeader('Cache-Control', 'no-store');

@@ -75,6 +75,9 @@ export const PERMISSIONS = {
   TRACKING_VIEW: 'tracking.view',
   TRACKING_MANAGE: 'tracking.manage',
 
+  FOOD_TRAILS_VIEW: 'food-trails.view',
+  FOOD_TRAILS_MANAGE: 'food-trails.manage',
+
   STREAMING_VIEW: 'streaming.view',
   STREAMING_MANAGE: 'streaming.manage',
 
@@ -106,6 +109,7 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.PROJECTS_VIEW,
     PERMISSIONS.DJ_SCHEDULE_VIEW,
     PERMISSIONS.TRACKING_VIEW,
+    PERMISSIONS.FOOD_TRAILS_VIEW,
     PERMISSIONS.STREAMING_VIEW,
     PERMISSIONS.LINK_PAGES_VIEW,
   ],

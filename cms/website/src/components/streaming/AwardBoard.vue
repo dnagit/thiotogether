@@ -9,6 +9,13 @@
  *    with the DJ who drew them.
  *
  * What a winner drew shows under their name once they have drawn it.
+ *
+ * Each award may have its own medal picture, set on the round; where one is set it takes the
+ * place of the drawn medal or the emoji — in the heading, on its tab, and beside its winners
+ * (with their place on a badge, since one picture no longer tells gold from bronze).
+ *
+ * Streaming Star and Rising Streamer may also have a picture per place for the winners' rows;
+ * a place with one shows it instead, with no badge — the picture is the place.
  */
 import { computed, ref } from 'vue';
 import type { StreamAwards } from '@cms/shared';
@@ -29,6 +36,10 @@ const TABS: Array<{ key: Tab; icon: string; label: string; title: string }> = [
 ];
 const current = computed(() => TABS.find((t) => t.key === tab.value)!);
 
+/** The award's own medal picture, or null to keep the drawn one. */
+const medalImage = (key: Tab) => props.awards.medals?.[key] || null;
+const medal = computed(() => medalImage(tab.value));
+
 const num = (n: number) => n.toLocaleString('th-TH');
 
 interface Row {
@@ -38,7 +49,7 @@ interface Row {
   score: string;
   sub: string | null;
   prize: string | null;
-  /** Rising Streamer only: the one who takes the award; the rest is a leaderboard. */
+  /** Streaming Star and Rising Streamer: within the award's count; the rest is a leaderboard. */
   winner?: boolean;
 }
 
@@ -60,9 +71,12 @@ function ranked<T>(items: T[], value: (item: T) => number | string): Array<T & {
 const rows = computed<Row[]>(() => {
   const a = props.awards;
   if (tab.value === 'star') {
-    return ranked(a.stars, (r) => r.streams).map((r) => ({
+    // Everyone in order, the winners marked; an older API sends the winners only.
+    const board = a.starBoard ?? a.stars.map((r) => ({ ...r, winner: true }));
+    return ranked(board, (r) => r.streams).map((r) => ({
       xAccount: r.xAccount,
       rank: r.rank,
+      winner: r.winner,
       score: num(r.streams),
       sub: null,
       prize: prizeOf.value(r.xAccount),
@@ -107,8 +121,22 @@ const podium = computed(() => {
 
 const medalFor = (rank: number | null) => (rank && rank <= 3 ? (rank as 1 | 2 | 3) : null);
 
-/** Rising Streamer's list runs past its winners, and only the winners get medals. */
-const rowMedal = (r: Row) => (tab.value === 'rising' && !r.winner ? null : medalFor(r.rank));
+/** The winner's own place's medal picture, if the round has one for that place. */
+function rankImage(r: Row): string | null {
+  if (!r.rank || tab.value === 'pick' || !r.winner) return null;
+  const list = props.awards.rankMedals?.[tab.value] ?? [];
+  return list[r.rank - 1] || null;
+}
+
+/** Star and Rising lists run past their winners, and only the winners get medals. */
+const rowMedal = (r: Row) => (tab.value !== 'pick' && !r.winner ? null : medalFor(r.rank));
+
+/** The row's colour: its medal's metal; every DJ's Pick winner gold; cream for the rest. */
+const rowClass = (r: Row) => {
+  if (tab.value === 'pick') return 'metal-row-1';
+  const m = rowMedal(r);
+  return m ? `metal-row-${m}` : 'plain';
+};
 
 /** Each award has its own number of winners, set on the round. */
 const winnerCount = computed(() =>
@@ -158,7 +186,8 @@ const streaks = Array.from({ length: 22 }, (_, i) => ({
     </div>
 
     <header class="title">
-      <RankMedal v-if="tab === 'star'" :rank="1" size="3.4rem" />
+      <img v-if="medal" :src="medal" alt="" class="title-medal" />
+      <RankMedal v-else-if="tab === 'star'" :rank="1" size="3.4rem" />
       <span v-else class="title-icon" aria-hidden="true">{{ current.icon }}</span>
       <div>
         <h3 :id="`award-${tab}`">{{ current.title }}</h3>
@@ -194,7 +223,8 @@ const streaks = Array.from({ length: 22 }, (_, i) => ({
 
       <!-- DJ's Pick has no places; a big badge stands in for the podium. -->
       <div v-else class="pick-hero" aria-hidden="true">
-        <span class="pick-disc">🎧</span>
+        <img v-if="medal" :src="medal" alt="" class="pick-medal" />
+        <span v-else class="pick-disc">🎧</span>
       </div>
 
       <!-- Table -->
@@ -210,11 +240,18 @@ const streaks = Array.from({ length: 22 }, (_, i) => ({
             v-for="(r, i) in rows"
             :key="`${tab}-${r.xAccount}`"
             class="row"
-            :class="[rowMedal(r) ? `metal-row-${rowMedal(r)}` : 'plain', { 'no-score': !showScore }]"
+            :class="[rowClass(r), { 'no-score': !showScore }]"
             :style="{ animationDelay: `${Math.min(i, 8) * 60}ms` }"
           >
             <span class="rank">
-              <RankMedal v-if="rowMedal(r)" :rank="rowMedal(r)!" size="3.1rem" />
+              <span v-if="rankImage(r)" class="row-medal">
+                <img :src="rankImage(r)!" alt="" />
+              </span>
+              <span v-else-if="medal && (rowMedal(r) || !r.rank)" class="row-medal">
+                <img :src="medal" alt="" />
+                <span v-if="r.rank" class="row-medal-num" aria-hidden="true">{{ r.rank }}</span>
+              </span>
+              <RankMedal v-else-if="rowMedal(r)" :rank="rowMedal(r)!" size="3.1rem" />
               <span v-else-if="r.rank" class="rank-num">{{ r.rank }}</span>
               <span v-else class="rank-num" aria-hidden="true">🎁</span>
               <span class="sr-only">{{ r.rank ? `อันดับ ${r.rank}` : '' }}</span>
@@ -244,7 +281,8 @@ const streaks = Array.from({ length: 22 }, (_, i) => ({
         :aria-selected="tab === t.key"
         @click="tab = t.key"
       >
-        <span class="tab-icon" aria-hidden="true">{{ t.icon }}</span>
+        <img v-if="medalImage(t.key)" :src="medalImage(t.key)!" alt="" class="tab-medal" />
+        <span v-else class="tab-icon" aria-hidden="true">{{ t.icon }}</span>
         <span class="tab-label">{{ t.label }}</span>
       </button>
     </nav>
@@ -334,6 +372,13 @@ const streaks = Array.from({ length: 22 }, (_, i) => ({
   font-size: 1.9rem;
   background: radial-gradient(circle at 35% 30%, #fff7d6, #fbbf24 60%, #b45309);
   box-shadow: 0 2px 4px rgb(0 0 0 / 0.25);
+}
+.title-medal {
+  flex: 0 0 3.4rem;
+  width: 3.4rem;
+  height: 3.4rem;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.3));
 }
 .nowrap {
   white-space: nowrap;
@@ -453,6 +498,12 @@ const streaks = Array.from({ length: 22 }, (_, i) => ({
   place-items: center;
   padding: 1.5rem 0 1rem;
 }
+.pick-medal {
+  width: 7rem;
+  height: 7rem;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgb(0 0 0 / 0.3));
+}
 .pick-disc {
   display: grid;
   place-items: center;
@@ -509,15 +560,44 @@ const streaks = Array.from({ length: 22 }, (_, i) => ({
 @keyframes rise {
   from { opacity: 0; transform: translateY(0.5rem); }
 }
-.metal-row-1 { background: linear-gradient(90deg, #fcd34d, #e0a91f 60%, #ca8a04); color: #3b1d06; }
-.metal-row-2 { background: linear-gradient(90deg, #dcdcd5, #b3ada1 60%, #857e6e); color: #1f1d1a; }
-.metal-row-3 { background: linear-gradient(90deg, #fb923c, #e0701f 60%, #c2410c); color: #fff; }
-.plain { background: #f7f5ec; color: #4a0d18; }
+/* Gold, silver and bronze straight across the pill, then cream for everyone after. */
+.metal-row-1 { background: linear-gradient(90deg, #ffde49, #e4b52b 50%, #ca8a0c); color: #3b1d06; }
+.metal-row-2 { background: linear-gradient(90deg, #d6d7d2, #adab9f 50%, #847d6b); color: #1f1d1a; }
+.metal-row-3 { background: linear-gradient(90deg, #fd9532, #dd7423 50%, #bc5312); color: #fff; }
+.plain { background: #f5f7ec; color: #4a0d18; }
 .rank {
   display: grid;
   place-items: center;
   /* The medal rides a little above the pill, as in a trophy table. */
   margin-top: -0.6rem;
+}
+.row-medal {
+  position: relative;
+  display: block;
+  width: 3.1rem;
+  height: 3.1rem;
+}
+.row-medal img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.25));
+}
+.row-medal-num {
+  position: absolute;
+  right: -0.2rem;
+  bottom: -0.1rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: #fff;
+  background: #a10d22;
+  box-shadow: 0 0 0 2px #fff;
 }
 .rank-num {
   margin-top: 0.6rem;
@@ -613,6 +693,11 @@ const streaks = Array.from({ length: 22 }, (_, i) => ({
 .tab-icon {
   font-size: 1.6rem;
   line-height: 1;
+}
+.tab-medal {
+  width: 1.9rem;
+  height: 1.9rem;
+  object-fit: contain;
 }
 .tab-label {
   font-size: 0.72rem;

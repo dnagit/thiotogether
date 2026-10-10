@@ -259,6 +259,24 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'food-trail',
+    menu: { label: 'ตามรอยร้านอาหาร', icon: 'KnifeFork', order: 7.85, permission: PERMISSIONS.FOOD_TRAILS_VIEW },
+    routes: [
+      {
+        path: 'food-trails',
+        name: 'food-trails',
+        component: () => import('@/views/food-trail/FoodTrailsView.vue'),
+        meta: { title: 'ตามรอยร้านอาหาร', permission: PERMISSIONS.FOOD_TRAILS_VIEW },
+      },
+      {
+        path: 'food-trails/:id(\\d+)',
+        name: 'food-trail-edit',
+        component: () => import('@/views/food-trail/FoodTrailEditView.vue'),
+        meta: { title: 'ตามรอยร้านอาหาร', permission: PERMISSIONS.FOOD_TRAILS_VIEW },
+      },
+    ],
+  },
+  {
     name: 'streaming',
     menu: { label: 'Streaming Awards', icon: 'Trophy', order: 7.9, permission: PERMISSIONS.STREAMING_VIEW },
     routes: [

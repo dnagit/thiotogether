@@ -1255,6 +1255,15 @@ model StreamSession {
   starCount   Int     @default(3) @map("star_count")
   risingCount Int     @default(1) @map("rising_count")
   pickCount   Int     @default(3) @map("pick_count")
+  /// Each award's own medal picture, shown on the website in place of the drawn one. A new
+  /// round starts with the last round's.
+  starMedal   String? @map("star_medal") @db.VarChar(500)
+  risingMedal String? @map("rising_medal") @db.VarChar(500)
+  pickMedal   String? @map("pick_medal") @db.VarChar(500)
+  /// A medal picture per place for the winners' rows — index 0 is 1st place; "" leaves that
+  /// place on the award's medal. DJ's Pick has no places, so has none.
+  starRankMedals   String[] @default([]) @map("star_rank_medals")
+  risingRankMedals String[] @default([]) @map("rising_rank_medals")
 
   proofs StreamProof[]
   prizes StreamPrize[]
@@ -1390,4 +1399,67 @@ model LinkPage {
   deletedAt DateTime? @map("deleted_at")
 
   @@map("link_pages")
+}
+
+/// A food trail: a checklist of restaurants and the dishes at each, for fans to follow in the
+/// artist's footsteps. The website shows the names to tick; the pictures are for the admin's
+/// poster only.
+model FoodTrail {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(200)
+  description String? @db.VarChar(1000)
+
+  /// Hidden trails stay in the admin but drop off the website.
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  places FoodPlace[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([isActive, sortOrder])
+  @@map("food_trails")
+}
+
+/// One restaurant on a trail.
+model FoodPlace {
+  id      Int     @id @default(autoincrement())
+  trailId Int     @map("trail_id")
+  name    String  @db.VarChar(200)
+  /// Where it is, opening hours — whatever helps a fan find it. Shown on the website.
+  note    String? @db.VarChar(1000)
+  /// Never sent to the website; drawn on the admin's poster.
+  image   String? @db.VarChar(500)
+  sortOrder Int   @default(0) @map("sort_order")
+
+  trail FoodTrail @relation(fields: [trailId], references: [id], onDelete: Cascade)
+  menus FoodMenu[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([trailId])
+  @@map("food_places")
+}
+
+/// One dish at a restaurant.
+model FoodMenu {
+  id      Int     @id @default(autoincrement())
+  placeId Int     @map("place_id")
+  name    String  @db.VarChar(200)
+  /// Never sent to the website; drawn on the admin's poster.
+  image   String? @db.VarChar(500)
+  sortOrder Int   @default(0) @map("sort_order")
+
+  place FoodPlace @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([placeId])
+  @@map("food_menus")
 }
