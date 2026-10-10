@@ -31,7 +31,7 @@ const tab = ref<Tab>('star');
 
 const TABS: Array<{ key: Tab; icon: string; label: string; title: string }> = [
   { key: 'star', icon: '🏆', label: 'Streaming Star', title: 'Streaming Star' },
-  { key: 'rising', icon: '🔥', label: 'Rising', title: 'Rising Streamer' },
+  { key: 'rising', icon: '🔥', label: 'Rising Streamer', title: 'Rising Streamer' },
   { key: 'pick', icon: '🎧', label: "DJ's Pick", title: "DJ's Pick" },
 ];
 const current = computed(() => TABS.find((t) => t.key === tab.value)!);
