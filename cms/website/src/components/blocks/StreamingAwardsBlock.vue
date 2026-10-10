@@ -246,7 +246,7 @@ async function claim(): Promise<void> {
         <!-- ── Send proof ── -->
         <form v-if="showSubmit && awards.session.isOpen" class="card form" @submit.prevent="sendProof">
           <h3>📸 ส่งหลักฐานยอดสตรีม</h3>
-          <p class="muted">กรอกยอดสตรีมและแนบภาพหน้าจอของรอบนี้ แอดมินจะตรวจแล้วนับยอดให้</p>
+          <p class="muted">กรอกยอดสตรีมและแนบภาพแคปหน้าจอของยอดสตรีมสัปดาห์นี้</p>
           <label class="field">
             <span class="at" aria-hidden="true">@</span>
             <span class="sr-only">Account X</span>
