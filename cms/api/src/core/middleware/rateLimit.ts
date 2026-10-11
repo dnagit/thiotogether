@@ -105,3 +105,15 @@ export const submissionLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, message: 'Too many submissions', code: 'RATE_LIMITED' },
 });
+
+/**
+ * Food-trail checklist saves and loads. A fan ticks dish after dish (the page batches the
+ * ticks, but still), and on mobile data many fans share one IP — so loose, like the JOOX one.
+ */
+export const foodTrailLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'บันทึกถี่เกินไป กรุณารอสักครู่', code: 'RATE_LIMITED' },
+});

@@ -7,9 +7,10 @@
  *  - รางวัล:    all three awards, exactly as the website will show them.
  *  - DJ's Pick: the DJ draws a winner from everyone with approved streams — the same chance
  *               whatever their number — or names one.
- *  - ของรางวัล: the prize pool, and every winner's draw. Winners enter their account on the
- *               website to draw one prize each per round; "สุ่มแทน" draws it here instead,
- *               for a winner who wants it done on air.
+ *  - ของรางวัล: the prize pool, and every winner's draws. Winners enter their account and
+ *               address on the website and draw one prize per award won; "สุ่มแทน" draws
+ *               one here instead, for a winner who wants it done on air. "ยกของจากรอบอื่น"
+ *               moves what is left of another round's prizes into this one.
  *
  * Streaming Star and Rising Streamer winners can draw only once the round is closed — until
  * then the standings still move — so closing the round is also announcing the results.
@@ -31,6 +32,7 @@ import {
   type StreamProof,
   type StreamSession,
   type StreamWinner,
+  type StreamWinnerDraw,
 } from '@cms/shared';
 
 const route = useRoute();
@@ -163,9 +165,54 @@ async function savePrize(): Promise<void> {
   prizeOpen.value = false;
 }
 
-const prizesLeft = computed(() =>
-  prizes.items.value.reduce((n, p) => n + Math.max(0, p.quantity - (p._count?.draws ?? 0)), 0),
-);
+const leftOf = (list: StreamPrize[]) =>
+  list.reduce((n, p) => n + Math.max(0, p.quantity - (p._count?.draws ?? 0)), 0);
+const prizesLeft = computed(() => leftOf(prizes.items.value));
+
+/** What is left of another round's prizes, moved into this one. */
+const carryOpen = ref(false);
+const carrying = ref(false);
+const otherRounds = ref<StreamSession[]>([]);
+const carryFrom = ref<number | null>(null);
+const carryPreview = ref<StreamPrize[]>([]);
+
+async function openCarry(): Promise<void> {
+  carryOpen.value = true;
+  const { data } = await http.get<ApiResponse<StreamSession[]>>('/streaming/sessions', {
+    params: { limit: 100, sortBy: 'startsAt', sortOrder: 'desc' },
+  });
+  otherRounds.value = data.data.filter((r) => r.id !== sessionId);
+  // The round just before this one, by default.
+  const start = session.value ? new Date(session.value.startsAt).getTime() : Infinity;
+  carryFrom.value = otherRounds.value.find((r) => new Date(r.startsAt).getTime() < start)?.id ?? null;
+}
+
+watch(carryFrom, async (id) => {
+  carryPreview.value = [];
+  if (!id) return;
+  const { data } = await http.get<ApiResponse<StreamPrize[]>>('/streaming/prizes', {
+    params: { sessionId: id, limit: 100 },
+  });
+  if (carryFrom.value === id) {
+    carryPreview.value = data.data.filter((p) => p.quantity - (p._count?.draws ?? 0) > 0);
+  }
+});
+
+async function carryOver(): Promise<void> {
+  if (!carryFrom.value) return;
+  carrying.value = true;
+  try {
+    const { data } = await http.post<ApiResponse<unknown>>('/streaming/prizes/carry-over', {
+      sessionId,
+      fromSessionId: carryFrom.value,
+    });
+    ElMessage.success(data.message ?? 'ยกของรางวัลมาแล้ว');
+    carryOpen.value = false;
+    await prizes.fetchList();
+  } finally {
+    carrying.value = false;
+  }
+}
 
 // ── Picks ─────────────────────────────────────────────────────────────────────
 const picks = useCrud<StreamPick>({ endpoint: '/streaming/picks', params: { sessionId } });
@@ -242,15 +289,14 @@ async function drawFor(row: StreamWinner | Record<string, any>): Promise<void> {
   }
 }
 
-async function undoDraw(row: StreamWinner | Record<string, any>): Promise<void> {
-  if (!row.draw) return;
+async function undoDraw(row: StreamWinner | Record<string, any>, draw: StreamWinnerDraw): Promise<void> {
   const ok = await confirmDelete(`@${row.xAccount}`, {
     title: 'ยกเลิกการสุ่ม',
-    note: `ยกเลิกของที่ @${row.xAccount} สุ่มได้ (${row.draw.prize.name}) ใช่หรือไม่? ของจะกลับเข้ากอง และ @${row.xAccount} สุ่มใหม่ได้`,
+    note: `ยกเลิกของที่ @${row.xAccount} สุ่มได้ (${draw.prize.name}) ใช่หรือไม่? ของจะกลับเข้ากอง และ @${row.xAccount} สุ่มใหม่ได้อีก 1 ครั้ง`,
     confirmText: 'ยกเลิกการสุ่ม',
   });
   if (!ok) return;
-  await http.delete(`/streaming/draws/${row.draw.id}`);
+  await http.delete(`/streaming/draws/${draw.id}`);
   ElMessage.success('ยกเลิกแล้ว ของรางวัลกลับเข้ากอง');
   await Promise.all([loadWinners(), prizes.fetchList()]);
 }
@@ -528,9 +574,10 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
             <template #header>
               <div class="card-head">
                 <span>🎁 ของรางวัล <span class="hint">เหลือ {{ prizesLeft }} ชิ้น</span></span>
-                <ElButton v-permission="PERMISSIONS.STREAMING_MANAGE" size="small" @click="openPrize()">
-                  + เพิ่มของรางวัล
-                </ElButton>
+                <span v-permission="PERMISSIONS.STREAMING_MANAGE">
+                  <ElButton size="small" @click="openCarry()">ยกของจากรอบอื่น</ElButton>
+                  <ElButton size="small" @click="openPrize()">+ เพิ่มของรางวัล</ElButton>
+                </span>
               </div>
             </template>
             <ElTable v-loading="prizes.loading.value" :data="prizes.items.value" size="small">
@@ -564,7 +611,7 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
         </div>
 
         <ElCard class="mt">
-          <template #header>ผู้ได้รางวัล & ของที่สุ่มได้ <span class="hint">— คนละ 1 ครั้งต่อรอบ</span></template>
+          <template #header>ผู้ได้รางวัล & ของที่สุ่มได้ <span class="hint">— สุ่มได้ 1 ครั้งต่อ 1 รางวัล</span></template>
           <ElTable v-loading="winnersLoading" :data="winners">
             <ElTableColumn label="Account X" min-width="150">
               <template #default="{ row }">@{{ row.xAccount }}</template>
@@ -575,36 +622,42 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
                 <span v-if="!row.awards.length" class="hint">หลุดจากอันดับแล้ว</span>
               </template>
             </ElTableColumn>
-            <ElTableColumn label="ของที่สุ่มได้" min-width="180">
+            <ElTableColumn label="ของที่สุ่มได้ & ที่อยู่จัดส่ง" min-width="280">
               <template #default="{ row }">
-                <template v-if="row.draw">
-                  🎁 {{ row.draw.prize.name }}
-                  <div class="hint">สุ่มเมื่อ {{ when(row.draw.createdAt) }}</div>
-                </template>
-                <ElTag v-else-if="row.canDraw" size="small" type="warning">รอผู้ได้รางวัลสุ่ม</ElTag>
-                <ElTag v-else size="small" type="info">รอปิดรอบ</ElTag>
+                <div v-for="d in row.draws" :key="d.id" class="drawn">
+                  <div>
+                    🎁 {{ d.prize.name }}
+                    <ElButton
+                      v-permission="PERMISSIONS.STREAMING_MANAGE"
+                      size="small"
+                      type="danger"
+                      text
+                      @click="undoDraw(row, d)"
+                    >
+                      ยกเลิก
+                    </ElButton>
+                  </div>
+                  <div class="address">{{ d.address ?? 'ไม่มีที่อยู่ (แอดมินสุ่มแทน)' }}</div>
+                  <div class="hint">สุ่มเมื่อ {{ when(d.createdAt) }}</div>
+                </div>
+                <ElTag v-if="row.remaining" size="small" type="warning" class="award-tag">
+                  รอสุ่มอีก {{ row.remaining }} ครั้ง
+                </ElTag>
+                <ElTag v-if="row.waiting" size="small" type="info" class="award-tag">
+                  รอปิดรอบ {{ row.waiting }} ครั้ง
+                </ElTag>
               </template>
             </ElTableColumn>
-            <ElTableColumn label="จัดการ" width="170" fixed="right">
+            <ElTableColumn label="จัดการ" width="120" fixed="right">
               <template #default="{ row }">
                 <ElButton
-                  v-if="!row.draw && row.canDraw"
+                  v-if="row.remaining"
                   v-permission="PERMISSIONS.STREAMING_MANAGE"
                   size="small"
                   :loading="drawingFor === row.xAccount"
                   @click="drawFor(row)"
                 >
                   สุ่มแทน
-                </ElButton>
-                <ElButton
-                  v-if="row.draw"
-                  v-permission="PERMISSIONS.STREAMING_MANAGE"
-                  size="small"
-                  type="danger"
-                  text
-                  @click="undoDraw(row)"
-                >
-                  ยกเลิกการสุ่ม
                 </ElButton>
               </template>
             </ElTableColumn>
@@ -639,6 +692,36 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
       </template>
     </ElDialog>
 
+    <ElDialog v-model="carryOpen" title="ยกของรางวัลที่เหลือจากรอบอื่น" width="480px">
+      <ElForm label-position="top" @submit.prevent>
+        <ElFormItem label="จากรอบ">
+          <ElSelect v-model="carryFrom" placeholder="เลือกรอบ" style="width: 100%">
+            <ElOption v-for="r in otherRounds" :key="r.id" :label="r.name" :value="r.id" />
+          </ElSelect>
+        </ElFormItem>
+      </ElForm>
+      <template v-if="carryFrom">
+        <ElEmpty v-if="!carryPreview.length" description="รอบนั้นไม่มีของรางวัลเหลือ" :image-size="60" />
+        <template v-else>
+          <ul class="rank">
+            <li v-for="p in carryPreview" :key="p.id">
+              <b>{{ p.name }}</b> เหลือ {{ p.quantity - (p._count?.draws ?? 0) }} ชิ้น
+            </li>
+          </ul>
+          <p class="hint">
+            ของที่เหลือทั้งหมด {{ leftOf(carryPreview) }} ชิ้นจะย้ายมารอบนี้ (ชื่อซ้ำกับที่มีอยู่จะรวมจำนวนให้)
+            และรอบเดิมจะเหลือเท่าที่สุ่มไปแล้ว — คนที่ยังไม่ได้สุ่มในรอบเดิมจะสุ่มของรอบนั้นไม่ได้แล้ว
+          </p>
+        </template>
+      </template>
+      <template #footer>
+        <ElButton @click="carryOpen = false">ยกเลิก</ElButton>
+        <ElButton type="primary" :loading="carrying" :disabled="!carryPreview.length" @click="carryOver">
+          ยกมารอบนี้
+        </ElButton>
+      </template>
+    </ElDialog>
+
     <ElDialog v-model="prizeOpen" :title="prizeForm.id ? 'แก้ไขของรางวัล' : 'เพิ่มของรางวัล'" width="460px">
       <ElForm label-position="top" @submit.prevent>
         <ElFormItem label="ชื่อของรางวัล" required>
@@ -669,6 +752,8 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
 .mt { margin-top: 12px; }
 .mb { margin-bottom: 12px; }
 .award-tag { margin: 0 4px 4px 0; }
+.drawn { padding: 4px 0 8px; border-bottom: 1px dashed var(--el-border-color-lighter); margin-bottom: 6px; }
+.address { white-space: pre-line; font-size: 13px; }
 .ml { margin-left: 6px; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.5; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }

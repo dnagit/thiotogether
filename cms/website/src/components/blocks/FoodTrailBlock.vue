@@ -4,15 +4,18 @@
  * ตามรอยร้านอาหาร, for a fan to tick as they eat them — then, with their account typed in,
  * saved as a picture to post.
  *
- * Names only: the restaurants' and dishes' pictures are for the admin's poster. What is ticked,
- * and the account, stay in this browser's localStorage — there is no sign-in, and nothing is
- * sent anywhere.
+ * Names only: the restaurants' and dishes' pictures are for the admin's poster.
+ *
+ * Ticks are saved under the account the fan types (`/public/food-trail/progress`), so typing
+ * the same account again — later, or on another phone — brings them back. There is no
+ * password. They are also kept in this browser's localStorage, so ticking works before any
+ * account is given; giving one that has nothing saved yet saves what is ticked under it.
  */
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { api } from '@/api/client';
 import WishCardActions from '@/components/birthday/WishCardActions.vue';
 import { drawChecklist, progress } from '@/components/foodTrail/drawChecklist';
-import type { ApiResponse, PublicFoodTrail } from '@cms/shared';
+import type { ApiResponse, FoodTrailProgress, PublicFoodTrail } from '@cms/shared';
 
 const props = withDefaults(
   defineProps<{
@@ -39,6 +42,8 @@ async function load(): Promise<void> {
     });
     trail.value = data.data;
     restore();
+    // Back on the page with an account given before: pick its ticks up again.
+    if (trail.value && cleanAccount.value) void useAccount();
   } catch {
     error.value = 'โหลดรายการไม่สำเร็จ กรุณาลองใหม่';
   } finally {
@@ -47,11 +52,12 @@ async function load(): Promise<void> {
 }
 void load();
 
-// ── What is ticked, kept in this browser ──
+// ── What is ticked: in this browser, and under the account once one is given ──
 const ACCOUNT_KEY = 'food-trail:account';
 const ticksKey = () => `food-trail:${trail.value?.id}`;
 
 const account = ref(localStorage.getItem(ACCOUNT_KEY) ?? '');
+const cleanAccount = computed(() => account.value.trim().replace(/^@+/, '').trim());
 // The "@" is already drawn in front of the field; a typed or pasted one would show twice.
 watch(account, (v) => {
   if (v.startsWith('@')) account.value = v.replace(/^@+/, '');
@@ -59,12 +65,19 @@ watch(account, (v) => {
 });
 
 const ticked = reactive({ places: new Set<number>(), menus: new Set<number>() });
+/**
+ * Whose the ticks in this browser are: null while no account has been given. Only those
+ * unclaimed ticks carry over to a new account — switching from one account to another starts
+ * the new one empty rather than handing it the first one's.
+ */
+let ticksOwner: string | null = null;
 
 function restore(): void {
   try {
     const saved = JSON.parse(localStorage.getItem(ticksKey()) ?? '{}');
     ticked.places = new Set(saved.places ?? []);
     ticked.menus = new Set(saved.menus ?? []);
+    ticksOwner = saved.owner ?? null;
   } catch {
     // Something else wrote there: start afresh.
   }
@@ -72,11 +85,125 @@ function restore(): void {
 
 function persist(): void {
   if (!trail.value) return;
+  ticksOwner = linked.value ?? ticksOwner;
   localStorage.setItem(
     ticksKey(),
-    JSON.stringify({ places: [...ticked.places], menus: [...ticked.menus] }),
+    JSON.stringify({ places: [...ticked.places], menus: [...ticked.menus], owner: ticksOwner }),
   );
+  scheduleSave();
 }
+
+/** The account the ticks are saved under — set once given, not while it is being typed. */
+const linked = ref<string | null>(null);
+const syncing = ref(false);
+const syncNote = ref<{ ok: boolean; text: string } | null>(null);
+
+async function saveNow(): Promise<void> {
+  if (!trail.value || !linked.value) return;
+  syncing.value = true;
+  try {
+    await api.put<ApiResponse<FoodTrailProgress>>('/public/food-trail/progress', {
+      trailId: trail.value.id,
+      account: linked.value,
+      placeIds: [...ticked.places],
+      menuIds: [...ticked.menus],
+    });
+    syncNote.value = { ok: true, text: `บันทึกใน @${linked.value} แล้ว ✓` };
+  } catch (err: any) {
+    syncNote.value = {
+      ok: false,
+      text:
+        err?.response?.status === 429
+          ? 'บันทึกถี่เกินไป รอสักครู่แล้วติ๊กใหม่อีกครั้ง'
+          : 'บันทึกไม่สำเร็จ — ที่ติ๊กไว้ยังอยู่ในเครื่องนี้',
+    };
+  } finally {
+    syncing.value = false;
+  }
+}
+
+/** Ticks come in bursts; one save for the lot, a moment after the last. */
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleSave(): void {
+  if (!linked.value) return;
+  clearTimeout(saveTimer);
+  syncNote.value = { ok: true, text: 'กำลังบันทึก…' };
+  saveTimer = setTimeout(() => void saveNow(), 700);
+}
+onBeforeUnmount(() => {
+  // Leaving with a save still waiting: send it now rather than drop it.
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    void saveNow();
+  }
+});
+
+/**
+ * Take the typed account as the fan's: what it has saved replaces what is ticked here; with
+ * nothing saved yet, what is ticked here is saved under it.
+ */
+let linking = false;
+async function useAccount(): Promise<void> {
+  const name = cleanAccount.value;
+  if (!trail.value || !name || linking) return;
+  if (linked.value === name.toLowerCase()) return;
+  // Enter fires both the form's submit and the field's change; one load is enough.
+  linking = true;
+  clearTimeout(saveTimer);
+  syncing.value = true;
+  syncNote.value = null;
+  try {
+    const { data } = await api.get<ApiResponse<FoodTrailProgress>>('/public/food-trail/progress', {
+      params: { trailId: trail.value.id, account: name },
+    });
+    const saved = data.data;
+    linked.value = saved.account;
+    if (saved.updatedAt) {
+      ticked.places = new Set(saved.placeIds);
+      ticked.menus = new Set(saved.menuIds);
+      ticksOwner = saved.account;
+      localStorage.setItem(
+        ticksKey(),
+        JSON.stringify({ places: saved.placeIds, menus: saved.menuIds, owner: saved.account }),
+      );
+      syncNote.value = { ok: true, text: `โหลดรายการของ @${name} แล้ว` };
+    } else if (!ticksOwner && (ticked.places.size || ticked.menus.size)) {
+      // Ticked before any account was given: they are this fan's, so keep them under it.
+      ticksOwner = saved.account;
+      persist();
+      clearTimeout(saveTimer);
+      await saveNow();
+    } else {
+      // Another account's ticks on screen, or none: this one starts empty.
+      ticked.places = new Set();
+      ticked.menus = new Set();
+      ticksOwner = saved.account;
+      persist();
+      clearTimeout(saveTimer);
+      syncNote.value = { ok: true, text: `ติ๊กได้เลย ระบบจะบันทึกไว้ใน @${name}` };
+    }
+  } catch (err: any) {
+    syncNote.value = {
+      ok: false,
+      text:
+        err?.response?.status === 429
+          ? 'ลองบ่อยเกินไป รอสักครู่แล้วลองใหม่'
+          : 'โหลดรายการไม่สำเร็จ กรุณาลองใหม่',
+    };
+  } finally {
+    syncing.value = false;
+    linking = false;
+  }
+}
+
+// Typing another name stops saving under the old one until the new one is given.
+watch(account, () => {
+  if (linked.value && cleanAccount.value.toLowerCase() !== linked.value) {
+    clearTimeout(saveTimer);
+    linked.value = null;
+    syncNote.value = null;
+  }
+});
 
 type Place = PublicFoodTrail['places'][number];
 
@@ -112,7 +239,6 @@ const stats = computed(() =>
 const percent = computed(() => (stats.value.total ? (stats.value.done / stats.value.total) * 100 : 0));
 
 // ── The picture ──
-const cleanAccount = computed(() => account.value.trim().replace(/^@+/, '').trim());
 const accountError = ref(false);
 
 async function render(): Promise<File | null> {
@@ -129,7 +255,6 @@ async function render(): Promise<File | null> {
     places: ticked.places,
     menus: ticked.menus,
     accent: accent.value,
-    footer: window.location.host,
   });
   const safe = cleanAccount.value.replace(/[^\p{L}\p{N}\p{M}\-_]+/gu, '-').slice(0, 40);
   return new File([blob], `food-trail-${safe || 'checklist'}.png`, { type: 'image/png' });
@@ -148,6 +273,30 @@ async function render(): Promise<File | null> {
     <template v-else>
       <p v-if="trail.name !== heading" class="trail-name">{{ trail.name }}</p>
       <p v-if="trail.description" class="muted center pre">{{ trail.description }}</p>
+
+      <form class="account" @submit.prevent="useAccount">
+        <label for="food-trail-account" class="save-label">ใส่ชื่อ account เพื่อบันทึกรายการที่ติ๊ก</label>
+        <div class="account-row">
+          <div class="field" :class="{ invalid: accountError && !cleanAccount }">
+            <span class="at" aria-hidden="true">@</span>
+            <input
+              id="food-trail-account"
+              v-model="account"
+              type="text"
+              maxlength="101"
+              autocomplete="username"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="account"
+              @change="useAccount"
+            />
+          </div>
+          <button type="submit" class="use" :disabled="!cleanAccount || syncing">บันทึก / โหลด</button>
+        </div>
+        <p class="hint">ใส่ account เดิมครั้งหน้า (หรือในเครื่องอื่น) จะได้รายการที่ติ๊กไว้กลับมา</p>
+        <p v-if="accountError && !cleanAccount" class="error" role="alert">กรุณาใส่ชื่อ account ก่อนเซฟรูป</p>
+        <p v-else-if="syncNote" :class="syncNote.ok ? 'sync' : 'error'" role="status">{{ syncNote.text }}</p>
+      </form>
 
       <div class="progress" role="status" aria-live="polite">
         <div class="progress-text">กินแล้ว {{ stats.done }}/{{ stats.total }}</div>
@@ -175,21 +324,6 @@ async function render(): Promise<File | null> {
       </ol>
 
       <div class="save">
-        <label for="food-trail-account" class="save-label">ใส่ชื่อ account เพื่อเซฟเป็นรูป</label>
-        <div class="field" :class="{ invalid: accountError && !cleanAccount }">
-          <span class="at" aria-hidden="true">@</span>
-          <input
-            id="food-trail-account"
-            v-model="account"
-            type="text"
-            maxlength="101"
-            autocomplete="username"
-            autocapitalize="off"
-            spellcheck="false"
-            placeholder="account"
-          />
-        </div>
-        <p v-if="accountError && !cleanAccount" class="error" role="alert">กรุณาใส่ชื่อ account ก่อนเซฟรูป</p>
         <div class="save-actions">
           <WishCardActions
             :render="render"
@@ -339,6 +473,44 @@ async function render(): Promise<File | null> {
   display: grid;
   gap: 0.5rem;
   justify-items: center;
+}
+.account {
+  margin: 1.25rem auto 0;
+  max-width: 26rem;
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+  text-align: center;
+}
+.account-row {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+.account-row .field {
+  flex: 1 1 auto;
+  max-width: none;
+}
+.use {
+  flex: 0 0 auto;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0.6rem;
+  padding: 0 1rem;
+}
+.use:disabled {
+  opacity: 0.5;
+}
+.hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+.sync {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #15803d;
 }
 .save-label {
   font-weight: 600;

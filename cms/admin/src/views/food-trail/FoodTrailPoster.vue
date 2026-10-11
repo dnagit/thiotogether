@@ -2,7 +2,8 @@
 /**
  * The trail as a poster to post: its name, then a card per restaurant — the restaurant's
  * picture, its name and note, and its dishes in a grid of pictures, each with an empty box to
- * tick — drawn in a <canvas> and saved as a PNG.
+ * tick — drawn in a <canvas> and saved as a PNG. Dishes without a picture are listed by name
+ * under the grid instead, so no empty frames show.
  *
  * The poster grows as tall as the trail needs. Past what a phone's canvas can hold it is drawn
  * smaller rather than cut off.
@@ -154,10 +155,28 @@ function drawCover(
   ctx.restore();
 }
 
-/** A light wash of the accent, for empty picture spots. */
-function tint(hex: string, alpha: number): string {
-  const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+/** The name list for dishes without a picture: type size, tick box, line height, column gap. */
+const LIST = { size: 28, box: 26, line: 40, gap: 28 };
+
+/**
+ * Where each picture-less dish goes in a two-column list, filled row by row, a row as tall as
+ * its taller name; positions relative to the list's top left. Height 0 when there are none.
+ */
+let measureCtx: CanvasRenderingContext2D | null = null;
+function listLayout(menus: Array<{ name: string }>) {
+  const ctx = (measureCtx ??= document.createElement('canvas').getContext('2d')!);
+  ctx.font = `600 ${LIST.size}px ${FONT}`;
+  const colW = (W - PAD * 2 - CARD_PAD * 2 - LIST.gap) / 2;
+  const room = colW - (look.checkboxes ? LIST.box + 12 : 0);
+  const wrapped = menus.map((m) => wrap(ctx, m.name, room));
+  const items: Array<{ lines: string[]; x: number; y: number }> = [];
+  let y = 0;
+  for (let k = 0; k < wrapped.length; k += 2) {
+    const rowH = Math.max(...wrapped.slice(k, k + 2).map((l) => l.length)) * LIST.line;
+    wrapped.slice(k, k + 2).forEach((lines, c) => items.push({ lines, x: c * (colW + LIST.gap), y }));
+    y += rowH + 12;
+  }
+  return { items, height: items.length ? y - 12 : 0 };
 }
 
 // ── The poster ──
@@ -210,6 +229,10 @@ function paint(ctx: CanvasRenderingContext2D, pics: Pictures, draw: boolean): nu
     const top = y;
     let cy = top + CARD_PAD;
     const x0 = PAD + CARD_PAD;
+    // Dishes with a picture go in the grid; the rest are listed by name, two columns, below it.
+    const pictured = place.menus.filter((m) => pics.menus.get(m.id));
+    const unpictured = place.menus.filter((m) => !pics.menus.get(m.id));
+    const list = listLayout(unpictured);
 
     // Measure the card first, so its background goes under everything else.
     const measure = () => {
@@ -222,11 +245,12 @@ function paint(ctx: CanvasRenderingContext2D, pics: Pictures, draw: boolean): nu
         ctx.font = `400 26px ${FONT}`;
         h += 6 + wrap(ctx, place.note, cardInner - 72).length * 38;
       }
-      if (place.menus.length) {
+      if (pictured.length) {
         h += 20;
-        const rows = Math.ceil(place.menus.length / cols);
+        const rows = Math.ceil(pictured.length / cols);
         h += rows * (cell + 12 + nameSize * 1.45 * 2) + (rows - 1) * GAP;
       }
+      if (list.height) h += 20 + list.height;
       return h + CARD_PAD;
     };
     const cardH = measure();
@@ -277,31 +301,17 @@ function paint(ctx: CanvasRenderingContext2D, pics: Pictures, draw: boolean): nu
       }
     }
 
-    // Dishes.
-    if (place.menus.length) {
+    // Dishes with a picture.
+    if (pictured.length) {
       cy += 20;
       const rowH = cell + 12 + nameSize * 1.45 * 2;
-      place.menus.forEach((menu, k) => {
+      pictured.forEach((menu, k) => {
         const col = k % cols;
         const row = Math.floor(k / cols);
         const mx = x0 + col * (cell + GAP);
         const my = cy + row * (rowH + GAP);
         if (!draw) return;
-        const img = pics.menus.get(menu.id);
-        if (img) {
-          drawCover(ctx, img, mx, my, cell, cell, 18);
-        } else {
-          ctx.fillStyle = tint(look.accent, 0.1);
-          roundRect(ctx, mx, my, cell, cell, 18);
-          ctx.fill();
-          // Opaque: an emoji keeps its own colours but takes the fill's transparency.
-          ctx.fillStyle = '#000';
-          ctx.font = `400 ${Math.round(cell * 0.35)}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('🍽️', mx + cell / 2, my + cell / 2);
-          ctx.textBaseline = 'top';
-        }
+        drawCover(ctx, pics.menus.get(menu.id)!, mx, my, cell, cell, 18);
 
         // The name under the picture, two lines at most, with a box to tick before it.
         ctx.font = `600 ${nameSize}px ${FONT}`;
@@ -325,6 +335,28 @@ function paint(ctx: CanvasRenderingContext2D, pics: Pictures, draw: boolean): nu
           const lx = box ? startX + box + 10 + (widest - lw) / 2 : mx + (cell - lw) / 2;
           ctx.fillText(line, lx, ty + n * nameSize * 1.45);
         });
+      });
+      const rows = Math.ceil(pictured.length / cols);
+      cy += rows * rowH + (rows - 1) * GAP;
+    }
+
+    // Dishes without one, by name.
+    if (list.height && draw) {
+      cy += 20;
+      ctx.font = `600 ${LIST.size}px ${FONT}`;
+      ctx.fillStyle = INK;
+      ctx.textAlign = 'left';
+      list.items.forEach(({ lines, x, y: ly }) => {
+        const bx = x0 + x;
+        const by = cy + ly;
+        if (look.checkboxes) {
+          ctx.strokeStyle = look.accent;
+          ctx.lineWidth = 3;
+          roundRect(ctx, bx, by + LIST.size * 0.2, LIST.box, LIST.box, 5);
+          ctx.stroke();
+        }
+        const tx = bx + (look.checkboxes ? LIST.box + 12 : 0);
+        lines.forEach((line, n) => ctx.fillText(line, tx, by + n * LIST.line));
       });
     }
 
@@ -470,7 +502,7 @@ function download(): void {
         <ElButton type="primary" :disabled="!ready" @click="download">บันทึกรูป (PNG)</ElButton>
         <ElButton v-if="canShareFiles && isTouch" :disabled="!ready" @click="sharePicture">แชร์</ElButton>
       </div>
-      <p class="hint">ใช้รูปร้านและรูปเมนูที่ลงไว้ · ร้านหรือเมนูที่ไม่มีรูปจะแสดงเป็นช่องว่าง</p>
+      <p class="hint">ใช้รูปร้านและรูปเมนูที่ลงไว้ · ร้านที่ไม่มีรูปจะไม่มีรูปปก · เมนูที่ไม่มีรูปจะแสดงเป็นรายชื่อใต้รูปเมนู</p>
       <p v-if="error" class="error">{{ error }}</p>
     </ElCard>
 

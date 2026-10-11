@@ -51,3 +51,14 @@ export interface PublicFoodTrail {
     menus: Array<{ id: number; name: string }>;
   }>;
 }
+
+/**
+ * `GET`/`PUT /public/food-trail/progress` — what an account has ticked on a trail. `account`
+ * comes back lower-cased; `updatedAt` is null when nothing has been saved under it yet.
+ */
+export interface FoodTrailProgress {
+  account: string;
+  placeIds: number[];
+  menuIds: number[];
+  updatedAt: string | null;
+}

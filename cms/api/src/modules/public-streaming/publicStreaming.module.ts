@@ -8,9 +8,9 @@ import { asyncHandler } from '../../core/utils/asyncHandler.js';
 import { ok, created } from '../../core/base/BaseController.js';
 import { AppError, BadRequestError, ConflictError } from '../../core/errors/AppError.js';
 import { getStorage } from '../../core/storage/index.js';
-import type { StreamClaimResult } from '@cms/shared';
+import type { StreamClaimResult, StreamClaimStatus } from '@cms/shared';
 import { xAccountSchema } from '../tracking/tracking.module.js';
-import { claimFor, computeAwards } from '../streaming/streamAwards.js';
+import { claimFor, claimStatus, computeAwards } from '../streaming/streamAwards.js';
 import type { FeatureModule } from '../../core/modules.js';
 
 /**
@@ -19,7 +19,8 @@ import type { FeatureModule } from '../../core/modules.js';
  *   GET  /public/streaming?sessionId=      → a round's awards; the newest round without an id
  *   GET  /public/streaming/sessions        → the rounds, newest first, to browse back through
  *   POST /public/streaming/proofs          → multipart: sessionId, xAccount, streams, note, image
- *   POST /public/streaming/claim           → { xAccount }: a winner draws their prize
+ *   POST /public/streaming/claim/check     → { xAccount }: draws left and prizes drawn so far
+ *   POST /public/streaming/claim           → { xAccount, address }: a winner draws a prize
  *
  * Hidden and deleted rounds are left out everywhere. Proofs arrive PENDING with the fan's own
  * count, which the admin checks against the screenshot (and corrects) before approving; until
@@ -103,20 +104,42 @@ router.post(
   }),
 );
 
-const claimSchema = z.object({ xAccount: xAccountSchema });
+const checkSchema = z.object({ xAccount: xAccountSchema });
+
+router.post(
+  '/streaming/claim/check',
+  accountLookupLimiter,
+  validate({ body: checkSchema }),
+  asyncHandler(async (req, res) => {
+    const { xAccount } = req.body as z.infer<typeof checkSchema>;
+    res.setHeader('Cache-Control', 'no-store');
+    ok(res, (await claimStatus(xAccount)) satisfies StreamClaimStatus);
+  }),
+);
+
+/** Where the prize goes — asked for before the draw, so no winner is left unreachable. */
+const claimSchema = z.object({
+  xAccount: xAccountSchema,
+  address: z
+    .string({ required_error: 'กรุณากรอกที่อยู่จัดส่ง' })
+    .trim()
+    .min(10, 'กรุณากรอกชื่อ เบอร์โทร และที่อยู่จัดส่งให้ครบ')
+    .max(1000),
+});
 
 router.post(
   '/streaming/claim',
   accountLookupLimiter,
   validate({ body: claimSchema }),
   asyncHandler(async (req, res) => {
-    const { xAccount } = req.body as z.infer<typeof claimSchema>;
-    const { draw, awards, sessionName } = await claimFor(xAccount);
+    const { xAccount, address } = req.body as z.infer<typeof claimSchema>;
+    const { draw, awards, sessionName, remaining } = await claimFor(xAccount, address);
     res.setHeader('Cache-Control', 'no-store');
     ok(res, {
       xAccount: draw.xAccount,
       sessionName,
       awards,
+      remaining,
       prize: { name: draw.prize.name, image: draw.prize.image },
     } satisfies StreamClaimResult);
   }),

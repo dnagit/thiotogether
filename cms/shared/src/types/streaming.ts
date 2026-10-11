@@ -65,16 +65,28 @@ export interface StreamPick {
 /** The awards that earn a prize draw. */
 export type StreamAwardKind = 'star' | 'rising' | 'pick';
 
+/** One prize a winner drew. */
+export interface StreamWinnerDraw {
+  id: number;
+  createdAt: string;
+  /** Where to send it; null when the admin drew it on the winner's behalf. */
+  address: string | null;
+  prize: { id: number; name: string; image: string | null };
+}
+
 /**
- * `GET /streaming/sessions/:id/winners` — everyone who won something in the round, and
- * whether they have drawn. `canDraw` is false for a Streaming Star or Rising Streamer while
- * the round is still open: the standings can still change.
+ * `GET /streaming/sessions/:id/winners` — everyone who won something in the round, and what
+ * they have drawn. A winner draws once per award won (`awards.length` times); `remaining` is
+ * how many of those they may draw now — a Streaming Star or Rising Streamer win counts only
+ * once the round is closed, while the standings can still change.
  */
 export interface StreamWinner {
   xAccount: string;
   awards: StreamAwardKind[];
-  canDraw: boolean;
-  draw: { id: number; createdAt: string; prize: { id: number; name: string; image: string | null } } | null;
+  remaining: number;
+  /** Awards still waiting for the round to close before they can be drawn. */
+  waiting: number;
+  draws: StreamWinnerDraw[];
 }
 
 /** One line of an award's list. */
@@ -142,11 +154,28 @@ export interface StreamAwards {
   participants: number;
 }
 
-/** `POST /public/streaming/claim` — what the winner drew. */
-export interface StreamClaimResult {
-  xAccount: string;
+/** A prize the winner has drawn, as the website shows it back to them. */
+export interface StreamClaimedPrize {
   sessionName: string;
+  prize: { name: string; image: string | null };
+}
+
+/**
+ * `POST /public/streaming/claim/check` — before drawing: how many draws the account has left
+ * across the rounds shown on the web (one per award won), and what it has drawn so far.
+ */
+export interface StreamClaimStatus {
+  xAccount: string;
+  remaining: number;
+  /** A Streaming Star or Rising Streamer win whose round has yet to close. */
+  waiting: boolean;
+  draws: StreamClaimedPrize[];
+}
+
+/** `POST /public/streaming/claim` — what the winner drew, and how many draws are left. */
+export interface StreamClaimResult extends StreamClaimedPrize {
+  xAccount: string;
   /** The awards that earned the draw. */
   awards: StreamAwardKind[];
-  prize: { name: string; image: string | null };
+  remaining: number;
 }

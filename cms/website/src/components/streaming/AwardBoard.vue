@@ -55,7 +55,12 @@ interface Row {
 
 const prizeOf = computed(() => {
   const byAccount = new Map<string, string>();
-  for (const d of props.awards.draws) byAccount.set(d.xAccount.toLowerCase(), d.prize.name);
+  // One draw per award won, so an account may hold several.
+  for (const d of props.awards.draws) {
+    const key = d.xAccount.toLowerCase();
+    const had = byAccount.get(key);
+    byAccount.set(key, had ? `${had}, ${d.prize.name}` : d.prize.name);
+  }
   return (xAccount: string) => byAccount.get(xAccount.toLowerCase()) ?? null;
 });
 

@@ -1237,7 +1237,7 @@ model TrackingEntry {
 ///  - Streaming Star: the highest total.
 ///  - Rising Streamer: the biggest rise over the round before (the one starting just earlier).
 ///  - DJ's Pick: a DJ draws a lucky fan — see StreamPick.
-/// Every winner then draws a prize from the round's pool, once per round — see StreamDraw.
+/// Every winner then draws a prize from the round's pool, once per award won — see StreamDraw.
 model StreamSession {
   id          Int      @id @default(autoincrement())
   name        String   @db.VarChar(200)
@@ -1352,13 +1352,16 @@ model StreamPick {
   @@map("stream_picks")
 }
 
-/// A winner's prize: one per account per round, whichever awards and however many they won.
+/// A winner's prize: one per award won, per account per round — two awards, two draws.
 /// Deleting one puts the prize back in the pool.
 model StreamDraw {
   id        Int    @id @default(autoincrement())
   sessionId Int    @map("session_id")
   xAccount  String @map("x_account") @db.VarChar(100)
   prizeId   Int    @map("prize_id")
+  /// Where to send it, as the winner typed it before drawing. Null for a draw the admin made
+  /// on the winner's behalf.
+  address   String? @db.VarChar(1000)
 
   session StreamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   prize   StreamPrize   @relation(fields: [prizeId], references: [id], onDelete: Cascade)
@@ -1414,7 +1417,8 @@ model FoodTrail {
   isActive  Boolean @default(true) @map("is_active")
   sortOrder Int     @default(0) @map("sort_order")
 
-  places FoodPlace[]
+  places   FoodPlace[]
+  progress FoodTrailProgress[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -1463,4 +1467,24 @@ model FoodMenu {
 
   @@index([placeId])
   @@map("food_menus")
+}
+
+/// What a fan has ticked on a trail, saved under the account they typed on the website so the
+/// same account brings it back on any device. There is no password: whoever types the account
+/// sees and changes its ticks — fine for a checklist, nothing more.
+model FoodTrailProgress {
+  id       Int    @id @default(autoincrement())
+  trailId  Int    @map("trail_id")
+  /// Without the leading "@", lower-cased, so "@Name" and "name" are the same fan.
+  account  String @db.VarChar(100)
+  placeIds Int[]  @default([]) @map("place_ids")
+  menuIds  Int[]  @default([]) @map("menu_ids")
+
+  trail FoodTrail @relation(fields: [trailId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([trailId, account])
+  @@map("food_trail_progress")
 }

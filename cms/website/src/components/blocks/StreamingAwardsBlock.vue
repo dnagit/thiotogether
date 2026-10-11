@@ -8,18 +8,19 @@
  *
  * Several ways to win on purpose — this is a game, not a ranking of who supports the most.
  * The results are a game-style board — podium, table, a tab bar to switch awards — see
- * AwardBoard. Every winner draws one prize per round; what they drew shows under their name.
+ * AwardBoard. Every winner draws one prize per award won; what they drew shows under their name.
  * Streaming Star and Rising Streamer are only provisional while the round is open, so their
  * winners draw once the admin closes it.
  *
  * Below the awards, two forms the block can switch off: sending a screenshot of your streams
- * into the round (while it is open), and a winner drawing their prize by entering their
- * account (once it is closed and the winners announced).
+ * into the round (while it is open), and a winner drawing their prizes (once it is closed
+ * and the winners announced): they enter their account to see how many draws they have
+ * left, then their address, then draw — the button stays off once none are left.
  */
 import { computed, ref, watch } from 'vue';
 import { api } from '@/api/client';
 import { isImageFile, prepareImage } from '@/utils/image';
-import type { ApiResponse, StreamAwards, StreamClaimResult } from '@cms/shared';
+import type { ApiResponse, StreamAwards, StreamClaimResult, StreamClaimStatus } from '@cms/shared';
 import AwardBoard from '@/components/streaming/AwardBoard.vue';
 
 const props = withDefaults(
@@ -177,6 +178,10 @@ const awardLabel: Record<string, string> = {
 
 // ── Claim a prize ─────────────────────────────────────────────────────
 const claimAccount = ref('');
+const claimAddress = ref('');
+const checking = ref(false);
+/** The account's draws left and prizes so far — looked up before the address is asked. */
+const claimStatus = ref<StreamClaimStatus | null>(null);
 const claiming = ref(false);
 /** The gift box shakes for a moment before the prize shows — it is a draw, after all. */
 const revealing = ref(false);
@@ -185,12 +190,48 @@ const claimError = ref<string | null>(null);
 
 watch(claimAccount, (v) => {
   if (v.startsWith('@')) claimAccount.value = v.replace(/^@+/, '');
+  // Another account: its own draws, looked up again.
+  else if (claimStatus.value && stripAt(v).toLowerCase() !== claimStatus.value.xAccount.toLowerCase()) {
+    claimStatus.value = null;
+    claimResult.value = null;
+  }
 });
 
-async function claim(): Promise<void> {
+const errorText = (err: any, fallback: string) =>
+  err?.response?.status === 429
+    ? 'ลองบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่'
+    : (err?.response?.data?.message ?? fallback);
+
+async function checkClaim(): Promise<void> {
   const xAccount = stripAt(claimAccount.value);
   if (!xAccount) {
     claimError.value = 'กรุณากรอก account X';
+    return;
+  }
+  checking.value = true;
+  claimError.value = null;
+  claimResult.value = null;
+  try {
+    const { data } = await api.post<ApiResponse<StreamClaimStatus>>('/public/streaming/claim/check', { xAccount });
+    claimStatus.value = data.data;
+  } catch (err: any) {
+    claimStatus.value = null;
+    claimError.value = errorText(err, 'ตรวจสอบไม่สำเร็จ กรุณาลองใหม่');
+  } finally {
+    checking.value = false;
+  }
+}
+
+const canDraw = computed(
+  () => !!claimStatus.value && claimStatus.value.remaining > 0 && !!claimAddress.value.trim() && !claiming.value,
+);
+
+async function claim(): Promise<void> {
+  const status = claimStatus.value;
+  if (!status || status.remaining <= 0) return;
+  const address = claimAddress.value.trim();
+  if (!address) {
+    claimError.value = 'กรุณากรอกที่อยู่จัดส่งก่อนสุ่ม';
     return;
   }
   claiming.value = true;
@@ -199,19 +240,32 @@ async function claim(): Promise<void> {
   claimResult.value = null;
   try {
     const [{ data }] = await Promise.all([
-      api.post<ApiResponse<StreamClaimResult>>('/public/streaming/claim', { xAccount }),
+      api.post<ApiResponse<StreamClaimResult>>('/public/streaming/claim', { xAccount: status.xAccount, address }),
       new Promise((r) => setTimeout(r, 1600)),
     ]);
     claimResult.value = data.data;
+    status.remaining = data.data.remaining;
+    status.draws.push({ sessionName: data.data.sessionName, prize: data.data.prize });
     void loadAwards();
   } catch (err: any) {
-    claimError.value =
-      err?.response?.status === 429
-        ? 'ลองบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่'
-        : (err?.response?.data?.message ?? 'สุ่มไม่สำเร็จ กรุณาลองใหม่');
+    claimError.value = errorText(err, 'สุ่มไม่สำเร็จ กรุณาลองใหม่');
+    // Someone else drew on this account, or the round moved on: show where it stands now.
+    if (err?.response?.status === 409) void refreshStatus();
   } finally {
     claiming.value = false;
     revealing.value = false;
+  }
+}
+
+async function refreshStatus(): Promise<void> {
+  if (!claimStatus.value) return;
+  try {
+    const { data } = await api.post<ApiResponse<StreamClaimStatus>>('/public/streaming/claim/check', {
+      xAccount: claimStatus.value.xAccount,
+    });
+    claimStatus.value = data.data;
+  } catch {
+    // The error already shown says enough.
   }
 }
 </script>
@@ -285,26 +339,64 @@ async function claim(): Promise<void> {
         </form>
 
         <!-- ── Claim ── only once the round is closed, which is when its winners are announced. -->
-        <form v-if="showClaim && !awards.session.isOpen" class="card form" @submit.prevent="claim">
+        <form
+          v-if="showClaim && !awards.session.isOpen"
+          class="card form"
+          @submit.prevent="claimStatus ? claim() : checkClaim()"
+        >
           <h3>🎁 ได้รางวัล? สุ่มของรางวัลเลย</h3>
           <p class="muted">
-            ได้ Streaming Star, Rising Streamer หรือ DJ's Pick กรอก account X ของตัวเองแล้วกดสุ่มได้เลย
-            (คนละ 1 ชิ้นต่อรอบ)
+            ได้ Streaming Star, Rising Streamer หรือ DJ's Pick กรอก account X ของตัวเองเพื่อตรวจสอบสิทธิ์
+            (ได้กี่รางวัล สุ่มได้เท่านั้นครั้ง)
           </p>
-          <label class="field">
-            <span class="at" aria-hidden="true">@</span>
-            <span class="sr-only">Account X</span>
-            <input
-              v-model="claimAccount"
-              type="text"
-              maxlength="101"
-              autocomplete="username"
-              autocapitalize="off"
-              spellcheck="false"
-              placeholder="account X"
-            />
-          </label>
-          <button type="submit" class="btn" :disabled="claiming">{{ claiming ? 'กำลังสุ่ม…' : '🎲 สุ่มของรางวัล' }}</button>
+          <div class="claim-row">
+            <label class="field claim-input">
+              <span class="at" aria-hidden="true">@</span>
+              <span class="sr-only">Account X</span>
+              <input
+                v-model="claimAccount"
+                type="text"
+                maxlength="101"
+                autocomplete="username"
+                autocapitalize="off"
+                spellcheck="false"
+                placeholder="account X"
+              />
+            </label>
+            <button v-if="!claimStatus" type="submit" class="btn" :disabled="checking">
+              {{ checking ? 'กำลังตรวจสอบ…' : 'ตรวจสอบสิทธิ์' }}
+            </button>
+          </div>
+
+          <template v-if="claimStatus">
+            <p class="draws-left" aria-live="polite">
+              <template v-if="claimStatus.remaining">
+                🎲 @{{ claimStatus.xAccount }} เหลือสิทธิ์สุ่ม <b>{{ claimStatus.remaining }}</b> ครั้ง
+              </template>
+              <template v-else-if="claimStatus.waiting">⏳ รอประกาศผลรอบนี้ก่อนแล้วค่อยมาสุ่มนะคะ</template>
+              <template v-else>✅ สุ่มครบตามสิทธิ์แล้ว</template>
+            </p>
+            <p v-if="claimStatus.remaining && claimStatus.waiting" class="muted">
+              ยังมีรางวัลที่รอประกาศผล — สุ่มเพิ่มได้หลังปิดรอบ
+            </p>
+
+            <label v-if="claimStatus.remaining" class="plain">
+              <span class="field-label">ที่อยู่จัดส่งของรางวัล</span>
+              <textarea
+                v-model="claimAddress"
+                rows="4"
+                maxlength="1000"
+                autocomplete="street-address"
+                placeholder="ชื่อ-นามสกุล, เบอร์โทร, ที่อยู่ และรหัสไปรษณีย์"
+              />
+            </label>
+
+            <button type="submit" class="btn" :disabled="!canDraw">
+              <template v-if="claiming">กำลังสุ่ม…</template>
+              <template v-else-if="claimStatus.remaining">🎲 สุ่มของรางวัล (เหลือ {{ claimStatus.remaining }} ครั้ง)</template>
+              <template v-else>สุ่มครบแล้ว</template>
+            </button>
+          </template>
 
           <div v-if="revealing" class="reveal" aria-live="polite">
             <span class="box shake" aria-hidden="true">🎁</span>
@@ -323,6 +415,15 @@ async function claim(): Promise<void> {
             </p>
           </div>
           <p v-if="claimError" class="error" role="alert">{{ claimError }}</p>
+
+          <div v-if="claimStatus?.draws.length" class="drawn">
+            <p class="muted">ของรางวัลที่สุ่มได้แล้ว</p>
+            <ul>
+              <li v-for="(d, i) in claimStatus.draws" :key="i">
+                🎁 <b>{{ d.prize.name }}</b> <span class="muted">· {{ d.sessionName }}</span>
+              </li>
+            </ul>
+          </div>
         </form>
       </div>
     </template>
@@ -403,7 +504,8 @@ async function claim(): Promise<void> {
   margin: 0;
 }
 .field,
-.plain input {
+.plain input,
+.plain textarea {
   border: 1px solid #d1d5db;
   border-radius: 0.6rem;
   background: #fff;
@@ -415,7 +517,8 @@ async function claim(): Promise<void> {
   padding-left: 0.9rem;
 }
 .field:focus-within,
-.plain input:focus {
+.plain input:focus,
+.plain textarea:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -436,6 +539,42 @@ async function claim(): Promise<void> {
   padding: 0.75rem 0.9rem;
   font-size: 1rem;
   outline: 0;
+}
+.plain textarea {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+}
+.field-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.claim-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.claim-input {
+  flex: 1 1 12rem;
+}
+.draws-left {
+  margin: 0.25rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.6rem;
+  background: #fff7ed;
+  text-align: center;
+}
+.drawn ul {
+  margin: 0.3rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
 }
 .file {
   display: grid;

@@ -15,6 +15,7 @@ import { PERMISSIONS } from '@cms/shared';
 import { xAccountSchema } from '../tracking/tracking.module.js';
 import {
   assertPickRoom,
+  carryOverPrizes,
   computeAwards,
   drawPrize,
   drawWinner,
@@ -29,10 +30,11 @@ import type { FeatureModule } from '../../core/modules.js';
  *   /streaming/sessions                  → standard CRUD over the rounds
  *   GET  /streaming/sessions/:id/awards  → the round's awards, as the website will show them
  *   GET  /streaming/sessions/:id/winners → every winner, and what they have drawn
- *   POST /streaming/sessions/:id/draws   → { xAccount }: draw a winner's prize for them (on air, say)
+ *   POST /streaming/sessions/:id/draws   → { xAccount, address? }: draw a winner's prize for them (on air, say)
  *   DELETE /streaming/draws/:id          → undo a draw; the prize goes back in the pool
  *   /streaming/proofs?sessionId=&status= → the fans' screenshots; approve by setting `streams`
  *   /streaming/prizes?sessionId=         → what winners can draw
+ *   POST /streaming/prizes/carry-over    → { fromSessionId, sessionId }: move another round's leftovers in
  *   /streaming/picks?sessionId=          → the DJ's Pick winners; POST adds one by name
  *   POST /streaming/picks/draw           → the DJ draws a winner at random
  *   GET  /streaming/djs                  → the DJs to credit a pick to
@@ -132,15 +134,23 @@ sessionRouter.get(
   }),
 );
 
-const adminDrawSchema = z.object({ xAccount: xAccountSchema });
+const adminDrawSchema = z.object({
+  xAccount: xAccountSchema,
+  address: z
+    .string()
+    .trim()
+    .max(1000)
+    .nullish()
+    .transform((s) => s || null),
+});
 
 sessionRouter.post(
   '/:id(\\d+)/draws',
   authorize(PERMISSIONS.STREAMING_MANAGE),
   validate({ body: adminDrawSchema }),
   asyncHandler(async (req, res) => {
-    const { xAccount } = req.body as z.infer<typeof adminDrawSchema>;
-    const { draw } = await drawPrize(Number(req.params.id), xAccount);
+    const { xAccount, address } = req.body as z.infer<typeof adminDrawSchema>;
+    const { draw } = await drawPrize(Number(req.params.id), xAccount, address);
     ok(res, draw, `@${draw.xAccount} ได้ ${draw.prize.name}`);
   }),
 );
@@ -249,6 +259,23 @@ const prizeRouter: Router = crudRouter({
   // A prize stays in its round.
   updateSchema: prizeSchema.omit({ sessionId: true }).partial(),
 });
+
+const carryOverSchema = z.object({
+  sessionId: z.number().int().positive(),
+  fromSessionId: z.number().int().positive(),
+});
+
+// `crudRouter` has already put authentication and the audit log in front of this.
+prizeRouter.post(
+  '/carry-over',
+  authorize(PERMISSIONS.STREAMING_MANAGE),
+  validate({ body: carryOverSchema }),
+  asyncHandler(async (req, res) => {
+    const { sessionId, fromSessionId } = req.body as z.infer<typeof carryOverSchema>;
+    const result = await carryOverPrizes(fromSessionId, sessionId);
+    ok(res, result, `ยกมา ${result.kinds} รายการ รวม ${result.moved} ชิ้น`);
+  }),
+);
 
 // ── Picks ─────────────────────────────────────────────────────────────────────
 

@@ -4,6 +4,7 @@ import { AppError, ConflictError, NotFoundError } from '../../core/errors/AppErr
 import type {
   StreamAwardKind,
   StreamAwards,
+  StreamClaimStatus,
   StreamRankRow,
   StreamRisingRow,
   StreamStarRow,
@@ -27,10 +28,10 @@ import type {
  * Each award has its own number of winners, set on the round.
  *  - DJ's Pick:       pure luck. A DJ draws a fan from everyone with an approved proof.
  *
- * Every winner draws one prize from the round's pool — one per account per round, however
- * many awards they won. A DJ's Pick is settled the moment it is drawn, so it may draw at
- * once; Streaming Star and Rising Streamer still move while proofs are being approved, so
- * theirs wait until the admin closes the round.
+ * Every winner draws a prize from the round's pool for each award they won — Streaming Star
+ * and DJ's Pick is two draws. A DJ's Pick is settled the moment it is drawn, so its draw is
+ * open at once; Streaming Star and Rising Streamer still move while proofs are being
+ * approved, so theirs wait until the admin closes the round.
  *
  * Only APPROVED proofs count. An account's proofs add up, and "@Name" and "name" are the
  * same account.
@@ -198,9 +199,12 @@ function winnersFrom(awards: StreamAwards): Map<string, Winner> {
   return winners;
 }
 
-/** A DJ's Pick is final when drawn; the other two only once the round is closed. */
-function mayDraw(kinds: StreamAwardKind[], isOpen: boolean): boolean {
-  return kinds.includes('pick') || (!isOpen && kinds.length > 0);
+/**
+ * How many draws the awards allow now: one each, a DJ's Pick at once (it is final when
+ * drawn), the other two only once the round is closed.
+ */
+function drawsAllowed(kinds: StreamAwardKind[], isOpen: boolean): number {
+  return isOpen ? (kinds.includes('pick') ? 1 : 0) : kinds.length;
 }
 
 export const drawInclude = { prize: { select: { id: true, name: true, image: true } } } as const;
@@ -213,27 +217,30 @@ export async function listWinners(sessionId: number): Promise<StreamWinner[]> {
     include: drawInclude,
     orderBy: { id: 'asc' },
   });
-  const drawn = new Map(draws.map((d) => [d.xAccount.toLowerCase(), d]));
+  const drawn = new Map<string, typeof draws>();
+  for (const d of draws) {
+    const key = d.xAccount.toLowerCase();
+    drawn.set(key, [...(drawn.get(key) ?? []), d]);
+  }
+  const shown = (list: typeof draws = []) =>
+    list.map((d) => ({ id: d.id, createdAt: d.createdAt.toISOString(), address: d.address, prize: d.prize }));
   const winners = winnersFrom(awards);
 
   const rows: StreamWinner[] = [...winners.entries()].map(([key, w]) => {
-    const d = drawn.get(key);
+    const mine = drawn.get(key) ?? [];
+    const allowed = drawsAllowed(w.awards, awards.session.isOpen);
     return {
       ...w,
-      canDraw: mayDraw(w.awards, awards.session.isOpen),
-      draw: d ? { id: d.id, createdAt: d.createdAt.toISOString(), prize: d.prize } : null,
+      remaining: Math.max(0, allowed - mine.length),
+      waiting: w.awards.length - allowed,
+      draws: shown(mine),
     };
   });
   // Someone who drew and has since dropped out of the awards (a proof un-approved after
   // the draw) still holds a prize; they stay on the list so the admin can see it.
-  for (const [key, d] of drawn) {
+  for (const [key, list] of drawn) {
     if (!winners.has(key)) {
-      rows.push({
-        xAccount: d.xAccount,
-        awards: [],
-        canDraw: false,
-        draw: { id: d.id, createdAt: d.createdAt.toISOString(), prize: d.prize },
-      });
+      rows.push({ xAccount: list[0].xAccount, awards: [], remaining: 0, waiting: 0, draws: shown(list) });
     }
   }
   return rows;
@@ -289,34 +296,36 @@ export async function drawWinner(sessionId: number, djId: number | null) {
 }
 
 const WAIT_FOR_CLOSE = 'รอบนี้ยังไม่ปิด รอประกาศผลก่อนแล้วค่อยมาสุ่มนะคะ';
+const ALL_DRAWN = 'สุ่มครบตามสิทธิ์แล้ว';
 
 /** Its own code, so a claim across rounds can move past a round with nothing left. */
 const outOfPrizes = () => new AppError(409, 'ของรางวัลรอบนี้หมดแล้ว กรุณาติดต่อแอดมิน', 'OUT_OF_PRIZES');
 
 /**
- * A winner draws their prize from what is left in the round, each remaining piece an equal
+ * A winner draws a prize from what is left in the round, each remaining piece an equal
  * chance — so a prize with three left is three times as likely as one with a single left.
+ * They may draw once per award won; past that it is refused.
  *
  * The round's row is locked for the draw, so two winners drawing at once cannot both take
- * the last of something, nor one winner draw twice. Drawing again returns the first draw.
+ * the last of something, nor one winner draw more times than they won.
  */
-export async function drawPrize(sessionId: number, xAccount: string) {
+export async function drawPrize(sessionId: number, xAccount: string, address: string | null = null) {
   const awards = await computeAwards(sessionId);
   const winner = winnersFrom(awards).get(xAccount.toLowerCase());
+  if (!winner) throw new AppError(404, `@${xAccount} ไม่ได้รับรางวัลในรอบนี้`, 'NOT_FOUND');
+  const allowed = drawsAllowed(winner.awards, awards.session.isOpen);
 
   return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<Array<{ id: number }>>`
       SELECT id FROM stream_sessions WHERE id = ${sessionId} AND deleted_at IS NULL FOR UPDATE`;
     if (locked.length === 0) throw new NotFoundError('Streaming session');
 
-    const existing = await tx.streamDraw.findFirst({
+    const drawn = await tx.streamDraw.count({
       where: { sessionId, xAccount: { equals: xAccount, mode: 'insensitive' } },
-      include: drawInclude,
     });
-    if (existing) return { draw: existing, awards: winner?.awards ?? [] };
-
-    if (!winner) throw new AppError(404, `@${xAccount} ไม่ได้รับรางวัลในรอบนี้`, 'NOT_FOUND');
-    if (!mayDraw(winner.awards, awards.session.isOpen)) throw new ConflictError(WAIT_FOR_CLOSE);
+    if (drawn >= allowed) {
+      throw new ConflictError(allowed < winner.awards.length ? WAIT_FOR_CLOSE : ALL_DRAWN);
+    }
 
     const prizes = await tx.streamPrize.findMany({
       where: { sessionId },
@@ -332,19 +341,25 @@ export async function drawPrize(sessionId: number, xAccount: string) {
     const prize = left.find((p) => (roll -= p.left) < 0)!;
 
     const draw = await tx.streamDraw.create({
-      data: { sessionId, xAccount: winner.xAccount, prizeId: prize.id },
+      data: { sessionId, xAccount: winner.xAccount, prizeId: prize.id, address },
       include: drawInclude,
     });
-    return { draw, awards: winner.awards };
+    return { draw, awards: winner.awards, remaining: allowed - drawn - 1 };
   });
 }
 
+type RoundStanding = {
+  session: { id: number; name: string };
+  awards: StreamAwardKind[];
+  remaining: number;
+  waiting: boolean;
+};
+
 /**
- * `POST /public/streaming/claim` — the account's next draw across the rounds shown on the
- * web: the oldest round where it won and has yet to draw. Failing that, its latest draw, so
- * a winner who comes back sees what they got rather than an error.
+ * Where the account stands in every round shown on the web, oldest first: what it won in
+ * each and how many of those draws it may still make there.
  */
-export async function claimFor(xAccount: string) {
+async function standings(xAccount: string): Promise<RoundStanding[]> {
   const insensitive = { equals: xAccount, mode: 'insensitive' as const };
   const sessions = await prisma.streamSession.findMany({
     where: {
@@ -358,21 +373,67 @@ export async function claimFor(xAccount: string) {
     orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
   });
 
-  let waiting = false;
-  let emptyPool = false;
+  const rows: RoundStanding[] = [];
   for (const s of sessions) {
-    const already = await prisma.streamDraw.findFirst({ where: { sessionId: s.id, xAccount: insensitive } });
-    if (already) continue;
     const awards = await computeAwards(s.id);
     const winner = winnersFrom(awards).get(xAccount.toLowerCase());
     if (!winner) continue;
-    if (!mayDraw(winner.awards, awards.session.isOpen)) {
-      waiting = true;
-      continue;
-    }
+    const allowed = drawsAllowed(winner.awards, awards.session.isOpen);
+    const drawn = await prisma.streamDraw.count({ where: { sessionId: s.id, xAccount: insensitive } });
+    rows.push({
+      session: s,
+      awards: winner.awards,
+      remaining: Math.max(0, allowed - drawn),
+      waiting: allowed < winner.awards.length,
+    });
+  }
+  return rows;
+}
+
+/** Every prize the account has drawn in the rounds shown on the web, oldest first. */
+async function drawnBy(xAccount: string) {
+  const draws = await prisma.streamDraw.findMany({
+    where: {
+      xAccount: { equals: xAccount, mode: 'insensitive' },
+      session: { deletedAt: null, isActive: true },
+    },
+    include: { prize: { select: { name: true, image: true } }, session: { select: { name: true } } },
+    orderBy: { id: 'asc' },
+  });
+  return draws.map((d) => ({ sessionName: d.session.name, prize: d.prize }));
+}
+
+/**
+ * `POST /public/streaming/claim/check` — before drawing: how many draws the account has left
+ * across the rounds shown on the web, and what it has drawn so far.
+ */
+export async function claimStatus(xAccount: string): Promise<StreamClaimStatus> {
+  const [rounds, draws] = await Promise.all([standings(xAccount), drawnBy(xAccount)]);
+  if (rounds.length === 0 && draws.length === 0) {
+    throw new AppError(404, `@${xAccount} ยังไม่ได้รับรางวัล`, 'NOT_FOUND');
+  }
+  return {
+    xAccount,
+    remaining: rounds.reduce((n, r) => n + r.remaining, 0),
+    waiting: rounds.some((r) => r.waiting),
+    draws,
+  };
+}
+
+/**
+ * `POST /public/streaming/claim` — the account's next draw across the rounds shown on the
+ * web: the oldest round where it still has a draw left, skipping a round whose prizes are
+ * all gone. `remaining` is what is left across all of them afterwards.
+ */
+export async function claimFor(xAccount: string, address: string) {
+  const rounds = await standings(xAccount);
+  let emptyPool = false;
+  for (const [i, r] of rounds.entries()) {
+    if (r.remaining === 0) continue;
     try {
-      const { draw, awards: kinds } = await drawPrize(s.id, xAccount);
-      return { draw, awards: kinds, sessionName: s.name };
+      const { draw, awards } = await drawPrize(r.session.id, xAccount, address);
+      const left = rounds.reduce((n, o, j) => n + (j === i ? r.remaining - 1 : o.remaining), 0);
+      return { draw, awards, sessionName: r.session.name, remaining: left };
     } catch (err) {
       // A round with no prizes (left) must not stand in the way of a later one that has some.
       if (err instanceof AppError && err.code === 'OUT_OF_PRIZES') {
@@ -382,18 +443,56 @@ export async function claimFor(xAccount: string) {
       throw err;
     }
   }
-  // A win still waiting on its round to close says so, rather than showing an older prize.
-  if (waiting) throw new ConflictError(WAIT_FOR_CLOSE);
-
-  const last = await prisma.streamDraw.findFirst({
-    where: { xAccount: insensitive, session: { deletedAt: null, isActive: true } },
-    include: { ...drawInclude, session: { select: { id: true, name: true } } },
-    orderBy: { id: 'desc' },
-  });
-  if (last) {
-    const winner = winnersFrom(await computeAwards(last.session.id)).get(xAccount.toLowerCase());
-    return { draw: last, awards: winner?.awards ?? [], sessionName: last.session.name };
-  }
   if (emptyPool) throw outOfPrizes();
+  if (rounds.some((r) => r.waiting)) throw new ConflictError(WAIT_FOR_CLOSE);
+  if (rounds.length) throw new ConflictError(ALL_DRAWN);
   throw new AppError(404, `@${xAccount} ยังไม่ได้รับรางวัล`, 'NOT_FOUND');
+}
+
+/**
+ * `POST /streaming/prizes/carry-over` — what is left of one round's prizes moves to another:
+ * each prize with pieces left lands in the round (added to one of the same name if it has
+ * one) and the round it came from keeps only what was drawn of it. Both rounds are locked,
+ * so no draw slips in between counting and moving.
+ */
+export async function carryOverPrizes(fromSessionId: number, toSessionId: number) {
+  if (fromSessionId === toSessionId) throw new ConflictError('เลือกรอบอื่นที่จะยกของรางวัลมา');
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<Array<{ id: number }>>`
+      SELECT id FROM stream_sessions
+      WHERE id IN (${fromSessionId}, ${toSessionId}) AND deleted_at IS NULL
+      ORDER BY id FOR UPDATE`;
+    if (locked.length < 2) throw new NotFoundError('Streaming session');
+
+    const [from, here] = await Promise.all([
+      tx.streamPrize.findMany({
+        where: { sessionId: fromSessionId },
+        include: { _count: { select: { draws: { where: { deletedAt: null } } } } },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      }),
+      tx.streamPrize.findMany({ where: { sessionId: toSessionId } }),
+    ]);
+    const byName = new Map(here.map((p) => [p.name.trim().toLowerCase(), p]));
+
+    let moved = 0;
+    let kinds = 0;
+    for (const p of from) {
+      const left = p.quantity - p._count.draws;
+      if (left <= 0) continue;
+      const same = byName.get(p.name.trim().toLowerCase());
+      if (same) {
+        await tx.streamPrize.update({ where: { id: same.id }, data: { quantity: { increment: left } } });
+      } else {
+        const made = await tx.streamPrize.create({
+          data: { sessionId: toSessionId, name: p.name, image: p.image, quantity: left, sortOrder: p.sortOrder },
+        });
+        byName.set(made.name.trim().toLowerCase(), made);
+      }
+      await tx.streamPrize.update({ where: { id: p.id }, data: { quantity: p._count.draws } });
+      moved += left;
+      kinds++;
+    }
+    if (moved === 0) throw new ConflictError('รอบนั้นไม่มีของรางวัลเหลือ');
+    return { moved, kinds };
+  });
 }

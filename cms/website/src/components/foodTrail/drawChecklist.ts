@@ -15,8 +15,6 @@ export interface ChecklistPicture {
   places: Set<number>;
   menus: Set<number>;
   accent: string;
-  /** Under everything, small — the site's address, say. */
-  footer?: string;
 }
 
 const W = 1080;
@@ -238,13 +236,6 @@ function paint(ctx: CanvasRenderingContext2D, o: ChecklistPicture, draw: boolean
     y += cardH + GAP;
   });
 
-  if (o.footer) {
-    y += 10;
-    ctx.font = `600 26px ${FONT}`;
-    ctx.fillStyle = o.accent;
-    text(o.footer, W / 2, y, 'center');
-    y += 40;
-  }
   return y + PAD - GAP;
 }
 
