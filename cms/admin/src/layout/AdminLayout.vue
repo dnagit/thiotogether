@@ -5,7 +5,7 @@ import { useDark, useToggle } from '@vueuse/core';
 import { useIsMobile } from '@/composables/useIsMobile';
 import { ElMessage } from 'element-plus';
 import * as Icons from '@element-plus/icons-vue';
-import { adminModules } from '@/modules/registry';
+import { adminModules, menuGroups } from '@/modules/registry';
 import { useAuthStore } from '@/stores/auth';
 import { http } from '@/api/http';
 import type { ApiResponse } from '@cms/shared';
@@ -32,17 +32,36 @@ function toggleMenu(): void {
   else collapsed.value = !collapsed.value;
 }
 
-const menuItems = computed(() =>
+const visibleModules = computed(() =>
   adminModules
     .filter((m) => m.menu && (!m.menu.permission || auth.can(m.menu.permission)))
-    .sort((a, b) => a.menu!.order - b.menu!.order)
-    .map((m) => ({
-      name: m.name,
-      label: m.menu!.label,
-      icon: (Icons as Record<string, unknown>)[m.menu!.icon],
-      route: m.routes[0].name as string,
-    })),
+    .sort((a, b) => a.menu!.order - b.menu!.order),
 );
+function toItem(m: (typeof adminModules)[number]) {
+  return {
+    name: m.name,
+    label: m.menu!.label,
+    icon: (Icons as Record<string, unknown>)[m.menu!.icon],
+    route: m.routes[0].name as string,
+  };
+}
+const topItems = computed(() => visibleModules.value.filter((m) => !m.menu!.group).map(toItem));
+const groupedItems = computed(() =>
+  [...menuGroups]
+    .sort((a, b) => a.order - b.order)
+    .map((g) => ({
+      key: g.key,
+      label: g.label,
+      icon: (Icons as Record<string, unknown>)[g.icon],
+      items: visibleModules.value.filter((m) => m.menu!.group === g.key).map(toItem),
+    }))
+    .filter((g) => g.items.length > 0),
+);
+// Expand the section holding the current page so it isn't hidden after a reload.
+const openGroups = computed(() => {
+  const mod = adminModules.find((m) => m.routes.some((r) => r.name === route.name));
+  return mod?.menu?.group ? [mod.menu.group] : [];
+});
 
 // ── Global search: pages + donations + projects by keyword ──
 const searchQuery = ref('');
@@ -108,9 +127,9 @@ async function logout(): Promise<void> {
       class="nav-drawer"
     >
       <div class="logo" @click="router.push({ name: 'dashboard' })">⚡ CMS Admin</div>
-      <ElMenu :default-active="String($route.name)" class="sidebar-menu">
+      <ElMenu :default-active="String($route.name)" :default-openeds="openGroups" class="sidebar-menu">
         <ElMenuItem
-          v-for="item in menuItems"
+          v-for="item in topItems"
           :key="item.name"
           :index="item.route"
           @click="router.push({ name: item.route })"
@@ -118,6 +137,21 @@ async function logout(): Promise<void> {
           <ElIcon><component :is="item.icon" /></ElIcon>
           <template #title>{{ item.label }}</template>
         </ElMenuItem>
+        <ElSubMenu v-for="group in groupedItems" :key="group.key" :index="group.key">
+          <template #title>
+            <ElIcon><component :is="group.icon" /></ElIcon>
+            <span>{{ group.label }}</span>
+          </template>
+          <ElMenuItem
+            v-for="item in group.items"
+            :key="item.name"
+            :index="item.route"
+            @click="router.push({ name: item.route })"
+          >
+            <ElIcon><component :is="item.icon" /></ElIcon>
+            <template #title>{{ item.label }}</template>
+          </ElMenuItem>
+        </ElSubMenu>
       </ElMenu>
     </ElDrawer>
 
@@ -131,9 +165,15 @@ async function logout(): Promise<void> {
         <span v-else>⚡</span>
       </div>
       <ElScrollbar>
-        <ElMenu :collapse="collapsed" :default-active="String($route.name)" router-mode class="sidebar-menu">
+        <ElMenu
+          :collapse="collapsed"
+          :default-active="String($route.name)"
+          :default-openeds="openGroups"
+          router-mode
+          class="sidebar-menu"
+        >
           <ElMenuItem
-            v-for="item in menuItems"
+            v-for="item in topItems"
             :key="item.name"
             :index="item.route"
             @click="router.push({ name: item.route })"
@@ -141,6 +181,21 @@ async function logout(): Promise<void> {
             <ElIcon><component :is="item.icon" /></ElIcon>
             <template #title>{{ item.label }}</template>
           </ElMenuItem>
+          <ElSubMenu v-for="group in groupedItems" :key="group.key" :index="group.key">
+            <template #title>
+              <ElIcon><component :is="group.icon" /></ElIcon>
+              <span>{{ group.label }}</span>
+            </template>
+            <ElMenuItem
+              v-for="item in group.items"
+              :key="item.name"
+              :index="item.route"
+              @click="router.push({ name: item.route })"
+            >
+              <ElIcon><component :is="item.icon" /></ElIcon>
+              <template #title>{{ item.label }}</template>
+            </ElMenuItem>
+          </ElSubMenu>
         </ElMenu>
       </ElScrollbar>
     </ElAside>

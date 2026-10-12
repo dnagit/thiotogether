@@ -7,12 +7,22 @@ import { PERMISSIONS } from '@cms/shared';
  * sidebar entry. Adding a module = one entry here + a views folder;
  * layout, router and sidebar pick it up automatically.
  */
+export type MenuGroupKey = 'project' | 'content' | 'settings';
+
+/** Sidebar sections; modules without a group sit at the top level. */
+export const menuGroups: { key: MenuGroupKey; label: string; icon: string; order: number }[] = [
+  { key: 'project', label: 'Project', icon: 'Present', order: 1 },
+  { key: 'content', label: 'Content', icon: 'Document', order: 2 },
+  { key: 'settings', label: 'Settings', icon: 'Setting', order: 3 },
+];
+
 export interface AdminModule {
   name: string;
   menu?: {
     label: string;
     icon: string; // Element Plus icon component name
-    order: number;
+    order: number; // position within its group
+    group?: MenuGroupKey;
     permission?: Permission;
   };
   routes: RouteRecordRaw[];
@@ -33,7 +43,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'pages',
-    menu: { label: 'Pages', icon: 'Document', order: 1, permission: PERMISSIONS.PAGES_VIEW },
+    menu: { label: 'Pages', icon: 'Document', order: 1, group: 'content', permission: PERMISSIONS.PAGES_VIEW },
     routes: [
       {
         path: 'pages',
@@ -63,7 +73,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'menus',
-    menu: { label: 'Menus', icon: 'Menu', order: 2, permission: PERMISSIONS.MENUS_VIEW },
+    menu: { label: 'Menus', icon: 'Menu', order: 2, group: 'content', permission: PERMISSIONS.MENUS_VIEW },
     routes: [
       {
         path: 'menus',
@@ -75,7 +85,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'forms',
-    menu: { label: 'Forms', icon: 'Tickets', order: 3, permission: PERMISSIONS.FORMS_VIEW },
+    menu: { label: 'Forms', icon: 'Tickets', order: 5, group: 'content', permission: PERMISSIONS.FORMS_VIEW },
     routes: [
       {
         path: 'forms',
@@ -99,7 +109,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'donation-projects',
-    menu: { label: 'Donation Projects', icon: 'Present', order: 4, permission: PERMISSIONS.DONATION_PROJECTS_VIEW },
+    menu: { label: 'Donation Projects', icon: 'Present', order: 1, group: 'project', permission: PERMISSIONS.DONATION_PROJECTS_VIEW },
     routes: [
       {
         path: 'donation-projects',
@@ -111,7 +121,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'donations',
-    menu: { label: 'Donations', icon: 'Money', order: 5, permission: PERMISSIONS.DONATIONS_VIEW },
+    menu: { label: 'Donations', icon: 'Money', order: 2, group: 'project', permission: PERMISSIONS.DONATIONS_VIEW },
     routes: [
       {
         path: 'donations',
@@ -129,7 +139,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'games',
-    menu: { label: 'เกมเปิดแผ่นป้าย', icon: 'Grid', order: 7, permission: PERMISSIONS.GAMES_VIEW },
+    menu: { label: 'เกมเปิดแผ่นป้าย', icon: 'Grid', order: 5, group: 'project', permission: PERMISSIONS.GAMES_VIEW },
     routes: [
       {
         path: 'games',
@@ -153,7 +163,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'projects',
-    menu: { label: 'โปรเจกต์', icon: 'Picture', order: 7.4, permission: PERMISSIONS.PROJECTS_VIEW },
+    menu: { label: 'โปรเจกต์', icon: 'Picture', order: 3, group: 'project', permission: PERMISSIONS.PROJECTS_VIEW },
     routes: [
       {
         path: 'projects',
@@ -171,7 +181,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'link-pages',
-    menu: { label: 'ลิงก์รวม / QR', icon: 'Link', order: 7.45, permission: PERMISSIONS.LINK_PAGES_VIEW },
+    menu: { label: 'ลิงก์รวม / QR', icon: 'Link', order: 4, group: 'content', permission: PERMISSIONS.LINK_PAGES_VIEW },
     routes: [
       {
         path: 'link-pages',
@@ -189,7 +199,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'birthday',
-    menu: { label: 'อวยพรวันเกิด', icon: 'Sunny', order: 7.5, permission: PERMISSIONS.BIRTHDAY_VIEW },
+    menu: { label: 'อวยพรวันเกิด', icon: 'Sunny', order: 7, group: 'project', permission: PERMISSIONS.BIRTHDAY_VIEW },
     routes: [
       {
         path: 'birthday',
@@ -216,7 +226,8 @@ export const adminModules: AdminModule[] = [
     menu: {
       label: 'บัญชีโหวต JOOX',
       icon: 'Headset',
-      order: 7.6,
+      order: 8,
+      group: 'project',
       permission: PERMISSIONS.JOOX_VOTERS_VIEW,
     },
     routes: [
@@ -230,7 +241,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'dj-schedule',
-    menu: { label: 'ตาราง DJ', icon: 'Microphone', order: 7.7, permission: PERMISSIONS.DJ_SCHEDULE_VIEW },
+    menu: { label: 'ตาราง DJ', icon: 'Microphone', order: 4, group: 'project', permission: PERMISSIONS.DJ_SCHEDULE_VIEW },
     routes: [
       {
         path: 'dj-schedule',
@@ -242,7 +253,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'tracking',
-    menu: { label: 'Tracking', icon: 'Van', order: 7.8, permission: PERMISSIONS.TRACKING_VIEW },
+    menu: { label: 'Tracking', icon: 'Van', order: 6, group: 'project', permission: PERMISSIONS.TRACKING_VIEW },
     routes: [
       {
         path: 'tracking',
@@ -260,7 +271,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'food-trail',
-    menu: { label: 'ตามรอยร้านอาหาร', icon: 'KnifeFork', order: 7.85, permission: PERMISSIONS.FOOD_TRAILS_VIEW },
+    menu: { label: 'ตามรอยร้านอาหาร', icon: 'KnifeFork', order: 9, group: 'project', permission: PERMISSIONS.FOOD_TRAILS_VIEW },
     routes: [
       {
         path: 'food-trails',
@@ -278,7 +289,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'streaming',
-    menu: { label: 'Streaming Awards', icon: 'Trophy', order: 7.9, permission: PERMISSIONS.STREAMING_VIEW },
+    menu: { label: 'Streaming Awards', icon: 'Trophy', order: 10, group: 'project', permission: PERMISSIONS.STREAMING_VIEW },
     routes: [
       {
         path: 'streaming',
@@ -296,7 +307,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'tokens',
-    menu: { label: 'Token', icon: 'Coin', order: 8, permission: PERMISSIONS.TOKENS_VIEW },
+    menu: { label: 'Token', icon: 'Coin', order: 2, group: 'settings', permission: PERMISSIONS.TOKENS_VIEW },
     routes: [
       {
         path: 'tokens/accounts',
@@ -314,7 +325,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'bank-accounts',
-    menu: { label: 'Bank Accounts', icon: 'CreditCard', order: 6, permission: PERMISSIONS.BANK_ACCOUNTS_VIEW },
+    menu: { label: 'Bank Accounts', icon: 'CreditCard', order: 1, group: 'settings', permission: PERMISSIONS.BANK_ACCOUNTS_VIEW },
     routes: [
       {
         path: 'bank-accounts',
@@ -326,7 +337,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'media',
-    menu: { label: 'Media Library', icon: 'PictureFilled', order: 9, permission: PERMISSIONS.MEDIA_VIEW },
+    menu: { label: 'Media Library', icon: 'PictureFilled', order: 3, group: 'content', permission: PERMISSIONS.MEDIA_VIEW },
     routes: [
       {
         path: 'media',
@@ -338,7 +349,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'users',
-    menu: { label: 'Users', icon: 'User', order: 10, permission: PERMISSIONS.USERS_VIEW },
+    menu: { label: 'Users', icon: 'User', order: 4, group: 'settings', permission: PERMISSIONS.USERS_VIEW },
     routes: [
       {
         path: 'users',
@@ -356,7 +367,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'settings',
-    menu: { label: 'Settings', icon: 'Setting', order: 11, permission: PERMISSIONS.SETTINGS_VIEW },
+    menu: { label: 'Settings', icon: 'Setting', order: 3, group: 'settings', permission: PERMISSIONS.SETTINGS_VIEW },
     routes: [
       {
         path: 'settings',
@@ -368,7 +379,7 @@ export const adminModules: AdminModule[] = [
   },
   {
     name: 'audit-logs',
-    menu: { label: 'Audit Logs', icon: 'List', order: 12, permission: PERMISSIONS.AUDIT_LOGS_VIEW },
+    menu: { label: 'Audit Logs', icon: 'List', order: 5, group: 'settings', permission: PERMISSIONS.AUDIT_LOGS_VIEW },
     routes: [
       {
         path: 'audit-logs',
