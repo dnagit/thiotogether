@@ -137,7 +137,7 @@ async function sendProof(): Promise<void> {
     return;
   }
   if (!/^\d+$/.test(streams)) {
-    proofMessage.value = { ok: false, text: 'กรุณากรอกยอดสตรีมเป็นตัวเลข' };
+    proofMessage.value = { ok: false, text: 'กรุณากรอกยอดสตรีม UNBOUNDเป็นตัวเลข' };
     return;
   }
   sending.value = true;
@@ -300,7 +300,7 @@ async function refreshStatus(): Promise<void> {
         <!-- ── Send proof ── -->
         <form v-if="showSubmit && awards.session.isOpen" class="card form" @submit.prevent="sendProof">
           <h3>📸 ส่งหลักฐานยอดสตรีม</h3>
-          <p class="muted">กรอกยอดสตรีมและแนบภาพแคปหน้าจอของยอดสตรีมสัปดาห์นี้</p>
+          <p class="muted">กรอกยอดสตรีม UNBOUND และแนบภาพแคปหน้าจอของยอดสตรีมสัปดาห์นี้</p>
           <label class="field">
             <span class="at" aria-hidden="true">@</span>
             <span class="sr-only">Account X</span>
@@ -322,7 +322,7 @@ async function refreshStatus(): Promise<void> {
               inputmode="numeric"
               maxlength="12"
               autocomplete="off"
-              placeholder="ยอดสตรีม (ตัวเลข)"
+              placeholder="ยอดสตรีม UNBOUND (ตัวเลข)"
             />
           </label>
           <label class="file">
