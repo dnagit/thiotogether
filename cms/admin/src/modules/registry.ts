@@ -198,6 +198,19 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    // Browser-only tool with nothing stored, so any signed-in user may use it.
+    name: 'qr-generator',
+    menu: { label: 'สร้าง QR Code', icon: 'FullScreen', order: 4.5, group: 'content' },
+    routes: [
+      {
+        path: 'qr-generator',
+        name: 'qr-generator',
+        component: () => import('@/views/qr-generator/QrGeneratorView.vue'),
+        meta: { title: 'สร้าง QR Code' },
+      },
+    ],
+  },
+  {
     name: 'birthday',
     menu: { label: 'อวยพรวันเกิด', icon: 'Sunny', order: 7, group: 'project', permission: PERMISSIONS.BIRTHDAY_VIEW },
     routes: [
