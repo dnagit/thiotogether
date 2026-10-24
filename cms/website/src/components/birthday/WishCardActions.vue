@@ -26,6 +26,8 @@ const props = withDefaults(
     title?: string;
     /** Replaces "Save image" / "Save to Photos" on the button. */
     saveLabel?: string;
+    /** Replaces "Copy link" on the button. */
+    copyLabel?: string;
     /** Whose wish it is; the file is named after them. */
     name: string;
     /** Absolute link that reopens this card. Empty hides the copy button. */
@@ -35,7 +37,16 @@ const props = withDefaults(
     /** Centred under a card that is itself centred; left-aligned in the popup. */
     center?: boolean;
   }>(),
-  { svg: undefined, render: undefined, title: '', saveLabel: '', link: '', themeColor: null, center: false },
+  {
+    svg: undefined,
+    render: undefined,
+    title: '',
+    saveLabel: '',
+    copyLabel: '',
+    link: '',
+    themeColor: null,
+    center: false,
+  },
 );
 
 const saving = ref(false);
@@ -231,7 +242,7 @@ defineExpose({ saving });
       <button type="button" class="act act-primary" :disabled="saving" @click="save">
         {{ saving ? 'Saving…' : saveLabel || (toGallery ? '💾 Save to Photos' : '💾 Save image') }}
       </button>
-      <button v-if="link" type="button" class="act" @click="copyLink">🔗 Copy link</button>
+      <button v-if="link" type="button" class="act" @click="copyLink">{{ copyLabel || '🔗 Copy link' }}</button>
     </div>
 
     <!-- Only iOS asks anything of the visitor, so only iOS is told what to answer. -->

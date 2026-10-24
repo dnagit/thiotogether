@@ -18,6 +18,8 @@ import { tokensModule } from './tokens/tokens.module.js';
 import { publicGamesModule } from './public-games/publicGames.module.js';
 import { birthdayModule } from './birthday/birthday.module.js';
 import { publicBirthdayModule } from './public-birthday/publicBirthday.module.js';
+import { gardenModule } from './garden/garden.module.js';
+import { publicGardenModule } from './public-garden/publicGarden.module.js';
 import { projectsModule } from './projects/projects.module.js';
 import { linkPagesModule } from './link-pages/linkPages.module.js';
 import { publicJooxVotesModule } from './public-joox-votes/publicJooxVotes.module.js';
@@ -57,6 +59,7 @@ export const modules: FeatureModule[] = [
   gamesModule,
   tokensModule,
   birthdayModule,
+  gardenModule,
   jooxVotersModule,
   djScheduleModule,
   trackingModule,
@@ -65,6 +68,7 @@ export const modules: FeatureModule[] = [
   publicModule,
   publicGamesModule,
   publicBirthdayModule,
+  publicGardenModule,
   publicJooxAuthModule,
   publicJooxVotesModule,
   publicJooxAccountsModule,

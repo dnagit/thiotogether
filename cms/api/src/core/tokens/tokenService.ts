@@ -230,6 +230,7 @@ export async function spendTokens(
     projectIds: number[];
     amount: number;
     reservationId?: number;
+    gardenPurchaseId?: number;
     description: string;
   },
 ): Promise<Array<{ grantId: number; projectId: number; tokens: number }>> {
@@ -280,6 +281,7 @@ export async function spendTokens(
         projectId: grant.project_id,
         grantId: grant.id,
         reservationId: params.reservationId,
+        gardenPurchaseId: params.gardenPurchaseId,
         delta: -take,
         reason: 'SPEND',
         description: params.description,

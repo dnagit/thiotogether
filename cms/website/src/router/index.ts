@@ -111,6 +111,32 @@ export const router = createRouter({
       meta: { layout: 'birthday' },
     },
     {
+      // The sunflower garden. Its own chrome (see GardenShell), so no site header. The three
+      // fixed words are declared before the field so none of them is read as a garden slug.
+      path: '/garden/plant/:slug',
+      name: 'garden-plant',
+      component: () => import('@/views/garden/GardenPlantView.vue'),
+      meta: { layout: 'bare' },
+    },
+    {
+      path: '/garden/mine/:slug',
+      name: 'garden-mine',
+      component: () => import('@/views/garden/GardenMineView.vue'),
+      meta: { layout: 'bare' },
+    },
+    {
+      path: '/garden/cards/:slug',
+      name: 'garden-cards',
+      component: () => import('@/views/garden/GardenCardsView.vue'),
+      meta: { layout: 'bare' },
+    },
+    {
+      path: '/garden/:slug',
+      name: 'garden-field',
+      component: () => import('@/views/garden/GardenFieldView.vue'),
+      meta: { layout: 'bare' },
+    },
+    {
       // A link page: one address, printed as a QR code, out to every service. Stands alone.
       path: '/link/:slug',
       name: 'link-page',

@@ -22,6 +22,10 @@
  * Each card also carries a score anyone can put in, edited in place like the one on
  * `/joox-accounts`. It is a running total and the 23:00 reset leaves it alone.
  *
+ * Every account is an Artist or a Song link, picked when it's added — a "(s)" or "(a)" typed
+ * into the name picks it too — and switched by tapping the badge on its card. The two are
+ * separate tabs: each with its own list, score total and done count.
+ *
  * All three — done, missing, delete — go through a dialog: the buttons sit side by side on a
  * small screen, and on a shared list a slip costs everybody.
  */
@@ -31,8 +35,8 @@ import AppModal from '@/components/AppModal.vue';
 import { applySeo } from '@/composables/useSeo';
 import { useJooxVotes } from '@/composables/useJooxVotes';
 import { useJooxAuthStore } from '@/stores/jooxAuth';
-import type { JooxVoteAccount } from '@/api/jooxVotes';
-import { JOOX_VOTE_TARGET, jooxNameKey, stripBeforeJooxLink } from '@cms/shared';
+import type { JooxVoteAccount, JooxVoteType } from '@/api/jooxVotes';
+import { JOOX_VOTE_TARGET, jooxNameKey, jooxVoteTypeOf, stripBeforeJooxLink } from '@cms/shared';
 
 applySeo({ title: 'โหวต JOOX' });
 
@@ -48,6 +52,7 @@ const {
   markDone,
   reportMissing,
   setScore,
+  setType,
   remove,
 } = useJooxVotes();
 
@@ -99,6 +104,14 @@ onBeforeUnmount(() => window.clearTimeout(noticeTimer));
 // ── Add form ──────────────────────────────────────────────────────────────────
 const accountName = ref('');
 const link = ref('');
+// Starts on the tab being looked at, and follows it — see the `tab` watch below.
+const type = ref<JooxVoteType>('ARTIST');
+
+// A name written the old way, with "(s)" or "(a)" in it, says its own type.
+watch(accountName, (value) => {
+  const marked = jooxVoteTypeOf(value);
+  if (marked) type.value = marked;
+});
 const formError = ref<string | null>(null);
 const adding = ref(false);
 
@@ -134,35 +147,57 @@ async function submit(): Promise<void> {
     return;
   }
   adding.value = true;
-  formError.value = await add(name, url);
+  formError.value = await add(name, url, type.value);
   adding.value = false;
   if (!formError.value) {
     accountName.value = '';
     link.value = '';
     // A new account is never done yet; don't let it vanish behind the "done" filter or a search.
     if (filter.value === 'done') filter.value = 'all';
+    // Show it on its own tab, whichever that is.
+    tab.value = type.value;
     if (!jooxNameKey(name).includes(searchKey.value)) search.value = '';
   }
 }
 
 // ── The list ──────────────────────────────────────────────────────────────────
+const TYPE_LABELS: Record<JooxVoteType, string> = { ARTIST: 'Artist', SONG: 'Song' };
+const TYPE_ICONS: Record<JooxVoteType, string> = { ARTIST: '🎤', SONG: '🎵' };
+const TYPES = ['ARTIST', 'SONG'] as const;
+
+/** Artist or Song: everything below the tabs is about this one type only. */
+const tab = ref<JooxVoteType>('ARTIST');
+watch(tab, (value) => {
+  type.value = value;
+});
+
+/** The accounts on the open tab. */
+const inTab = computed(() => accounts.value.filter((a) => a.type === tab.value));
+const tabs = computed(() =>
+  TYPES.map((key) => ({
+    key,
+    label: `${TYPE_ICONS[key]} ${TYPE_LABELS[key]}`,
+    count: accounts.value.filter((a) => a.type === key).length,
+  })),
+);
+
 type Filter = 'all' | 'pending' | 'done';
 // Opens on what still needs a vote — that's what people come to the page for.
 const filter = ref<Filter>('pending');
 const search = ref('');
 
-const doneCount = computed(() => accounts.value.filter((a) => a.isDone).length);
+const doneCount = computed(() => inTab.value.filter((a) => a.isDone).length);
 
 /**
- * Every account's score added up — the whole list, never the filtered one, so a search or
- * a filter tab can't look like it changed the total.
+ * The open tab's scores added up — all of the tab, never the filtered part, so a search or
+ * a filter can't look like it changed the total.
  */
-const totalScore = computed(() => accounts.value.reduce((sum, a) => sum + a.score, 0));
+const totalScore = computed(() => inTab.value.reduce((sum, a) => sum + a.score, 0));
 
 /** Matched the way duplicate names are judged, so case and extra spaces don't matter. */
 const searchKey = computed(() => jooxNameKey(search.value));
 const matched = computed(() =>
-  accounts.value.filter((a) => jooxNameKey(a.accountName).includes(searchKey.value)),
+  inTab.value.filter((a) => jooxNameKey(a.accountName).includes(searchKey.value)),
 );
 
 /** The counts follow the search, so each button says what tapping it would show. */
@@ -216,6 +251,19 @@ function hostOf(url: string): string {
   } catch {
     return url;
   }
+}
+
+// ── Artist or song ────────────────────────────────────────────────────────────
+/** The cards whose type switch is still on its way, so a second tap can't send it back. */
+const switching = ref(new Set<number>());
+
+async function switchType(account: JooxVoteAccount): Promise<void> {
+  if (switching.value.has(account.id)) return;
+  const next: JooxVoteType = account.type === 'SONG' ? 'ARTIST' : 'SONG';
+  switching.value.add(account.id);
+  const error = await setType(account.id, next);
+  switching.value.delete(account.id);
+  flash(error ?? `${account.accountName} เป็น ${TYPE_LABELS[next]} แล้ว`);
 }
 
 // ── The score ─────────────────────────────────────────────────────────────────
@@ -372,21 +420,39 @@ async function confirm(missing = 0): Promise<void> {
 
     <!-- The list -->
     <template v-else-if="accounts.length > 0">
-      <!-- The scores added up across the whole list, whatever the search or filter shows. -->
+      <!-- Artist and Song: two lists, one showing at a time. -->
+      <div class="type-tabs" role="tablist" aria-label="ประเภท">
+        <button
+          v-for="t in tabs"
+          :key="t.key"
+          type="button"
+          role="tab"
+          class="tap type-tab"
+          :class="tab === t.key ? 'type-tab-on' : 'text-gray-500'"
+          :aria-selected="tab === t.key"
+          @click="tab = t.key"
+        >
+          {{ t.label }} <span class="tabular-nums font-semibold opacity-70">({{ t.count }})</span>
+        </button>
+      </div>
+
+      <!-- The tab's scores added up, whatever the search or filter shows. -->
       <div class="score-total" role="status" aria-live="polite">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-wide opacity-70">คะแนนรวมทุกบัญชี</p>
+          <p class="text-xs font-semibold uppercase tracking-wide opacity-70">
+            คะแนนรวม {{ TYPE_LABELS[tab] }}
+          </p>
           <p class="text-4xl font-extrabold tabular-nums leading-tight">
             {{ formatScore(totalScore) }}
           </p>
         </div>
         <p class="text-sm opacity-70 text-right leading-snug">
-          จาก <b class="tabular-nums">{{ accounts.length }}</b> บัญชี
+          จาก <b class="tabular-nums">{{ inTab.length }}</b> บัญชี
         </p>
       </div>
 
       <p class="text-sm text-gray-600 mb-3" role="status" aria-live="polite">
-        ครบแล้ว <b>{{ doneCount }}</b> / {{ accounts.length }} บัญชี
+        ครบแล้ว <b>{{ doneCount }}</b> / {{ inTab.length }} บัญชี
       </p>
 
       <div class="relative mb-2">
@@ -430,7 +496,11 @@ async function confirm(missing = 0): Promise<void> {
         </button>
       </div>
 
-      <p v-if="shown.length === 0" class="card text-center text-gray-500 break-words">
+      <p v-if="inTab.length === 0" class="card text-center text-gray-500">
+        ยังไม่มีบัญชี {{ TYPE_LABELS[tab] }} เพิ่มได้ที่ปุ่มด้านล่าง
+      </p>
+
+      <p v-else-if="shown.length === 0" class="card text-center text-gray-500 break-words">
         {{ emptyMessage }}
       </p>
 
@@ -443,6 +513,19 @@ async function confirm(missing = 0): Promise<void> {
         >
           <div class="flex items-center justify-between gap-3 mb-3">
             <div class="min-w-0">
+              <button
+                type="button"
+                class="type-badge"
+                :class="a.type === 'SONG' ? 'type-song' : 'type-artist'"
+                :disabled="switching.has(a.id)"
+                :aria-label="`${a.accountName} เป็น ${TYPE_LABELS[a.type]} แตะเพื่อเปลี่ยนเป็น ${
+                  TYPE_LABELS[a.type === 'SONG' ? 'ARTIST' : 'SONG']
+                }`"
+                @click="switchType(a)"
+              >
+                {{ TYPE_ICONS[a.type] }} {{ TYPE_LABELS[a.type] }}
+                <span class="opacity-60" aria-hidden="true">⇄</span>
+              </button>
               <p class="font-bold text-lg leading-tight break-words">
                 {{ a.accountName }}
                 <span v-if="a.isDone" class="text-green-700 text-sm font-semibold whitespace-nowrap">
@@ -587,6 +670,26 @@ async function confirm(missing = 0): Promise<void> {
             placeholder="เช่น บัญชีหลัก"
             class="input"
           />
+        </div>
+        <div>
+          <p id="joox-type-label" class="block text-sm font-medium mb-1">ประเภท</p>
+          <div
+            class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100"
+            role="group"
+            aria-labelledby="joox-type-label"
+          >
+            <button
+              v-for="t in TYPES"
+              :key="t"
+              type="button"
+              class="tap rounded-lg text-sm font-semibold px-2"
+              :class="type === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'"
+              :aria-pressed="type === t"
+              @click="type = t"
+            >
+              {{ TYPE_ICONS[t] }} {{ TYPE_LABELS[t] }}
+            </button>
+          </div>
         </div>
         <div>
           <label for="joox-link" class="block text-sm font-medium mb-1">invite friend</label>
@@ -739,6 +842,19 @@ async function confirm(missing = 0): Promise<void> {
   background: #ffde59;
   @apply flex items-end justify-between gap-3 rounded-2xl px-4 py-3 mb-3 text-gray-900 shadow-sm;
 }
+/* Top-level: which of the two lists is showing. Louder than the filters inside it. */
+.type-tabs { @apply grid grid-cols-2 mb-3 border-b-2 border-gray-200; }
+.type-tab { @apply -mb-0.5 border-b-4 border-transparent text-base font-bold px-2; }
+.type-tab-on { @apply border-gray-900 text-gray-900; }
+
+/* Small, but still a button: tapping it switches the account between Artist and Song. */
+.type-badge {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 mb-1 text-xs font-semibold
+    disabled:opacity-50;
+  touch-action: manipulation;
+}
+.type-artist { @apply bg-purple-100 text-purple-800; }
+.type-song { @apply bg-sky-100 text-sky-800; }
 .score-row { @apply flex items-center gap-2 mb-3; }
 /* Closed: the number and its invitation, filling the row so the whole strip is the target. */
 .score-value {

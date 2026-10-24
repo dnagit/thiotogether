@@ -2,13 +2,14 @@
  * JOOX voting checklist — the website's half of the contract.
  *
  *   GET    /public/joox-votes            → every account, with today's counts
- *   POST   /public/joox-votes            → add { accountName, link }; 409 names the account a
- *                                          duplicate name or link belongs to
+ *   POST   /public/joox-votes            → add { accountName, link, type? }; 409 names the
+ *                                          account a duplicate name or link belongs to
  *   POST   /public/joox-votes/:id/click  → one vote link opened; the 3rd makes it done
  *   POST   /public/joox-votes/:id/done   → finished for today
  *   POST   /public/joox-votes/:id/missing → { missing: 1–3 } votes short: open again, the
  *                                          count set back to 3 − missing
  *   PATCH  /public/joox-votes/:id/score → { score }: the running total, as typed
+ *   PATCH  /public/joox-votes/:id/type  → { type }: ARTIST or SONG
  *   DELETE /public/joox-votes/:id
  *   GET    /public/joox-votes/events     → server-sent events: `account` (a row as it now
  *                                          stands, new ones included) and `removed` ({ id })
@@ -16,20 +17,25 @@
  * Every write answers with the account as it now stands, so the caller can put the server's
  * figure on screen rather than guessing at it.
  */
-import type { ApiResponse, JooxVoteAccount } from '@cms/shared';
+import type { ApiResponse, JooxVoteAccount, JooxVoteType } from '@cms/shared';
 import { api, get } from '@/api/client';
 import { jooxToken } from '@/api/jooxAuth';
 
-export type { JooxVoteAccount };
+export type { JooxVoteAccount, JooxVoteType };
 
 export function listJooxVotes(): Promise<JooxVoteAccount[]> {
   return get<JooxVoteAccount[]>('/joox-votes');
 }
 
-export async function addJooxVote(accountName: string, link: string): Promise<JooxVoteAccount> {
+export async function addJooxVote(
+  accountName: string,
+  link: string,
+  type: JooxVoteType,
+): Promise<JooxVoteAccount> {
   const { data } = await api.post<ApiResponse<JooxVoteAccount>>('/public/joox-votes', {
     accountName,
     link,
+    type,
   });
   return data.data;
 }
@@ -71,6 +77,14 @@ export async function setJooxVoteScore(id: number, score: number): Promise<JooxV
   const { data } = await api.patch<ApiResponse<JooxVoteAccount>>(
     `/public/joox-votes/${id}/score`,
     { score },
+  );
+  return data.data;
+}
+
+export async function setJooxVoteType(id: number, type: JooxVoteType): Promise<JooxVoteAccount> {
+  const { data } = await api.patch<ApiResponse<JooxVoteAccount>>(
+    `/public/joox-votes/${id}/type`,
+    { type },
   );
   return data.data;
 }

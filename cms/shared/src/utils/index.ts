@@ -198,6 +198,18 @@ export function jooxNameKey(name: string): string {
 }
 
 /**
+ * The type an account name marks itself as, for names written before the list had types:
+ * "(s)" or "(song)" anywhere in it is a song, "(a)" or "(artist)" an artist, any case and
+ * with spaces inside the brackets allowed. Null when it carries no marker. The migration
+ * that added the type sorted the existing rows by the same rule.
+ */
+export function jooxVoteTypeOf(name: string): 'ARTIST' | 'SONG' | null {
+  if (/\(\s*(s|song)\s*\)/i.test(name)) return 'SONG';
+  if (/\(\s*(a|artist)\s*\)/i.test(name)) return 'ARTIST';
+  return null;
+}
+
+/**
  * The form of a vote link that duplicates are judged on: as the browser reads it — host case
  * and default ports ironed out by `URL` — with a trailing slash ignored. Nothing else is
  * stripped: the query and the hash can be exactly what tells one vote link from another.

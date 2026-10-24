@@ -357,6 +357,7 @@ model DonationProject {
   games        GameDonationProject[]
   tokenGrants  TokenGrant[]
   ledger       TokenLedgerEntry[]
+  gardenEvents GardenEvent[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -512,10 +513,11 @@ model AccountIdentity {
   claimSecretHash String?   @map("claim_secret_hash") @db.VarChar(255)
   verifiedAt      DateTime? @map("verified_at")
 
-  donations    Donation[]
-  tokenGrants  TokenGrant[]
-  ledger       TokenLedgerEntry[]
-  reservations Reservation[]
+  donations       Donation[]
+  tokenGrants     TokenGrant[]
+  ledger          TokenLedgerEntry[]
+  reservations    Reservation[]
+  gardenPurchases GardenPurchase[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -582,6 +584,10 @@ model TokenLedgerEntry {
 
   reservationId Int?         @map("reservation_id")
   reservation   Reservation? @relation(fields: [reservationId], references: [id])
+
+  /// Set when the tokens bought a sunflower garden's secret fertiliser.
+  gardenPurchaseId Int?            @map("garden_purchase_id")
+  gardenPurchase   GardenPurchase? @relation(fields: [gardenPurchaseId], references: [id])
 
   /// Signed: positive mints, negative spends.
   delta       Int               @map("delta")
@@ -801,9 +807,9 @@ model Project {
   description String? @db.Text
 
   /// The single picture the list page shows. The gallery below is the detail page's.
-  coverImage String? @map("cover_image") @db.VarChar(500)
+  coverImage   String? @map("cover_image") @db.VarChar(500)
   /// `[{ "url": "…", "caption": "…" }]`
-  images     Json    @default("[]")
+  images       Json    @default("[]")
   /// The second gallery, under the write-up, two pictures at a time. Same shape as `images`.
   bottomImages Json    @default("[]") @map("bottom_images")
   /// The text under the bottom gallery, written the same way as `description`.
@@ -1053,20 +1059,30 @@ model JooxVoterSession {
   @@map("joox_voter_sessions")
 }
 
+/// What a {@link JooxVoteAccount}'s vote link is for.
+enum JooxVoteType {
+  ARTIST
+  SONG
+}
+
 /// Shared list of fan JOOX accounts and their vote links, edited from the website by anyone
 /// signed in as a {@link JooxVoter} — one list, which every voter sees and edits.
 model JooxVoteAccount {
-  id          Int    @id @default(autoincrement())
-  accountName String @map("account_name") @db.VarChar(100)
-  link        String @db.VarChar(500)
+  id          Int          @id @default(autoincrement())
+  accountName String       @map("account_name") @db.VarChar(100)
+  link        String       @db.VarChar(500)
+  /// Artist or song. Rows from before there was a type were sorted by the "(s)" / "(a)"
+  /// marker in their name — see `jooxVoteTypeOf` in @cms/shared — and ARTIST otherwise.
+  type        JooxVoteType @default(ARTIST)
 
   /// The name and link as duplicates are judged — see `jooxNameKey` / `jooxLinkKey` in
-  /// @cms/shared. Unique so two people adding the same account at once cannot both win.
+  /// @cms/shared. Unique within a `type` (an Artist and a Song may share a name or link), so
+  /// two people adding the same account at once cannot both win.
   /// Cleared when the row is deleted, which frees the name and link to be added again
   /// (PostgreSQL lets any number of NULLs share a unique index) while the deleted row
   /// keeps its original name and link for whoever needs to put it back.
-  nameKey String? @unique @map("name_key") @db.VarChar(100)
-  linkKey String? @unique @map("link_key") @db.VarChar(500)
+  nameKey String? @map("name_key") @db.VarChar(100)
+  linkKey String? @map("link_key") @db.VarChar(500)
 
   /// Both belong to `voteDay` only. A row whose day has passed reads as 0 / false — the
   /// 23:00 Thai-time reset happens on read and on the next write, with no job to schedule.
@@ -1086,6 +1102,8 @@ model JooxVoteAccount {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
+  @@unique([type, nameKey])
+  @@unique([type, linkKey])
   @@map("joox_vote_accounts")
 }
 
@@ -1247,19 +1265,19 @@ model StreamSession {
 
   /// Closed rounds keep their awards on the website but take no new proof. Closing is also
   /// what settles Streaming Star and Rising Streamer, so their winners may draw only then.
-  isOpen      Boolean @default(true) @map("is_open")
+  isOpen           Boolean  @default(true) @map("is_open")
   /// Hidden rounds stay in the admin but drop out of the website.
-  isActive    Boolean @default(true) @map("is_active")
+  isActive         Boolean  @default(true) @map("is_active")
   /// How many win each award. Streaming Star and Rising Streamer take ties at the cut-off
   /// too; DJ's Pick stops drawing once it has this many.
-  starCount   Int     @default(3) @map("star_count")
-  risingCount Int     @default(1) @map("rising_count")
-  pickCount   Int     @default(3) @map("pick_count")
+  starCount        Int      @default(3) @map("star_count")
+  risingCount      Int      @default(1) @map("rising_count")
+  pickCount        Int      @default(3) @map("pick_count")
   /// Each award's own medal picture, shown on the website in place of the drawn one. A new
   /// round starts with the last round's.
-  starMedal   String? @map("star_medal") @db.VarChar(500)
-  risingMedal String? @map("rising_medal") @db.VarChar(500)
-  pickMedal   String? @map("pick_medal") @db.VarChar(500)
+  starMedal        String?  @map("star_medal") @db.VarChar(500)
+  risingMedal      String?  @map("rising_medal") @db.VarChar(500)
+  pickMedal        String?  @map("pick_medal") @db.VarChar(500)
   /// A medal picture per place for the winners' rows — index 0 is 1st place; "" leaves that
   /// place on the award's medal. DJ's Pick has no places, so has none.
   starRankMedals   String[] @default([]) @map("star_rank_medals")
@@ -1355,10 +1373,10 @@ model StreamPick {
 /// A winner's prize: one per award won, per account per round — two awards, two draws.
 /// Deleting one puts the prize back in the pool.
 model StreamDraw {
-  id        Int    @id @default(autoincrement())
-  sessionId Int    @map("session_id")
-  xAccount  String @map("x_account") @db.VarChar(100)
-  prizeId   Int    @map("prize_id")
+  id        Int     @id @default(autoincrement())
+  sessionId Int     @map("session_id")
+  xAccount  String  @map("x_account") @db.VarChar(100)
+  prizeId   Int     @map("prize_id")
   /// Where to send it, as the winner typed it before drawing. Null for a draw the admin made
   /// on the winner's behalf.
   address   String? @db.VarChar(1000)
@@ -1385,11 +1403,11 @@ model LinkPage {
   subtitle String? @db.VarChar(300)
 
   /// Shown square at the top, and blurred to fill the page behind it.
-  coverImage String? @map("cover_image") @db.VarChar(500)
+  coverImage      String? @map("cover_image") @db.VarChar(500)
   /// `[{ "platform": "spotify", "label": "…", "url": "…", "action": "…", "icon": "…" }]`, in
   /// the order the page lists them. `platform` is a key from `LINK_PLATFORMS` in @cms/shared;
   /// the rest are optional overrides of what that platform would show on its own.
-  links      Json    @default("[]")
+  links           Json    @default("[]")
   /// The page behind the card. Empty means the cover, blurred, on a dark ground.
   backgroundColor String? @map("background_color") @db.VarChar(30)
 
@@ -1430,16 +1448,16 @@ model FoodTrail {
 
 /// One restaurant on a trail.
 model FoodPlace {
-  id      Int     @id @default(autoincrement())
-  trailId Int     @map("trail_id")
-  name    String  @db.VarChar(200)
+  id        Int     @id @default(autoincrement())
+  trailId   Int     @map("trail_id")
+  name      String  @db.VarChar(200)
   /// Where it is, opening hours — whatever helps a fan find it. Shown on the website.
-  note    String? @db.VarChar(1000)
+  note      String? @db.VarChar(1000)
   /// Never sent to the website; drawn on the admin's poster.
-  image   String? @db.VarChar(500)
-  sortOrder Int   @default(0) @map("sort_order")
+  image     String? @db.VarChar(500)
+  sortOrder Int     @default(0) @map("sort_order")
 
-  trail FoodTrail @relation(fields: [trailId], references: [id], onDelete: Cascade)
+  trail FoodTrail  @relation(fields: [trailId], references: [id], onDelete: Cascade)
   menus FoodMenu[]
 
   createdAt DateTime  @default(now()) @map("created_at")
@@ -1452,12 +1470,12 @@ model FoodPlace {
 
 /// One dish at a restaurant.
 model FoodMenu {
-  id      Int     @id @default(autoincrement())
-  placeId Int     @map("place_id")
-  name    String  @db.VarChar(200)
+  id        Int     @id @default(autoincrement())
+  placeId   Int     @map("place_id")
+  name      String  @db.VarChar(200)
   /// Never sent to the website; drawn on the admin's poster.
-  image   String? @db.VarChar(500)
-  sortOrder Int   @default(0) @map("sort_order")
+  image     String? @db.VarChar(500)
+  sortOrder Int     @default(0) @map("sort_order")
 
   place FoodPlace @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
@@ -1487,4 +1505,337 @@ model FoodTrailProgress {
 
   @@unique([trailId, account])
   @@map("food_trail_progress")
+}
+
+// ─────────────────────────── Sunflower garden ───────────────────────────
+
+/// A sunflower garden: everyone sows a seed with a wish and a fertiliser mix, and every
+/// flower opens on the same day. What each one looks like is decided — and locked — when it
+/// is sown, then kept off the public API until `revealAt`. See `core/garden`.
+model GardenEvent {
+  id          Int     @id @default(autoincrement())
+  title       String  @db.VarChar(200)
+  slug        String  @unique @db.VarChar(200)
+  description String? @db.Text
+  coverImage  String? @map("cover_image") @db.VarChar(500)
+  /// The soil and sky behind the field.
+  fieldImage  String? @map("field_image") @db.VarChar(500)
+  themeColor  String? @map("theme_color") @db.VarChar(20)
+
+  /// When every flower opens. Sowing closes at the same moment.
+  revealAt   DateTime  @map("reveal_at") @db.Timestamptz(3)
+  /// Set when an admin opens the garden by hand, early or as a fallback.
+  revealedAt DateTime? @map("revealed_at") @db.Timestamptz(3)
+
+  /// Hides the whole garden from the website.
+  isActive Boolean @default(true) @map("is_active")
+  /// Closes sowing while the field stays readable.
+  isOpen   Boolean @default(true) @map("is_open")
+
+  /// Raised money unlocks decorations; its tokens buy secret fertiliser.
+  donationProjectId Int?             @map("donation_project_id")
+  donationProject   DonationProject? @relation(fields: [donationProjectId], references: [id], onDelete: SetNull)
+  /// One price for every flower on the secret shelf.
+  secretTokenPrice  Int              @default(1) @map("secret_token_price")
+
+  /// The flower a mix gets when no recipe matches it. Sowing stays closed without one.
+  defaultDesignId Int?                @map("default_design_id")
+  defaultDesign   GardenFlowerDesign? @relation("GardenDefaultDesign", fields: [defaultDesignId], references: [id], onDelete: SetNull)
+
+  fertilizers  GardenFertilizer[]
+  designs      GardenFlowerDesign[] @relation("GardenDesigns")
+  growthStages GardenGrowthStage[]
+  recipes      GardenRecipe[]
+  faces        GardenFace[]
+  decorations  GardenDecoration[]
+  gardeners    GardenGardener[]
+  plants       GardenPlant[]
+  purchases    GardenPurchase[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("garden_events")
+}
+
+/// One of the bags on the potting bench. A visitor picks two and splits 100% between them.
+model GardenFertilizer {
+  id      Int         @id @default(autoincrement())
+  eventId Int         @map("event_id")
+  event   GardenEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(300)
+  imageUrl    String? @map("image_url") @db.VarChar(500)
+  color       String  @default("#a16207") @db.VarChar(20)
+  sortOrder   Int     @default(0) @map("sort_order")
+  isActive    Boolean @default(true) @map("is_active")
+
+  ingredients GardenRecipeIngredient[]
+  plantMixes  GardenPlantFertilizer[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId, sortOrder])
+  @@map("garden_fertilizers")
+}
+
+/// A sunflower the admin uploaded. Either a recipe's result or a choice on the secret shelf.
+///
+/// Its picture never leaves the public API before the reveal, except for shelf flowers,
+/// which have to be seen to be chosen.
+model GardenFlowerDesign {
+  id      Int         @id @default(autoincrement())
+  eventId Int         @map("event_id")
+  event   GardenEvent @relation("GardenDesigns", fields: [eventId], references: [id], onDelete: Cascade)
+
+  name     String @db.VarChar(100)
+  imageUrl String @map("image_url") @db.VarChar(500)
+  /// common | rare | legendary — a label for the card, nothing more.
+  rarity   String @default("common") @db.VarChar(20)
+
+  /// Where a face sits in the flower: centre and diameter, as percentages of the picture's
+  /// width. Null when the flower has nowhere to put one.
+  faceX    Float? @map("face_x")
+  faceY    Float? @map("face_y")
+  faceSize Float? @map("face_size")
+
+  /// On the secret shelf, bought with tokens.
+  onShelf    Boolean @default(false) @map("on_shelf")
+  shelfOrder Int     @default(0) @map("shelf_order")
+  /// A secret fertiliser of this flower also draws a random face into it.
+  allowFace  Boolean @default(false) @map("allow_face")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  defaultFor   GardenEvent[]    @relation("GardenDefaultDesign")
+  recipes      GardenRecipe[]
+  plants       GardenPlant[]    @relation("GardenPlantDesign")
+  secretPlants GardenPlant[]    @relation("GardenPlantSecretDesign")
+  purchases    GardenPurchase[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId, sortOrder])
+  @@map("garden_flower_designs")
+}
+
+/// What every plant looks like before the reveal. A stage shows from `startsDaysBeforeReveal`
+/// days out until the next one takes over.
+model GardenGrowthStage {
+  id      Int         @id @default(autoincrement())
+  eventId Int         @map("event_id")
+  event   GardenEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name                   String @db.VarChar(100)
+  imageUrl               String @map("image_url") @db.VarChar(500)
+  startsDaysBeforeReveal Int    @map("starts_days_before_reveal")
+  sortOrder              Int    @default(0) @map("sort_order")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId, sortOrder])
+  @@map("garden_growth_stages")
+}
+
+/// Fertiliser in, flower out: when a mix holds every ingredient within its range, it grows
+/// `design`. The highest `priority` wins, then the recipe that asks for more.
+model GardenRecipe {
+  id      Int         @id @default(autoincrement())
+  eventId Int         @map("event_id")
+  event   GardenEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name     String?            @db.VarChar(100)
+  designId Int                @map("design_id")
+  design   GardenFlowerDesign @relation(fields: [designId], references: [id])
+  priority Int                @default(0)
+  isActive Boolean            @default(true) @map("is_active")
+
+  ingredients GardenRecipeIngredient[]
+  plants      GardenPlant[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId])
+  @@map("garden_recipes")
+}
+
+model GardenRecipeIngredient {
+  id           Int              @id @default(autoincrement())
+  recipeId     Int              @map("recipe_id")
+  recipe       GardenRecipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  fertilizerId Int              @map("fertilizer_id")
+  fertilizer   GardenFertilizer @relation(fields: [fertilizerId], references: [id], onDelete: Cascade)
+  minPct       Int              @map("min_pct")
+  maxPct       Int              @map("max_pct")
+
+  @@unique([recipeId, fertilizerId])
+  @@map("garden_recipe_ingredients")
+}
+
+/// The faces a secret fertiliser may draw into a flower, picked at random on purchase.
+model GardenFace {
+  id      Int         @id @default(autoincrement())
+  eventId Int         @map("event_id")
+  event   GardenEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name      String? @db.VarChar(100)
+  imageUrl  String  @map("image_url") @db.VarChar(500)
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  plants GardenPlant[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId])
+  @@map("garden_faces")
+}
+
+/// Unlocked once the linked donation project has raised `unlockAmount`. Placed on the field
+/// at `posX`/`posY` (percent of its width/height), `size` percent of its width across.
+model GardenDecoration {
+  id      Int         @id @default(autoincrement())
+  eventId Int         @map("event_id")
+  event   GardenEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name         String  @db.VarChar(100)
+  imageUrl     String  @map("image_url") @db.VarChar(500)
+  unlockAmount Decimal @map("unlock_amount") @db.Decimal(14, 2)
+  posX         Float   @default(50) @map("pos_x")
+  posY         Float   @default(50) @map("pos_y")
+  size         Float   @default(12)
+  sortOrder    Int     @default(0) @map("sort_order")
+  isActive     Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId])
+  @@map("garden_decorations")
+}
+
+/// Whoever sowed from one browser. No login: the browser keeps a random key and the
+/// database keeps its hash, the same arrangement as a JOOX voter session.
+model GardenGardener {
+  id      Int         @id @default(autoincrement())
+  eventId Int         @map("event_id")
+  event   GardenEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  keyHash String @unique @map("key_hash") @db.VarChar(64)
+
+  plants GardenPlant[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([eventId])
+  @@map("garden_gardeners")
+}
+
+enum GardenPlantStatus {
+  VISIBLE
+  HIDDEN
+}
+
+model GardenPlant {
+  id         Int            @id @default(autoincrement())
+  eventId    Int            @map("event_id")
+  event      GardenEvent    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  gardenerId Int            @map("gardener_id")
+  gardener   GardenGardener @relation(fields: [gardenerId], references: [id])
+
+  name    String @db.VarChar(60)
+  message String @db.Text
+
+  /// Place in the field, in sowing order. Never reused: a removed plant leaves its gap, so
+  /// the number on someone's seed card always points at their own plant.
+  plotIndex Int @map("plot_index")
+
+  status GardenPlantStatus @default(VISIBLE)
+
+  // ── Locked at sowing, secret until the reveal ──
+  recipeId Int?                @map("recipe_id")
+  recipe   GardenRecipe?       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  designId Int?                @map("design_id")
+  design   GardenFlowerDesign? @relation("GardenPlantDesign", fields: [designId], references: [id], onDelete: SetNull)
+
+  // ── From secret fertiliser ──
+  /// Takes the place of `design`. Its owner chose it, so only they see it before the reveal.
+  secretDesignId Int?                @map("secret_design_id")
+  secretDesign   GardenFlowerDesign? @relation("GardenPlantSecretDesign", fields: [secretDesignId], references: [id], onDelete: SetNull)
+  /// Drawn at random; a surprise even to the owner until the reveal.
+  faceId         Int?                @map("face_id")
+  face           GardenFace?         @relation(fields: [faceId], references: [id], onDelete: SetNull)
+
+  /// Moderation only — never leaves the admin API.
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+
+  fertilizers GardenPlantFertilizer[]
+  purchase    GardenPurchase?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([eventId, plotIndex])
+  @@index([eventId, status, plotIndex])
+  @@index([gardenerId])
+  @@map("garden_plants")
+}
+
+model GardenPlantFertilizer {
+  id           Int              @id @default(autoincrement())
+  plantId      Int              @map("plant_id")
+  plant        GardenPlant      @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  fertilizerId Int              @map("fertilizer_id")
+  fertilizer   GardenFertilizer @relation(fields: [fertilizerId], references: [id])
+  pct          Int
+
+  @@unique([plantId, fertilizerId])
+  @@map("garden_plant_fertilizers")
+}
+
+/// Secret fertiliser bought with tokens. One per plant, enforced here rather than in code:
+/// a double-click or two tabs cannot put two on one flower or spend twice.
+model GardenPurchase {
+  id      Int         @id @default(autoincrement())
+  eventId Int         @map("event_id")
+  event   GardenEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  plantId  Int                @unique @map("plant_id")
+  plant    GardenPlant        @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  designId Int                @map("design_id")
+  design   GardenFlowerDesign @relation(fields: [designId], references: [id])
+
+  accountIdentityId   Int             @map("account_identity_id")
+  accountIdentity     AccountIdentity @relation(fields: [accountIdentityId], references: [id])
+  accountNameSnapshot String          @map("account_name_snapshot") @db.VarChar(190)
+  tokensSpent         Int             @map("tokens_spent")
+  /// Client-supplied; a retried request returns the original purchase.
+  idempotencyKey      String          @map("idempotency_key") @db.VarChar(64)
+
+  ledger TokenLedgerEntry[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([eventId, idempotencyKey])
+  @@index([accountIdentityId])
+  @@map("garden_purchases")
 }

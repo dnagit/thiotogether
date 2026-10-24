@@ -86,6 +86,20 @@ and which checklist accounts each has voted for today, six at most, cleared at t
 reset. Unlike the checklist these rows belong to the voter who added them and nobody else
 sees them. See `api/src/modules/public-joox-accounts/publicJooxAccounts.module.ts`.
 
+### The third: sunflower gardeners
+
+`/garden/*` has no login either. The first seed a browser sows comes back with a random key,
+kept in `localStorage` and sent as `x-garden-key`; the database stores only its SHA-256. The
+same key in a recovery link (`/garden/mine/:slug#key=…`, in the fragment so no server logs it)
+opens that garden on another device, and an admin can rotate it for someone who lost theirs.
+
+What each flower looks like is decided when it is sown — the mix is matched against the
+admin's recipes — and stored on the plant, but no public response carries a design, a face or
+their pictures until `revealAt`. Every public read goes through `serializePlant` in
+`api/src/core/garden/gardenService.ts`, which is where that line is held. Secret fertiliser
+spends tokens through the same `spendTokens` as the board game, one purchase per plant
+enforced by a unique index.
+
 ## Donation flow
 
 ```

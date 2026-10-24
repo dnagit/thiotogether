@@ -107,6 +107,18 @@ export const submissionLimiter = rateLimit({
 });
 
 /**
+ * Sowing in the sunflower garden. Looser than `submissionLimiter`: one person sowing for a
+ * whole family is expected, and at an event many phones share one IP.
+ */
+export const gardenSowLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'ปลูกถี่เกินไป กรุณารอสักครู่แล้วลองใหม่', code: 'RATE_LIMITED' },
+});
+
+/**
  * Food-trail checklist saves and loads. A fan ticks dish after dish (the page batches the
  * ticks, but still), and on mobile data many fans share one IP — so loose, like the JOOX one.
  */

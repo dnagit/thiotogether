@@ -58,6 +58,10 @@ export const PERMISSIONS = {
   /// Separate from MANAGE: approving decides what the public wall shows.
   BIRTHDAY_MODERATE: 'birthday.moderate',
 
+  /// Sunflower garden. Manage covers moderation and the reveal: one team runs the event.
+  GARDEN_VIEW: 'garden.view',
+  GARDEN_MANAGE: 'garden.manage',
+
   PROJECTS_VIEW: 'projects.view',
   PROJECTS_MANAGE: 'projects.manage',
 
@@ -106,6 +110,7 @@ export const ROLE_PERMISSION_PRESETS: Record<string, Permission[]> = {
     PERMISSIONS.MEDIA_UPLOAD,
     PERMISSIONS.GAMES_VIEW,
     PERMISSIONS.BIRTHDAY_VIEW,
+    PERMISSIONS.GARDEN_VIEW,
     PERMISSIONS.PROJECTS_VIEW,
     PERMISSIONS.DJ_SCHEDULE_VIEW,
     PERMISSIONS.TRACKING_VIEW,

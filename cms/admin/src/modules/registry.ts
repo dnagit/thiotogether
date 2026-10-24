@@ -235,6 +235,30 @@ export const adminModules: AdminModule[] = [
     ],
   },
   {
+    name: 'garden',
+    menu: { label: 'สวนทานตะวัน', icon: 'Sunrise', order: 7.5, group: 'project', permission: PERMISSIONS.GARDEN_VIEW },
+    routes: [
+      {
+        path: 'garden',
+        name: 'garden',
+        component: () => import('@/views/garden/GardenListView.vue'),
+        meta: { title: 'สวนทานตะวัน', permission: PERMISSIONS.GARDEN_VIEW },
+      },
+      {
+        path: 'garden/:id(\\d+)/edit',
+        name: 'garden-edit',
+        component: () => import('@/views/garden/GardenEditView.vue'),
+        meta: { title: 'ตั้งค่าสวนทานตะวัน', permission: PERMISSIONS.GARDEN_VIEW },
+      },
+      {
+        path: 'garden/:id(\\d+)/plants',
+        name: 'garden-plants',
+        component: () => import('@/views/garden/GardenPlantsView.vue'),
+        meta: { title: 'ต้นทานตะวัน', permission: PERMISSIONS.GARDEN_VIEW },
+      },
+    ],
+  },
+  {
     name: 'joox-voters',
     menu: {
       label: 'บัญชีโหวต JOOX',

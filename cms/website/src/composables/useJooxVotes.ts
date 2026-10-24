@@ -11,9 +11,11 @@ import {
   messageOf,
   reportJooxVoteMissing,
   setJooxVoteScore,
+  setJooxVoteType,
   statusOf,
   watchJooxVotes,
   type JooxVoteAccount,
+  type JooxVoteType,
 } from '@/api/jooxVotes';
 
 /**
@@ -95,9 +97,13 @@ export function useJooxVotes() {
   }
 
   /** Returns the error to show, or null when the account was added. */
-  async function add(accountName: string, link: string): Promise<string | null> {
+  async function add(
+    accountName: string,
+    link: string,
+    type: JooxVoteType,
+  ): Promise<string | null> {
     try {
-      put(await write(() => addJooxVote(accountName, link)));
+      put(await write(() => addJooxVote(accountName, link, type)));
       return null;
     } catch (err) {
       checkAuth(err);
@@ -149,6 +155,15 @@ export function useJooxVotes() {
       return null;
     } catch (err) {
       return failed(err, id, 'บันทึกคะแนนไม่สำเร็จ กรุณาลองใหม่');
+    }
+  }
+
+  async function setType(id: number, type: JooxVoteType): Promise<string | null> {
+    try {
+      put(await write(() => setJooxVoteType(id, type)));
+      return null;
+    } catch (err) {
+      return failed(err, id, 'เปลี่ยนประเภทไม่สำเร็จ กรุณาลองใหม่');
     }
   }
 
@@ -231,6 +246,7 @@ export function useJooxVotes() {
     markDone,
     reportMissing,
     setScore,
+    setType,
     remove,
   };
 }
