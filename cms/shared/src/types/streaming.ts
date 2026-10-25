@@ -122,7 +122,7 @@ export interface PublicStreamPick {
 /**
  * `GET /public/streaming` and `GET /streaming/sessions/:id/awards` — one round's awards.
  * `previous` is the round Rising Streamer compares against; null when there is none, and
- * then Rising Streamer goes by this round's totals.
+ * then there is no Rising Streamer yet — it starts from the second round.
  */
 export interface StreamAwards {
   session: {

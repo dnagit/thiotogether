@@ -466,11 +466,11 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
           <ElCard>
             <template #header>🔥 Rising Streamer <span class="hint">— เพิ่มขึ้นมากสุด ผู้ชนะ {{ awards.risingCount }} คน (เท่ากันตัดสินด้วยยอดรวมรอบนี้)</span></template>
             <p class="hint">
-              {{ awards.previous ? `เทียบกับ ${awards.previous.name}` : 'ไม่มีรอบก่อนหน้า — ใช้ยอดรอบนี้แทน' }}
+              {{ awards.previous ? `เทียบกับ ${awards.previous.name}` : 'ไม่มีรอบก่อนหน้า — Rising Streamer เริ่มให้ในวีคที่ 2' }}
             </p>
             <ElEmpty
               v-if="!awards.rising.length"
-              :description="awards.previous ? 'ยังไม่มีใครที่ยอดเพิ่มจากรอบก่อน' : 'ยังไม่มียอดที่อนุมัติ'"
+              :description="awards.previous ? 'ยังไม่มีใครที่ยอดเพิ่มจากรอบก่อน' : 'รอบแรกไม่มี Rising Streamer'"
               :image-size="60"
             />
             <ol v-else-if="awards.rising.length" class="rank">

@@ -154,6 +154,7 @@ const winnerCount = computed(() =>
 
 const emptyText = computed(() => {
   if (tab.value === 'pick') return 'รอ DJ สุ่มผู้โชคดีอยู่นะ';
+  if (tab.value === 'rising' && !props.awards.previous) return 'Rising Streamer จะเริ่มให้รางวัลในวีคที่ 2 ค่ะ';
   return 'รอผลอยู่นะ';
 });
 
@@ -164,7 +165,7 @@ const subtitle = computed(() => {
   if (tab.value === 'rising') {
     return props.awards.previous
       ? `ยอดเพิ่มขึ้นจาก ${props.awards.previous.name} มากที่สุด`
-      : 'รอบแรก ยังไม่มีรอบก่อนให้เทียบ — ดูจากยอดรอบนี้';
+      : 'รอบแรกยังไม่มีรอบก่อนให้เทียบ — เริ่มให้รางวัลในวีคที่ 2';
   }
   return `DJ สุ่มจากคนที่ส่งยอด ${props.awards.participants} คน — ให้สิทธิ์คนที่ยังไม่ได้รางวัลก่อน`;
 });

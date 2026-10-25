@@ -19,8 +19,8 @@ import type {
  *  - Streaming Star:  the highest totals.
  *  - Rising Streamer: the biggest rise over the round before — open to anyone who streamed
  *                     more than last time, however little they started from. Someone new
- *                     counts as rising from 0 — and so does everyone in the very first
- *                     round, which has nothing before it: there it is this round's totals.
+ *                     counts as rising from 0. The very first round has nothing before it
+ *                     to rise from, so the award starts from the second round (week 2).
  *                     Its winners (one by default) are the top
  *                     by rise, a tied rise going to the bigger total this round; the rest
  *                     of the list is a leaderboard.
@@ -144,9 +144,9 @@ export async function computeAwards(sessionId: number): Promise<StreamAwards> {
     .slice(0, Math.max(stars.length, STAR_BOARD))
     .map((r) => ({ ...r, winner: winners.has(r.xAccount) }));
 
-  // Newcomers rise from 0; with no round before this one, everyone does.
+  // Newcomers rise from 0; with no round before this one, there is no award yet.
   const before = previous ? await totals(previous.id) : new Map<string, StreamRankRow>();
-  const all = [...current.entries()]
+  const all = (previous ? [...current.entries()] : [])
     .map(([key, row]) => {
       const prev = before.get(key)?.streams ?? 0;
       return { ...row, previous: prev, gain: row.streams - prev, winner: false };
