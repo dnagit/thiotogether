@@ -53,13 +53,22 @@ const isMobile = useIsMobile();
 
 const djCrud = useCrud<Dj>({ endpoint: '/dj-schedule/djs' });
 
-/** Every DJ, for the slot form's picker — the table above is paginated. */
+/**
+ * Every DJ, for the slot form's picker — the table above is paginated. The API gives at
+ * most 100 a page, so this walks every page; one page alone left the rest unsearchable.
+ * Paged by id, which never ties, so no DJ falls between two pages; shown in the usual order.
+ */
 const allDjs = ref<Dj[]>([]);
 async function loadAllDjs(): Promise<void> {
-  const { data } = await http.get<ApiResponse<Dj[]>>('/dj-schedule/djs', {
-    params: { limit: 100 },
-  });
-  allDjs.value = data.data;
+  const djs: Dj[] = [];
+  for (let page = 1; ; page++) {
+    const { data } = await http.get<ApiResponse<Dj[]>>('/dj-schedule/djs', {
+      params: { page, limit: 100, sortBy: 'id', sortOrder: 'asc' },
+    });
+    djs.push(...data.data);
+    if (page >= (data.meta?.totalPages ?? 1)) break;
+  }
+  allDjs.value = djs.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'th'));
 }
 void loadAllDjs();
 
