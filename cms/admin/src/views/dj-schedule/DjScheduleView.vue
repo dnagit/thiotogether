@@ -590,12 +590,7 @@ async function deleteSlot(): Promise<void> {
     >
       <ElForm label-position="top">
         <ElFormItem label="DJ" required>
-          <ElSelect
-            v-model="slotForm.djId"
-            :filterable="!isMobile"
-            placeholder="เลือก DJ"
-            style="width: 100%"
-          >
+          <ElSelect v-model="slotForm.djId" filterable placeholder="เลือก DJ" style="width: 100%">
             <ElOption
               v-for="d in allDjs"
               :key="d.id"
