@@ -430,12 +430,12 @@ const maskPhone = (phone: string) => {
 export function maskAddress(address: string): string {
   return address
     .replace(/(?<!\d)(?:\+66[ -]?|0)\d(?:[ -]?\d){7,8}(?!\d)/g, maskPhone)
-    .replace(/(\d+)\/\d+/g, '$1/xx')
+    .replace(/(\d+)\/\d+/g, '$1/xxxx')
     .replace(
       /(?<=^|[\s,])(ซ\.|ซอย|ถ\.|ถนน|หมู่บ้าน|มบ\.|คอนโด|อาคาร|ตึก|ห้อง|soi|road|rd\.)\s*[^\s,]+(?:\s+\d+)?/gi,
-      '$1 xxxx',
+      '$1 xxxxxxxx',
     )
-    .replace(/^(\s*\S+\s+)([^\s\dx])\S*/, '$1$2***');
+    .replace(/^(\s*\S+\s+)([^\s\dx])\S*/, '$1$2******');
 }
 
 /**
