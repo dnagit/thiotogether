@@ -171,10 +171,10 @@ export interface StreamClaimStatus {
   waiting: boolean;
   draws: StreamClaimedPrize[];
   /**
-   * An earlier draw left an address, so the winner may send this one there too. The address
-   * itself stays on the server — anyone can look an account up.
+   * Where the account's last draw went, so the winner may send this one there too — partly
+   * hidden, since anyone can look an account up. Null when nothing has been sent yet.
    */
-  hasAddress: boolean;
+  savedAddress: string | null;
 }
 
 /** `POST /public/streaming/claim` — what the winner drew, and how many draws are left. */

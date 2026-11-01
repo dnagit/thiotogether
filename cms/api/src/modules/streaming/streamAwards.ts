@@ -413,6 +413,31 @@ async function lastAddress(xAccount: string): Promise<string | null> {
   return draw?.address ?? null;
 }
 
+/** Every digit but the first two and last four, for a phone number. */
+const maskPhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, '').length;
+  let seen = 0;
+  return phone.replace(/\d/g, (d) => (++seen <= 2 || seen > digits - 4 ? d : 'x'));
+};
+
+/**
+ * Enough of an address for its winner to recognise it, not enough to find them: anyone can
+ * look an account up, and the accounts are on the board. The address is free text, so this
+ * goes by what Thai addresses usually look like — the surname (the second word), the middle
+ * of a phone number, the house number after the slash, and the name after ซอย, ถนน,
+ * หมู่บ้าน, อาคาร or ห้อง are hidden; the district, province and postcode stay.
+ */
+export function maskAddress(address: string): string {
+  return address
+    .replace(/(?<!\d)(?:\+66[ -]?|0)\d(?:[ -]?\d){7,8}(?!\d)/g, maskPhone)
+    .replace(/(\d+)\/\d+/g, '$1/xx')
+    .replace(
+      /(?<=^|[\s,])(ซ\.|ซอย|ถ\.|ถนน|หมู่บ้าน|มบ\.|คอนโด|อาคาร|ตึก|ห้อง|soi|road|rd\.)\s*[^\s,]+(?:\s+\d+)?/gi,
+      '$1 xxxx',
+    )
+    .replace(/^(\s*\S+\s+)([^\s\dx])\S*/, '$1$2***');
+}
+
 /**
  * `POST /public/streaming/claim/check` — before drawing: how many draws the account has left
  * across the rounds shown on the web, and what it has drawn so far.
@@ -431,7 +456,7 @@ export async function claimStatus(xAccount: string): Promise<StreamClaimStatus> 
     remaining: rounds.reduce((n, r) => n + r.remaining, 0),
     waiting: rounds.some((r) => r.waiting),
     draws,
-    hasAddress: address !== null,
+    savedAddress: address && maskAddress(address),
   };
 }
 
