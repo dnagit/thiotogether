@@ -15,7 +15,8 @@
  * Below the awards, two forms the block can switch off: sending a screenshot of your streams
  * into the round (while it is open), and a winner drawing their prizes (once it is closed
  * and the winners announced): they enter their account to see how many draws they have
- * left, then their address, then draw — the button stays off once none are left.
+ * left, then their address (or, having drawn before, the same one again), then draw — the
+ * button stays off once none are left.
  */
 import { computed, ref, watch } from 'vue';
 import { api } from '@/api/client';
@@ -179,6 +180,8 @@ const awardLabel: Record<string, string> = {
 // ── Claim a prize ─────────────────────────────────────────────────────
 const claimAccount = ref('');
 const claimAddress = ref('');
+/** A winner who has drawn before may send this prize where the last one went. */
+const useSameAddress = ref(false);
 const checking = ref(false);
 /** The account's draws left and prizes so far — looked up before the address is asked. */
 const claimStatus = ref<StreamClaimStatus | null>(null);
@@ -214,6 +217,7 @@ async function checkClaim(): Promise<void> {
   try {
     const { data } = await api.post<ApiResponse<StreamClaimStatus>>('/public/streaming/claim/check', { xAccount });
     claimStatus.value = data.data;
+    useSameAddress.value = data.data.hasAddress;
   } catch (err: any) {
     claimStatus.value = null;
     claimError.value = errorText(err, 'ตรวจสอบไม่สำเร็จ กรุณาลองใหม่');
@@ -222,15 +226,21 @@ async function checkClaim(): Promise<void> {
   }
 }
 
+const sameAddress = computed(() => !!claimStatus.value?.hasAddress && useSameAddress.value);
+
 const canDraw = computed(
-  () => !!claimStatus.value && claimStatus.value.remaining > 0 && !!claimAddress.value.trim() && !claiming.value,
+  () =>
+    !!claimStatus.value &&
+    claimStatus.value.remaining > 0 &&
+    (sameAddress.value || !!claimAddress.value.trim()) &&
+    !claiming.value,
 );
 
 async function claim(): Promise<void> {
   const status = claimStatus.value;
   if (!status || status.remaining <= 0) return;
   const address = claimAddress.value.trim();
-  if (!address) {
+  if (!sameAddress.value && !address) {
     claimError.value = 'กรุณากรอกที่อยู่จัดส่งก่อนสุ่ม';
     return;
   }
@@ -240,12 +250,20 @@ async function claim(): Promise<void> {
   claimResult.value = null;
   try {
     const [{ data }] = await Promise.all([
-      api.post<ApiResponse<StreamClaimResult>>('/public/streaming/claim', { xAccount: status.xAccount, address }),
+      api.post<ApiResponse<StreamClaimResult>>(
+        '/public/streaming/claim',
+        sameAddress.value ? { xAccount: status.xAccount, sameAddress: true } : { xAccount: status.xAccount, address },
+      ),
       new Promise((r) => setTimeout(r, 1600)),
     ]);
     claimResult.value = data.data;
     status.remaining = data.data.remaining;
     status.draws.push({ sessionName: data.data.sessionName, prize: data.data.prize });
+    // The next draw can go where this one did.
+    if (!status.hasAddress) {
+      status.hasAddress = true;
+      useSameAddress.value = true;
+    }
     void loadAwards();
   } catch (err: any) {
     claimError.value = errorText(err, 'สุ่มไม่สำเร็จ กรุณาลองใหม่');
@@ -380,8 +398,21 @@ async function refreshStatus(): Promise<void> {
               ยังมีรางวัลที่รอประกาศผล — สุ่มเพิ่มได้หลังปิดรอบ
             </p>
 
-            <label v-if="claimStatus.remaining" class="plain">
-              <span class="field-label">ที่อยู่จัดส่งของรางวัล</span>
+            <fieldset v-if="claimStatus.remaining && claimStatus.hasAddress" class="address-choice">
+              <legend class="field-label">ที่อยู่จัดส่งของรางวัล</legend>
+              <label class="choice">
+                <input v-model="useSameAddress" type="radio" :value="true" />
+                ส่งที่อยู่เดิม (ที่เคยกรอกไว้ครั้งก่อน)
+              </label>
+              <label class="choice">
+                <input v-model="useSameAddress" type="radio" :value="false" />
+                ใส่ที่อยู่ใหม่
+              </label>
+            </fieldset>
+
+            <label v-if="claimStatus.remaining && !sameAddress" class="plain">
+              <span v-if="claimStatus.hasAddress" class="sr-only">ที่อยู่ใหม่</span>
+              <span v-else class="field-label">ที่อยู่จัดส่งของรางวัล</span>
               <textarea
                 v-model="claimAddress"
                 rows="4"
@@ -553,6 +584,22 @@ async function refreshStatus(): Promise<void> {
   margin-bottom: 0.3rem;
   font-size: 0.875rem;
   font-weight: 600;
+}
+.address-choice {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+.choice input {
+  accent-color: var(--accent);
 }
 .claim-row {
   display: flex;

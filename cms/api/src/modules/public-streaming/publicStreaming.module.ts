@@ -20,7 +20,7 @@ import type { FeatureModule } from '../../core/modules.js';
  *   GET  /public/streaming/sessions        → the rounds, newest first, to browse back through
  *   POST /public/streaming/proofs          → multipart: sessionId, xAccount, streams, note, image
  *   POST /public/streaming/claim/check     → { xAccount }: draws left and prizes drawn so far
- *   POST /public/streaming/claim           → { xAccount, address }: a winner draws a prize
+ *   POST /public/streaming/claim           → { xAccount, address | sameAddress }: a winner draws a prize
  *
  * Hidden and deleted rounds are left out everywhere. Proofs arrive PENDING with the fan's own
  * count, which the admin checks against the screenshot (and corrects) before approving; until
@@ -117,23 +117,32 @@ router.post(
   }),
 );
 
-/** Where the prize goes — asked for before the draw, so no winner is left unreachable. */
-const claimSchema = z.object({
-  xAccount: xAccountSchema,
-  address: z
-    .string({ required_error: 'กรุณากรอกที่อยู่จัดส่ง' })
-    .trim()
-    .min(10, 'กรุณากรอกชื่อ เบอร์โทร และที่อยู่จัดส่งให้ครบ')
-    .max(1000),
-});
+/**
+ * Where the prize goes — asked for before the draw, so no winner is left unreachable. A
+ * winner who has drawn before may send `sameAddress` instead, to reuse the last one.
+ */
+const claimSchema = z
+  .object({
+    xAccount: xAccountSchema,
+    sameAddress: z.boolean().optional(),
+    address: z.string().trim().max(1000).optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.sameAddress) return;
+    if (!body.address) {
+      ctx.addIssue({ code: 'custom', path: ['address'], message: 'กรุณากรอกที่อยู่จัดส่ง' });
+    } else if (body.address.length < 10) {
+      ctx.addIssue({ code: 'custom', path: ['address'], message: 'กรุณากรอกชื่อ เบอร์โทร และที่อยู่จัดส่งให้ครบ' });
+    }
+  });
 
 router.post(
   '/streaming/claim',
   accountLookupLimiter,
   validate({ body: claimSchema }),
   asyncHandler(async (req, res) => {
-    const { xAccount, address } = req.body as z.infer<typeof claimSchema>;
-    const { draw, awards, sessionName, remaining } = await claimFor(xAccount, address);
+    const { xAccount, sameAddress, address } = req.body as z.infer<typeof claimSchema>;
+    const { draw, awards, sessionName, remaining } = await claimFor(xAccount, sameAddress ? null : address!);
     res.setHeader('Cache-Control', 'no-store');
     ok(res, {
       xAccount: draw.xAccount,

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { prisma } from '../../core/database/prisma.js';
-import { AppError, ConflictError, NotFoundError } from '../../core/errors/AppError.js';
+import { AppError, BadRequestError, ConflictError, NotFoundError } from '../../core/errors/AppError.js';
 import type {
   StreamAwardKind,
   StreamAwards,
@@ -403,12 +403,26 @@ async function drawnBy(xAccount: string) {
   return draws.map((d) => ({ sessionName: d.session.name, prize: d.prize }));
 }
 
+/** The address the account's latest draw went to, in any round — for "send it to the same place". */
+async function lastAddress(xAccount: string): Promise<string | null> {
+  const draw = await prisma.streamDraw.findFirst({
+    where: { xAccount: { equals: xAccount, mode: 'insensitive' }, address: { not: null } },
+    select: { address: true },
+    orderBy: { id: 'desc' },
+  });
+  return draw?.address ?? null;
+}
+
 /**
  * `POST /public/streaming/claim/check` — before drawing: how many draws the account has left
  * across the rounds shown on the web, and what it has drawn so far.
  */
 export async function claimStatus(xAccount: string): Promise<StreamClaimStatus> {
-  const [rounds, draws] = await Promise.all([standings(xAccount), drawnBy(xAccount)]);
+  const [rounds, draws, address] = await Promise.all([
+    standings(xAccount),
+    drawnBy(xAccount),
+    lastAddress(xAccount),
+  ]);
   if (rounds.length === 0 && draws.length === 0) {
     throw new AppError(404, `@${xAccount} ยังไม่ได้รับรางวัล`, 'NOT_FOUND');
   }
@@ -417,6 +431,7 @@ export async function claimStatus(xAccount: string): Promise<StreamClaimStatus> 
     remaining: rounds.reduce((n, r) => n + r.remaining, 0),
     waiting: rounds.some((r) => r.waiting),
     draws,
+    hasAddress: address !== null,
   };
 }
 
@@ -424,8 +439,12 @@ export async function claimStatus(xAccount: string): Promise<StreamClaimStatus> 
  * `POST /public/streaming/claim` — the account's next draw across the rounds shown on the
  * web: the oldest round where it still has a draw left, skipping a round whose prizes are
  * all gone. `remaining` is what is left across all of them afterwards.
+ *
+ * `address` null sends it where the account's last draw went.
  */
-export async function claimFor(xAccount: string, address: string) {
+export async function claimFor(xAccount: string, newAddress: string | null) {
+  const address = newAddress ?? (await lastAddress(xAccount));
+  if (!address) throw new BadRequestError('ไม่พบที่อยู่เดิม กรุณากรอกที่อยู่จัดส่ง');
   const rounds = await standings(xAccount);
   let emptyPool = false;
   for (const [i, r] of rounds.entries()) {

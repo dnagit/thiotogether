@@ -170,6 +170,11 @@ export interface StreamClaimStatus {
   /** A Streaming Star or Rising Streamer win whose round has yet to close. */
   waiting: boolean;
   draws: StreamClaimedPrize[];
+  /**
+   * An earlier draw left an address, so the winner may send this one there too. The address
+   * itself stays on the server — anyone can look an account up.
+   */
+  hasAddress: boolean;
 }
 
 /** `POST /public/streaming/claim` — what the winner drew, and how many draws are left. */
