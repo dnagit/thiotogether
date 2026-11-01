@@ -420,22 +420,57 @@ const maskPhone = (phone: string) => {
   return phone.replace(/\d/g, (d) => (++seen <= 2 || seen > digits - 4 ? d : 'x'));
 };
 
+const PHONE = /((?<!\d)(?:\+66[ -]?|0)\d(?:[ -]?\d){7,8}(?!\d))/;
+
+/** Words safe to show: the sub-district, district and province, the postcode, a phone label. */
+const AREA = /^(?:ต\.|ตำบล|แขวง|อ\.|อำเภอ|เขต|จ\.|จังหวัด|กรุงเทพ|กทม|bangkok|ประเทศไทย|thailand|โทร|tel|เบอร์|\d{5}$)/i;
+/** The same, spelled apart from its name ("ตำบล น้ำตก") — the next word shows too. */
+const AREA_LABEL = /^(?:ตำบล|แขวง|อำเภอ|เขต|จังหวัด)$/;
+const PROVINCES = new Set(
+  `กระบี่ กาญจนบุรี กาฬสินธุ์ กำแพงเพชร ขอนแก่น จันทบุรี ฉะเชิงเทรา ชลบุรี ชัยนาท ชัยภูมิ ชุมพร
+  เชียงราย เชียงใหม่ ตรัง ตราด ตาก นครนายก นครปฐม นครพนม นครราชสีมา โคราช นครศรีธรรมราช
+  นครสวรรค์ นนทบุรี นราธิวาส น่าน บึงกาฬ บุรีรัมย์ ปทุมธานี ประจวบคีรีขันธ์ ปราจีนบุรี ปัตตานี
+  พระนครศรีอยุธยา อยุธยา พะเยา พังงา พัทลุง พิจิตร พิษณุโลก เพชรบุรี เพชรบูรณ์ แพร่ ภูเก็ต
+  มหาสารคาม มุกดาหาร แม่ฮ่องสอน ยโสธร ยะลา ร้อยเอ็ด ระนอง ระยอง ราชบุรี ลพบุรี ลำปาง ลำพูน เลย
+  ศรีสะเกษ สกลนคร สงขลา สตูล สมุทรปราการ สมุทรสงคราม สมุทรสาคร สระแก้ว สระบุรี สิงห์บุรี
+  สุโขทัย สุพรรณบุรี สุราษฎร์ธานี สุรินทร์ หนองคาย หนองบัวลำภู อ่างทอง อำนาจเจริญ อุดรธานี
+  อุตรดิตถ์ อุทัยธานี อุบลราชธานี`.split(/\s+/),
+);
+const HIDDEN = 'xxxxxxxx';
+
+/** One stretch of words between phone numbers; a run of hidden words becomes one HIDDEN. */
+function maskWords(text: string, startsWithName: boolean): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return text;
+  const shown = words.map((w, i) => {
+    const bare = w.replace(/[,;]+$/, '');
+    if (startsWithName && i === 0) return w;
+    if (startsWithName && i === 1 && /^\D/.test(w)) return `${[...w][0]}******`;
+    if (AREA.test(bare) || PROVINCES.has(bare) || AREA_LABEL.test(words[i - 1] ?? '')) return w;
+    return null;
+  });
+  const out = shown.filter((w, i) => w !== null || shown[i - 1] !== null).map((w) => w ?? HIDDEN);
+  return text.match(/^\s*/)![0] + out.join(' ') + text.match(/\s*$/)![0];
+}
+
 /**
  * Enough of an address for its winner to recognise it, not enough to find them: anyone can
  * look an account up, and the accounts are on the board. The address is free text, so this
- * goes by what Thai addresses usually look like — the surname (the second word), the middle
- * of a phone number, the house number after the slash, and the name after ซอย, ถนน,
- * หมู่บ้าน, อาคาร or ห้อง are hidden; the district, province and postcode stay.
+ * shows only what is safe and hides the rest — the first name, the surname's first letter,
+ * the phone's first two and last four digits, then the sub-district, district, province and
+ * postcode. Everything else (house number, หมู่, ซอย, ถนน, a building or a place's name)
+ * is HIDDEN, however it was written.
  */
 export function maskAddress(address: string): string {
   return address
-    .replace(/(?<!\d)(?:\+66[ -]?|0)\d(?:[ -]?\d){7,8}(?!\d)/g, maskPhone)
-    .replace(/(\d+)\/\d+/g, '$1/xxxx')
-    .replace(
-      /(?<=^|[\s,])(ซ\.|ซอย|ถ\.|ถนน|หมู่บ้าน|มบ\.|คอนโด|อาคาร|ตึก|ห้อง|soi|road|rd\.)\s*[^\s,]+(?:\s+\d+)?/gi,
-      '$1 xxxxxxxx',
+    .split('\n')
+    .map((line, i) =>
+      line
+        .split(PHONE)
+        .map((part, j) => (j % 2 ? maskPhone(part) : maskWords(part, i === 0 && j === 0)))
+        .join(''),
     )
-    .replace(/^(\s*\S+\s+)([^\s\dx])\S*/, '$1$2******');
+    .join('\n');
 }
 
 /**
