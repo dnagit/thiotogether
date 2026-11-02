@@ -106,6 +106,8 @@ const dates = computed(() =>
 // ── Send proof ────────────────────────────────────────────────────────────────
 const proofAccount = ref('');
 const proofStreams = ref('');
+/** "With you to the end"'s — optional; blank counts as 0. */
+const proofWithYou = ref('');
 const proofNote = ref('');
 const proofFile = ref<File | null>(null);
 const proofPreview = ref<string | null>(null);
@@ -138,7 +140,12 @@ async function sendProof(): Promise<void> {
     return;
   }
   if (!/^\d+$/.test(streams)) {
-    proofMessage.value = { ok: false, text: 'กรุณากรอกยอดสตรีม UNBOUNDเป็นตัวเลข' };
+    proofMessage.value = { ok: false, text: 'กรุณากรอกยอดสตรีม UNBOUND เป็นตัวเลข' };
+    return;
+  }
+  const withYou = proofWithYou.value.replace(/[,\s]/g, '');
+  if (withYou && !/^\d+$/.test(withYou)) {
+    proofMessage.value = { ok: false, text: 'กรุณากรอกยอดสตรีม With you to the end เป็นตัวเลข' };
     return;
   }
   sending.value = true;
@@ -148,11 +155,13 @@ async function sendProof(): Promise<void> {
     form.append('sessionId', String(shownId.value));
     form.append('xAccount', xAccount);
     form.append('streams', streams);
+    if (withYou) form.append('withYouStreams', withYou);
     if (proofNote.value.trim()) form.append('note', proofNote.value.trim());
     form.append('image', proofFile.value);
     const { data } = await api.post<ApiResponse<{ id: number }>>('/public/streaming/proofs', form);
     proofMessage.value = { ok: true, text: data.message ?? 'ส่งหลักฐานแล้ว' };
     proofStreams.value = '';
+    proofWithYou.value = '';
     proofNote.value = '';
     proofFile.value = null;
     if (proofPreview.value) URL.revokeObjectURL(proofPreview.value);
@@ -317,7 +326,9 @@ async function refreshStatus(): Promise<void> {
         <!-- ── Send proof ── -->
         <form v-if="showSubmit && awards.session.isOpen" class="card form" @submit.prevent="sendProof">
           <h3>📸 ส่งหลักฐานยอดสตรีม</h3>
-          <p class="muted">กรอกยอดสตรีม UNBOUND และแนบภาพแคปหน้าจอของยอดสตรีมสัปดาห์นี้</p>
+          <p class="muted">
+            กรอกยอดสตรีม UNBOUND และ With you to the end แล้วแนบภาพแคปหน้าจอของยอดสตรีมสัปดาห์นี้
+          </p>
           <label class="field">
             <span class="at" aria-hidden="true">@</span>
             <span class="sr-only">Account X</span>
@@ -332,7 +343,7 @@ async function refreshStatus(): Promise<void> {
             />
           </label>
           <label class="plain">
-            <span class="sr-only">ยอดสตรีม</span>
+            <span class="sr-only">ยอดสตรีม UNBOUND</span>
             <input
               v-model="proofStreams"
               type="text"
@@ -340,6 +351,17 @@ async function refreshStatus(): Promise<void> {
               maxlength="12"
               autocomplete="off"
               placeholder="ยอดสตรีม UNBOUND (ตัวเลข)"
+            />
+          </label>
+          <label class="plain">
+            <span class="sr-only">ยอดสตรีม With you to the end</span>
+            <input
+              v-model="proofWithYou"
+              type="text"
+              inputmode="numeric"
+              maxlength="12"
+              autocomplete="off"
+              placeholder="ยอดสตรีม With you to the end (ตัวเลข ไม่บังคับ)"
             />
           </label>
           <label class="file">

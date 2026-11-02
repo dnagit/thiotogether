@@ -33,24 +33,25 @@ import type {
  * open at once; Streaming Star and Rising Streamer still move while proofs are being
  * approved, so theirs wait until the admin closes the round.
  *
- * Only APPROVED proofs count. An account's proofs add up, and "@Name" and "name" are the
- * same account.
+ * Only APPROVED proofs count, each as its UNBOUND and "With you to the end" streams together.
+ * An account's proofs add up, and "@Name" and "name" are the same account.
  */
 
-/** Each account's approved total, keyed by its lower-cased name. */
+/** Each account's approved total, both songs together, keyed by its lower-cased name. */
 async function totals(sessionId: number): Promise<Map<string, StreamRankRow>> {
   const proofs = await prisma.streamProof.findMany({
     where: { sessionId, status: 'APPROVED' },
-    select: { xAccount: true, streams: true },
+    select: { xAccount: true, streams: true, withYouStreams: true },
     orderBy: { id: 'asc' },
   });
   const byAccount = new Map<string, StreamRankRow>();
   for (const p of proofs) {
     const key = p.xAccount.toLowerCase();
+    const streams = (p.streams ?? 0) + (p.withYouStreams ?? 0);
     const row = byAccount.get(key);
-    if (row) row.streams += p.streams ?? 0;
+    if (row) row.streams += streams;
     // The first spelling the account used is the one shown.
-    else byAccount.set(key, { xAccount: p.xAccount, streams: p.streams ?? 0 });
+    else byAccount.set(key, { xAccount: p.xAccount, streams });
   }
   return byAccount;
 }

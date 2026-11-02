@@ -2,8 +2,9 @@
 /**
  * One streaming round, in four tabs:
  *
- *  - หลักฐาน:   the fans' screenshots. Read the number off the picture, type it in, approve.
- *               Only approved proofs count, and an account's proofs add up.
+ *  - หลักฐาน:   the fans' screenshots. Read the numbers off the picture — UNBOUND's, and
+ *               "With you to the end"'s if any — type them in, approve. The two together are
+ *               what counts; only approved proofs do, and an account's proofs add up.
  *  - รางวัล:    all three awards, exactly as the website will show them.
  *  - DJ's Pick: the DJ draws a winner from everyone with approved streams — the same chance
  *               whatever their number — or names one.
@@ -74,11 +75,17 @@ const statusLabel: Record<string, string> = {
   REJECTED: 'ไม่อนุมัติ',
 };
 
-/** The number being typed for each row, before it is saved. */
+/** The numbers being typed for each row, before they are saved. */
 const drafts = reactive<Record<number, number | undefined>>({});
+const withYouDrafts = reactive<Record<number, number | undefined>>({});
 watch(proofs.items, (rows) => {
-  for (const r of rows) drafts[r.id] = r.streams ?? undefined;
+  for (const r of rows) {
+    drafts[r.id] = r.streams ?? undefined;
+    withYouDrafts[r.id] = r.withYouStreams ?? undefined;
+  }
 });
+/** What the row counts for, as typed: the two songs together. */
+const draftTotal = (id: number) => (drafts[id] ?? 0) + (withYouDrafts[id] ?? 0);
 const busy = ref<number | null>(null);
 
 async function review(row: StreamProof | Record<string, any>, status: 'APPROVED' | 'REJECTED'): Promise<void> {
@@ -89,7 +96,11 @@ async function review(row: StreamProof | Record<string, any>, status: 'APPROVED'
   }
   busy.value = row.id;
   try {
-    await http.put(`/streaming/proofs/${row.id}`, { status, streams: streams ?? null });
+    await http.put(`/streaming/proofs/${row.id}`, {
+      status,
+      streams: streams ?? null,
+      withYouStreams: withYouDrafts[row.id] ?? null,
+    });
     ElMessage.success(status === 'APPROVED' ? `อนุมัติ @${row.xAccount} แล้ว` : 'ไม่อนุมัติแล้ว');
     await proofs.fetchList();
     void loadSession();
@@ -104,11 +115,16 @@ async function removeProof(row: StreamProof | Record<string, any>): Promise<void
 
 /** A number the admin already has — from a spreadsheet, or sent in some other way. */
 const manualOpen = ref(false);
-const manual = reactive({ xAccount: '', streams: undefined as number | undefined, note: '' });
+const manual = reactive({
+  xAccount: '',
+  streams: undefined as number | undefined,
+  withYouStreams: undefined as number | undefined,
+  note: '',
+});
 const stripAt = (s: string) => s.trim().replace(/^@+/, '').trim();
 
 function openManual(): void {
-  Object.assign(manual, { xAccount: '', streams: undefined, note: '' });
+  Object.assign(manual, { xAccount: '', streams: undefined, withYouStreams: undefined, note: '' });
   manualOpen.value = true;
 }
 
@@ -117,6 +133,7 @@ async function saveManual(): Promise<void> {
     sessionId,
     xAccount: stripAt(manual.xAccount),
     streams: manual.streams,
+    withYouStreams: manual.withYouStreams ?? null,
     note: manual.note.trim() || null,
   } as Partial<StreamProof>);
   manualOpen.value = false;
@@ -383,7 +400,7 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
                 <div class="hint">{{ when(row.createdAt) }}</div>
               </template>
             </ElTableColumn>
-            <ElTableColumn prop="streams" label="ยอดสตรีม" width="170" sortable="custom">
+            <ElTableColumn prop="streams" label="UNBOUND" width="150" sortable="custom">
               <template #default="{ row }">
                 <ElInputNumber
                   v-model="drafts[row.id]"
@@ -391,9 +408,27 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
                   :step="1"
                   :controls="false"
                   placeholder="ดูจากภาพ"
-                  style="width: 140px"
+                  style="width: 120px"
                   @keyup.enter="review(row, 'APPROVED')"
                 />
+              </template>
+            </ElTableColumn>
+            <ElTableColumn label="With you to the end" width="170">
+              <template #default="{ row }">
+                <ElInputNumber
+                  v-model="withYouDrafts[row.id]"
+                  :min="0"
+                  :step="1"
+                  :controls="false"
+                  placeholder="ไม่มี = 0"
+                  style="width: 120px"
+                  @keyup.enter="review(row, 'APPROVED')"
+                />
+              </template>
+            </ElTableColumn>
+            <ElTableColumn label="รวม" width="110" align="right">
+              <template #default="{ row }">
+                <b>{{ num(draftTotal(row.id)) }}</b>
               </template>
             </ElTableColumn>
             <ElTableColumn label="สถานะ" width="110" align="center">
@@ -671,9 +706,13 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
         <ElFormItem label="Account X" required>
           <ElInput v-model="manual.xAccount" maxlength="101"><template #prepend>@</template></ElInput>
         </ElFormItem>
-        <ElFormItem label="ยอดสตรีม" required>
+        <ElFormItem label="ยอดสตรีม UNBOUND" required>
           <ElInputNumber v-model="manual.streams" :min="0" :controls="false" style="width: 100%" />
         </ElFormItem>
+        <ElFormItem label="ยอดสตรีม With you to the end">
+          <ElInputNumber v-model="manual.withYouStreams" :min="0" :controls="false" style="width: 100%" />
+        </ElFormItem>
+        <p class="hint">รวม {{ num((manual.streams ?? 0) + (manual.withYouStreams ?? 0)) }}</p>
         <ElFormItem label="หมายเหตุ">
           <ElInput v-model="manual.note" maxlength="300" />
         </ElFormItem>

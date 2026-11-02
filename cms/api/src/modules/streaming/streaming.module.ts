@@ -32,7 +32,7 @@ import type { FeatureModule } from '../../core/modules.js';
  *   GET  /streaming/sessions/:id/winners → every winner, and what they have drawn
  *   POST /streaming/sessions/:id/draws   → { xAccount, address? }: draw a winner's prize for them (on air, say)
  *   DELETE /streaming/draws/:id          → undo a draw; the prize goes back in the pool
- *   /streaming/proofs?sessionId=&status= → the fans' screenshots; approve by setting `streams`
+ *   /streaming/proofs?sessionId=&status= → the fans' screenshots; approve by setting `streams` (and `withYouStreams`)
  *   /streaming/prizes?sessionId=         → what winners can draw
  *   POST /streaming/prizes/carry-over    → { fromSessionId, sessionId }: move another round's leftovers in
  *   /streaming/picks?sessionId=          → the DJ's Pick winners; POST adds one by name
@@ -164,12 +164,14 @@ const proofCreateSchema = z.object({
   sessionId: z.number().int().positive(),
   xAccount: xAccountSchema,
   streams: streamsSchema,
+  withYouStreams: streamsSchema.nullish(),
   note: z.string().max(300).nullish(),
 });
 
 const proofUpdateSchema = z.object({
   xAccount: xAccountSchema.optional(),
   streams: streamsSchema.nullish(),
+  withYouStreams: streamsSchema.nullish(),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
   reviewNote: z.string().max(300).nullish(),
 });

@@ -26,14 +26,17 @@ export interface StreamSession {
 
 export type StreamProofStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
-/** A fan's screenshot of their streams, and the number the admin read off it. */
+/** A fan's screenshot of their streams, and the numbers the admin read off it. */
 export interface StreamProof {
   id: number;
   sessionId: number;
   xAccount: string;
   imageUrl: string | null;
   note: string | null;
+  /** UNBOUND's. */
   streams: number | null;
+  /** "With you to the end"'s; none counts as 0. The awards go by the two together. */
+  withYouStreams: number | null;
   status: StreamProofStatus;
   reviewNote: string | null;
   createdAt: string;
