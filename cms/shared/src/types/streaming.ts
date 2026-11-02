@@ -105,7 +105,10 @@ export interface StreamStarRow extends StreamRankRow {
 
 /** A Rising Streamer: this round's total and how far it rose over the round before. */
 export interface StreamRisingRow extends StreamRankRow {
+  /** Their total in the round before — or, if they sat it out, the last round they streamed in. */
   previous: number;
+  /** That earlier round's name, when it is not the round just before; null otherwise. */
+  previousRound: string | null;
   gain: number;
   /**
    * Rising Streamer's winners are the top `risingCount` by rise, a tied rise going to the

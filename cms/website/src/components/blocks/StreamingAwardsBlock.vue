@@ -361,7 +361,7 @@ async function refreshStatus(): Promise<void> {
               inputmode="numeric"
               maxlength="12"
               autocomplete="off"
-              placeholder="ยอดสตรีม With you to the end (ตัวเลข ไม่บังคับ)"
+              placeholder="ยอดสตรีม With you to the end (ตัวเลข)"
             />
           </label>
           <label class="file">

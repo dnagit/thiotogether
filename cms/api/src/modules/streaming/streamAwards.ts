@@ -18,9 +18,11 @@ import type {
  * ways to win and only one of them rewards the biggest number:
  *  - Streaming Star:  the highest totals.
  *  - Rising Streamer: the biggest rise over the round before — open to anyone who streamed
- *                     more than last time, however little they started from. Someone new
- *                     counts as rising from 0. The very first round has nothing before it
- *                     to rise from, so the award starts from the second round (week 2).
+ *                     more than last time, however little they started from. Someone who
+ *                     sat the round before out is measured against the last round they had
+ *                     streams in; someone new counts as rising from 0. The very first round
+ *                     has nothing before it to rise from, so the award starts from the second
+ *                     round (week 2).
  *                     Its winners (one by default) are the top
  *                     by rise, a tied rise going to the bigger total this round; the rest
  *                     of the list is a leaderboard.
@@ -74,6 +76,48 @@ async function previousSession(session: { id: number; startsAt: Date }) {
     orderBy: [{ startsAt: 'desc' }, { id: 'desc' }],
     select: { id: true, name: true },
   });
+}
+
+/** An account's total in one earlier round. */
+type LastTotal = { round: { id: number; name: string; startsAt: Date }; streams: number };
+
+/**
+ * Each account's total in the latest round before this one where it had any streams: the
+ * round just before, or — for someone who sat that one out — the last one they took part in.
+ * Rounds are ordered as `previousSession` orders them.
+ */
+async function lastTotals(session: { id: number; startsAt: Date }): Promise<Map<string, LastTotal>> {
+  const proofs = await prisma.streamProof.findMany({
+    where: {
+      status: 'APPROVED',
+      sessionId: { not: session.id },
+      session: { deletedAt: null, startsAt: { lt: session.startsAt } },
+    },
+    select: {
+      xAccount: true,
+      streams: true,
+      withYouStreams: true,
+      session: { select: { id: true, name: true, startsAt: true } },
+    },
+  });
+  // Account → round id → its total in that round.
+  const perRound = new Map<string, Map<number, LastTotal>>();
+  for (const p of proofs) {
+    const key = p.xAccount.toLowerCase();
+    const rounds = perRound.get(key) ?? new Map<number, LastTotal>();
+    const row = rounds.get(p.session.id) ?? { round: p.session, streams: 0 };
+    row.streams += (p.streams ?? 0) + (p.withYouStreams ?? 0);
+    rounds.set(p.session.id, row);
+    perRound.set(key, rounds);
+  }
+  const newer = (a: LastTotal, b: LastTotal) =>
+    a.round.startsAt.getTime() - b.round.startsAt.getTime() || a.round.id - b.round.id;
+  const latest = new Map<string, LastTotal>();
+  for (const [key, rounds] of perRound) {
+    const counted = [...rounds.values()].filter((r) => r.streams > 0);
+    if (counted.length) latest.set(key, counted.reduce((a, b) => (newer(a, b) >= 0 ? a : b)));
+  }
+  return latest;
 }
 
 /** How long the Streaming Star leaderboard runs, winners included (all of them, past this). */
@@ -146,11 +190,14 @@ export async function computeAwards(sessionId: number): Promise<StreamAwards> {
     .map((r) => ({ ...r, winner: winners.has(r.xAccount) }));
 
   // Newcomers rise from 0; with no round before this one, there is no award yet.
-  const before = previous ? await totals(previous.id) : new Map<string, StreamRankRow>();
+  const before = previous ? await lastTotals(session) : new Map<string, LastTotal>();
   const all = (previous ? [...current.entries()] : [])
     .map(([key, row]) => {
-      const prev = before.get(key)?.streams ?? 0;
-      return { ...row, previous: prev, gain: row.streams - prev, winner: false };
+      const last = before.get(key);
+      const prev = last?.streams ?? 0;
+      // Named only when it is not the round just before, which the board already names.
+      const previousRound = last && last.round.id !== previous?.id ? last.round.name : null;
+      return { ...row, previous: prev, previousRound, gain: row.streams - prev, winner: false };
     })
     .filter((r) => r.gain > 0)
     .sort((a, b) => b.gain - a.gain || b.streams - a.streams || a.xAccount.localeCompare(b.xAccount));

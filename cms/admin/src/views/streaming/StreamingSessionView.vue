@@ -513,7 +513,7 @@ const when = (iso: string) => dateFmt.format(new Date(iso));
                 <span>@{{ r.xAccount }}</span>
                 <ElTag v-if="r.winner" size="small" type="warning" class="ml">ผู้ชนะ</ElTag>
                 <b>+{{ num(r.gain) }}</b>
-                <span class="hint">{{ !awards.previous ? '' : r.previous ? `${num(r.previous)} → ${num(r.streams)}` : 'ใหม่รอบนี้' }}</span>
+                <span class="hint">{{ !awards.previous ? '' : r.previous ? `${num(r.previous)}${r.previousRound ? ` (${r.previousRound})` : ''} → ${num(r.streams)}` : 'ใหม่รอบนี้' }}</span>
               </li>
             </ol>
           </ElCard>

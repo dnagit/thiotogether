@@ -95,7 +95,11 @@ const rows = computed<Row[]>(() => {
       winner: r.winner,
       score: `+${num(r.gain)}`,
       // With no round before, everyone starts from 0 and "new" would say nothing.
-      sub: !a.previous ? null : r.previous ? `${num(r.previous)} → ${num(r.streams)}` : 'ใหม่รอบนี้ ✨',
+      sub: !a.previous
+        ? null
+        : r.previous
+          ? `${num(r.previous)}${r.previousRound ? ` (${r.previousRound})` : ''} → ${num(r.streams)}`
+          : 'ใหม่รอบนี้ ✨',
       prize: prizeOf.value(r.xAccount),
     }));
   }
